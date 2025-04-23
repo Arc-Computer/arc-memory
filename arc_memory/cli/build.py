@@ -159,10 +159,13 @@ def build(
 
             # Write to database
             task = progress.add_task("Writing to database...", total=None)
-            # In a real implementation, we would use the add_nodes_and_edges function
-            # For now, we'll just simulate it
-            node_count = len(all_nodes)
-            edge_count = len(all_edges)
+            from arc_memory.sql.db import add_nodes_and_edges
+            add_nodes_and_edges(conn, all_nodes, all_edges)
+
+            # Get the node and edge counts
+            from arc_memory.sql.db import get_node_count, get_edge_count
+            node_count = get_node_count(conn)
+            edge_count = get_edge_count(conn)
             progress.update(task, completed=True)
 
             # Compress database
