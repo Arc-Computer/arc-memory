@@ -29,6 +29,30 @@ DEFAULT_COMPRESSED_DB_PATH = Path.home() / ".arc" / "graph.db.zst"
 DEFAULT_MANIFEST_PATH = Path.home() / ".arc" / "build.json"
 
 
+def get_connection(db_path: Optional[Path] = None) -> sqlite3.Connection:
+    """Get a connection to the database.
+
+    Args:
+        db_path: Path to the database file. If None, uses the default path.
+
+    Returns:
+        A connection to the database.
+    """
+    if db_path is None:
+        db_path = DEFAULT_DB_PATH
+
+    if not db_path.exists():
+        raise GraphQueryError(f"Database file not found: {db_path}")
+
+    try:
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+    except Exception as e:
+        logger.error(f"Failed to connect to database: {e}")
+        raise GraphQueryError(f"Failed to connect to database: {e}")
+
+
 def ensure_arc_dir() -> Path:
     """Ensure the .arc directory exists.
 
