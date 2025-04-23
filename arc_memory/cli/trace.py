@@ -25,9 +25,7 @@ def callback() -> None:
 def trace_file(
     file_path: str = typer.Argument(..., help="Path to the file"),
     line_number: int = typer.Argument(..., help="Line number to trace"),
-    repo_path: Path = typer.Option(
-        Path.cwd(), "--repo", "-r", help="Path to the Git repository"
-    ),
+    # Note: repo_path is determined automatically from the current working directory
     max_results: int = typer.Option(
         3, "--max-results", "-m", help="Maximum number of results to return"
     ),
@@ -56,7 +54,6 @@ def trace_file(
 
         # Trace the history
         results = trace_history_for_file_line(
-            repo_path,
             db_path,
             file_path,
             line_number,

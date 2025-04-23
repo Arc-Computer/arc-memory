@@ -11,10 +11,10 @@ import subprocess
 from datetime import datetime
 from functools import lru_cache
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple, Set
+from typing import Dict, List, Optional, Any
 
 from arc_memory.logging_conf import get_logger
-from arc_memory.schema.models import Node, Edge, NodeType
+from arc_memory.schema.models import Node, NodeType
 from arc_memory.sql.db import get_connection
 
 logger = get_logger(__name__)
@@ -82,59 +82,57 @@ def get_commit_for_line(repo_path: Path, file_path: str, line_number: int) -> Op
         return None
 
 
-def trace_history(db_path: Path, commit_id: str, max_hops: int = 2, max_results: int = 3) -> List[Node]:
+def trace_history(
+    conn: sqlite3.Connection, file_path: str, line_number: int, max_nodes: int = 3
+) -> List[Dict[str, Any]]:
     """
-    Trace the history of a commit using a BFS algorithm.
+    Trace the history of a file line.
 
     Args:
-        db_path: Path to the SQLite database
-        commit_id: The commit hash to start from
-        max_hops: Maximum number of hops in the graph
-        max_results: Maximum number of results to return
+        conn: SQLite connection
+        file_path: Path to the file, relative to the repository root
+        line_number: Line number to check (1-based)
+        max_nodes: Maximum number of nodes to return
 
     Returns:
         A list of nodes representing the history trail
     """
     try:
-        # Connect to the database
-        conn = get_connection(db_path)
+        # This is a placeholder implementation
+        # In a real implementation, we would:
+        # 1. Get the commit for the line using git blame
+        # 2. Trace the history of the commit
+        # 3. Format the results
+
+        # Get the current working directory
+        cwd = os.getcwd()
+        repo_path = Path(cwd)
+
+        # Get the commit for the line
+        commit_id = get_commit_for_line(repo_path, file_path, line_number)
+        if not commit_id:
+            logger.warning(f"No commit found for {file_path}:{line_number}")
+            return []
 
         # Start with the commit node
         start_node_id = f"commit:{commit_id}"
 
-        # Initialize BFS
-        visited: Set[str] = set()
-        queue: List[Tuple[str, int]] = [(start_node_id, 0)]  # (node_id, hop_count)
-        result_nodes: List[Node] = []
+        # Get the commit node
+        commit_node = get_node_by_id(conn, start_node_id)
+        if not commit_node:
+            logger.warning(f"Commit node not found: {start_node_id}")
+            return []
 
-        # Perform BFS
-        while queue and len(result_nodes) < max_results:
-            node_id, hop_count = queue.pop(0)
+        # Format the result
+        result = [{
+            "type": "commit",
+            "id": start_node_id,
+            "title": commit_node.title or "",
+            "timestamp": commit_node.ts.isoformat() if commit_node.ts else None
+        }]
 
-            # Skip if already visited or max hops reached
-            if node_id in visited or hop_count > max_hops:
-                continue
-
-            visited.add(node_id)
-
-            # Get the node from the database
-            node = get_node_by_id(conn, node_id)
-            if node:
-                result_nodes.append(node)
-
-            # If we've reached max hops, don't explore further
-            if hop_count >= max_hops:
-                continue
-
-            # Get connected nodes based on the current node type
-            connected_nodes = get_connected_nodes(conn, node_id, hop_count)
-
-            # Add connected nodes to the queue
-            for connected_id in connected_nodes:
-                if connected_id not in visited:
-                    queue.append((connected_id, hop_count + 1))
-
-        return result_nodes
+        # Return the result (limited to max_nodes)
+        return result[:max_nodes]
 
     except Exception as e:
         logger.error(f"Error in trace_history: {e}")
@@ -295,7 +293,6 @@ def format_trace_results(nodes: List[Node]) -> List[Dict[str, Any]]:
 
 
 def trace_history_for_file_line(
-    repo_path: Path,
     db_path: Path,
     file_path: str,
     line_number: int,
@@ -305,7 +302,6 @@ def trace_history_for_file_line(
     Trace the history of a specific line in a file.
 
     Args:
-        repo_path: Path to the Git repository
         db_path: Path to the SQLite database
         file_path: Path to the file, relative to the repository root
         line_number: Line number to check (1-based)
@@ -315,17 +311,16 @@ def trace_history_for_file_line(
         Formatted results as specified in the API docs
     """
     try:
-        # Get the commit for the line
-        commit_id = get_commit_for_line(repo_path, file_path, line_number)
-        if not commit_id:
-            logger.warning(f"No commit found for {file_path}:{line_number}")
-            return []
+        # Get a connection to the database
+        conn = get_connection(db_path)
 
-        # Trace the history
-        nodes = trace_history(db_path, commit_id, max_hops=2, max_results=max_results)
+        # Call the trace_history function
+        results = trace_history(conn, file_path, line_number, max_nodes=max_results)
 
-        # Format the results
-        return format_trace_results(nodes)
+        # Close the connection
+        conn.close()
+
+        return results
 
     except Exception as e:
         logger.error(f"Error in trace_history_for_file_line: {e}")
