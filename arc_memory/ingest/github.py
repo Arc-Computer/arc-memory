@@ -10,7 +10,7 @@ import git
 import requests
 from git import Repo
 
-from arc_memory.auth.github import get_github_token
+from arc_memory.auth.github import get_github_token, get_installation_token_for_repo
 from arc_memory.errors import GitHubAuthError, IngestError
 from arc_memory.logging_conf import get_logger
 from arc_memory.schema.models import Edge, EdgeRel, IssueNode, NodeType, PRNode
@@ -106,7 +106,15 @@ def ingest_github(
 
         # Get GitHub token
         try:
-            github_token = get_github_token(token)
+            # Try to get an installation token first
+            installation_token = get_installation_token_for_repo(owner, repo)
+            if installation_token:
+                logger.info(f"Using GitHub App installation token for {owner}/{repo}")
+                github_token = installation_token
+            else:
+                # Fall back to personal access token
+                github_token = get_github_token(token)
+                logger.info("Using personal access token")
         except GitHubAuthError as e:
             logger.warning(f"GitHub authentication failed: {e}")
             logger.warning("Continuing without GitHub data")

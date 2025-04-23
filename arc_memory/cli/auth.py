@@ -8,10 +8,14 @@ import typer
 from rich.console import Console
 
 from arc_memory.auth.github import (
+    GitHubAppConfig,
+    get_github_app_config_from_env,
+    get_github_app_config_from_keyring,
     get_token_from_env,
     get_token_from_keyring,
     poll_device_flow,
     start_device_flow,
+    store_github_app_config_in_keyring,
     store_token_in_keyring,
 )
 from arc_memory.errors import GitHubAuthError
@@ -44,6 +48,118 @@ def github_auth(
     ),
 ) -> None:
     """Authenticate with GitHub using device flow."""
+
+
+@app.command("gh-app")
+def github_app_auth(
+    app_id: str = typer.Option(
+        None, "--app-id", help="GitHub App ID."
+    ),
+    private_key_path: str = typer.Option(
+        None, "--private-key", help="Path to the GitHub App private key file."
+    ),
+    client_id: str = typer.Option(
+        None, "--client-id", help="GitHub OAuth client ID for the GitHub App."
+    ),
+    client_secret: str = typer.Option(
+        None, "--client-secret", help="GitHub OAuth client secret for the GitHub App."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="Enable debug logging."
+    ),
+) -> None:
+    """Configure GitHub App authentication.
+
+    This command stores GitHub App credentials in the system keyring.
+    These credentials are used to generate installation tokens for repositories
+    where the GitHub App is installed.
+    """
+    configure_logging(debug=debug)
+
+    # Check if we already have GitHub App config from environment
+    env_config = get_github_app_config_from_env()
+    if env_config:
+        console.print(
+            "[green]GitHub App configuration found in environment variables.[/green]"
+        )
+        if typer.confirm("Do you want to store this configuration in the system keyring?"):
+            if store_github_app_config_in_keyring(env_config):
+                console.print(
+                    "[green]GitHub App configuration stored in system keyring.[/green]"
+                )
+            else:
+                console.print(
+                    "[yellow]Failed to store GitHub App configuration in system keyring. "
+                    "You can still use the configuration from environment variables.[/yellow]"
+                )
+        return
+
+    # Check if we already have GitHub App config in keyring
+    keyring_config = get_github_app_config_from_keyring()
+    if keyring_config:
+        console.print(
+            "[green]GitHub App configuration found in system keyring.[/green]"
+        )
+        if typer.confirm("Do you want to use this configuration?"):
+            console.print(
+                "[green]Using existing GitHub App configuration from system keyring.[/green]"
+            )
+            return
+
+    # Check if all required parameters are provided
+    if not app_id or not private_key_path or not client_id or not client_secret:
+        console.print(
+            "[red]Missing required parameters for GitHub App configuration.[/red]"
+        )
+        console.print(
+            "Please provide --app-id, --private-key, --client-id, and --client-secret."
+        )
+        sys.exit(1)
+
+    # Read private key from file
+    try:
+        with open(private_key_path, "r") as f:
+            private_key = f.read()
+    except Exception as e:
+        console.print(f"[red]Failed to read private key file: {e}[/red]")
+        sys.exit(1)
+
+    # Create and store GitHub App config
+    try:
+        config = GitHubAppConfig(
+            app_id=app_id,
+            private_key=private_key,
+            client_id=client_id,
+            client_secret=client_secret
+        )
+
+        if store_github_app_config_in_keyring(config):
+            console.print(
+                "[green]GitHub App configuration stored in system keyring.[/green]"
+            )
+            console.print(
+                "[green]You can now use GitHub App installation tokens for repositories where the app is installed.[/green]"
+            )
+        else:
+            console.print(
+                "[red]Failed to store GitHub App configuration in system keyring.[/red]"
+            )
+            sys.exit(1)
+    except Exception as e:
+        console.print(f"[red]Failed to create GitHub App configuration: {e}[/red]")
+        sys.exit(1)
+
+
+github_auth.callback = None  # type: ignore
+
+
+@github_auth.callback
+def github_auth_impl(
+    client_id: str,
+    client_secret: str,
+    timeout: int,
+    debug: bool,
+) -> None:
     configure_logging(debug=debug)
 
     # Check if we already have a token

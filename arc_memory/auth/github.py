@@ -20,10 +20,18 @@ logger = get_logger(__name__)
 # Constants
 KEYRING_SERVICE = "arc-memory"
 KEYRING_USERNAME = "github-token"
+KEYRING_APP_USERNAME = "github-app"
 GITHUB_API_URL = "https://api.github.com"
 DEVICE_CODE_URL = f"{GITHUB_API_URL}/login/device/code"
 DEVICE_TOKEN_URL = f"{GITHUB_API_URL}/login/oauth/access_token"
 USER_AGENT = "Arc-Memory/0.1.0"
+
+# Environment variable names
+ENV_APP_ID = "ARC_GITHUB_APP_ID"
+ENV_PRIVATE_KEY_PATH = "ARC_GITHUB_PRIVATE_KEY_PATH"
+ENV_PRIVATE_KEY = "ARC_GITHUB_PRIVATE_KEY"
+ENV_CLIENT_ID = "ARC_GITHUB_CLIENT_ID"
+ENV_CLIENT_SECRET = "ARC_GITHUB_CLIENT_SECRET"
 
 
 class GitHubAppConfig(BaseModel):
@@ -75,6 +83,56 @@ def get_token_from_keyring() -> Optional[str]:
     return None
 
 
+def get_github_app_config_from_env() -> Optional[GitHubAppConfig]:
+    """Get GitHub App configuration from environment variables.
+
+    Returns:
+        The GitHub App configuration, or None if not found.
+    """
+    app_id = os.environ.get(ENV_APP_ID)
+    client_id = os.environ.get(ENV_CLIENT_ID)
+    client_secret = os.environ.get(ENV_CLIENT_SECRET)
+
+    # Check for private key
+    private_key = os.environ.get(ENV_PRIVATE_KEY)
+    if not private_key and os.environ.get(ENV_PRIVATE_KEY_PATH):
+        try:
+            with open(os.environ.get(ENV_PRIVATE_KEY_PATH), "r") as f:
+                private_key = f.read()
+        except Exception as e:
+            logger.warning(f"Failed to read private key file: {e}")
+
+    # Ensure we have all required values
+    if not all([app_id, private_key, client_id, client_secret]):
+        return None
+
+    logger.info(f"Found GitHub App configuration in environment variables (App ID: {app_id})")
+    return GitHubAppConfig(
+        app_id=app_id,
+        private_key=private_key,
+        client_id=client_id,
+        client_secret=client_secret
+    )
+
+
+def get_github_app_config_from_keyring() -> Optional[GitHubAppConfig]:
+    """Get GitHub App configuration from the system keyring.
+
+    Returns:
+        The GitHub App configuration, or None if not found.
+    """
+    try:
+        config_json = keyring.get_password(KEYRING_SERVICE, KEYRING_APP_USERNAME)
+        if config_json:
+            config_dict = json.loads(config_json)
+            logger.info(f"Found GitHub App configuration in system keyring (App ID: {config_dict.get('app_id')})")
+            return GitHubAppConfig(**config_dict)
+    except Exception as e:
+        logger.warning(f"Failed to get GitHub App configuration from keyring: {e}")
+
+    return None
+
+
 def store_token_in_keyring(token: str) -> bool:
     """Store a GitHub token in the system keyring.
 
@@ -93,11 +151,80 @@ def store_token_in_keyring(token: str) -> bool:
         return False
 
 
-def get_github_token(token: Optional[str] = None) -> str:
+def store_github_app_config_in_keyring(config: GitHubAppConfig) -> bool:
+    """Store GitHub App configuration in the system keyring.
+
+    Args:
+        config: The GitHub App configuration to store.
+
+    Returns:
+        True if successful, False otherwise.
+    """
+    try:
+        config_json = json.dumps(config.model_dump())
+        keyring.set_password(KEYRING_SERVICE, KEYRING_APP_USERNAME, config_json)
+        logger.info(f"Stored GitHub App configuration in system keyring (App ID: {config.app_id})")
+        return True
+    except Exception as e:
+        logger.warning(f"Failed to store GitHub App configuration in keyring: {e}")
+        return False
+
+
+def get_github_app_config() -> Optional[GitHubAppConfig]:
+    """Get GitHub App configuration from various sources.
+
+    Returns:
+        The GitHub App configuration, or None if not found.
+    """
+    # Check environment variables
+    env_config = get_github_app_config_from_env()
+    if env_config:
+        return env_config
+
+    # Check keyring
+    keyring_config = get_github_app_config_from_keyring()
+    if keyring_config:
+        return keyring_config
+
+    return None
+
+
+def get_installation_token_for_repo(
+    owner: str, repo: str, app_config: Optional[GitHubAppConfig] = None
+) -> Optional[str]:
+    """Get an installation token for a repository.
+
+    Args:
+        owner: The repository owner.
+        repo: The repository name.
+        app_config: The GitHub App configuration. If None, tries to find it from other sources.
+
+    Returns:
+        The installation token, or None if it could not be obtained.
+    """
+    if not app_config:
+        app_config = get_github_app_config()
+        if not app_config:
+            logger.warning("No GitHub App configuration found")
+            return None
+
+    try:
+        installation_id = get_installation_id(app_config.app_id, app_config.private_key, owner, repo)
+        token, _ = get_installation_token(app_config.app_id, app_config.private_key, installation_id)
+        logger.info(f"Got installation token for {owner}/{repo}")
+        return token
+    except GitHubAuthError as e:
+        logger.warning(f"Failed to get installation token: {e}")
+        return None
+
+
+def get_github_token(token: Optional[str] = None, owner: Optional[str] = None, repo: Optional[str] = None) -> str:
     """Get a GitHub token from various sources.
 
     Args:
         token: An explicit token to use. If None, tries to find a token from other sources.
+        owner: The repository owner. Used for GitHub App installation tokens.
+        repo: The repository name. Used for GitHub App installation tokens.
 
     Returns:
         A GitHub token.
@@ -119,6 +246,12 @@ def get_github_token(token: Optional[str] = None) -> str:
     keyring_token = get_token_from_keyring()
     if keyring_token:
         return keyring_token
+
+    # Check GitHub App installation token if owner and repo are provided
+    if owner and repo:
+        installation_token = get_installation_token_for_repo(owner, repo)
+        if installation_token:
+            return installation_token
 
     # No token found
     raise GitHubAuthError(
@@ -224,7 +357,9 @@ def poll_device_flow(
             logger.error(f"Failed to poll device flow: {e}")
             raise GitHubAuthError(f"Failed to poll device flow: {e}")
 
-        time.sleep(interval)
+        # This line is unreachable due to the continue/raise/return above,
+        # but we'll keep it for clarity in case the logic changes
+        # time.sleep(interval)
 
     # Timeout
     raise GitHubAuthError("Device flow timed out. Please try again.")
