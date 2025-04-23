@@ -183,11 +183,35 @@ class ADRIngestor:
 
                     ts = datetime.now()
                     if "date" in frontmatter:
-                        try:
-                            ts = datetime.fromisoformat(frontmatter["date"])
-                        except ValueError:
-                            # Try other date formats
-                            pass
+                        date_str = frontmatter["date"]
+                        if isinstance(date_str, str):
+                            # Try different date formats
+                            date_formats = [
+                                "%Y-%m-%d",  # ISO format: 2023-11-15
+                                "%Y-%m-%dT%H:%M:%S",  # ISO format with time: 2023-11-15T14:30:00
+                                "%Y-%m-%dT%H:%M:%S.%f",  # ISO format with microseconds: 2023-11-15T14:30:00.123456
+                                "%Y/%m/%d",  # Slash format: 2023/11/15
+                                "%d-%m-%Y",  # European format: 15-11-2023
+                                "%d/%m/%Y",  # European slash format: 15/11/2023
+                                "%B %d, %Y",  # Month name format: November 15, 2023
+                                "%b %d, %Y",  # Abbreviated month format: Nov 15, 2023
+                            ]
+
+                            for date_format in date_formats:
+                                try:
+                                    ts = datetime.strptime(date_str, date_format)
+                                    break
+                                except ValueError:
+                                    continue
+
+                            # If all formats fail, try fromisoformat as a last resort
+                            if ts == datetime.now():
+                                try:
+                                    ts = datetime.fromisoformat(date_str)
+                                except ValueError:
+                                    logger.warning(f"Could not parse date: {date_str}")
+                        else:
+                            logger.warning(f"Date is not a string: {date_str}")
 
                     adr_node = ADRNode(
                         id=adr_id,
