@@ -1,0 +1,113 @@
+"""Git ingestion for Arc Memory."""
+
+import os
+from datetime import datetime, timedelta
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple, Any
+
+import git
+from git import Repo
+
+from arc_memory.errors import GitError, IngestError
+from arc_memory.logging_conf import get_logger
+from arc_memory.schema.models import CommitNode, Edge, EdgeRel, Node, NodeType
+
+logger = get_logger(__name__)
+
+
+def ingest_git(
+    repo_path: Path,
+    max_commits: int = 5000,
+    days: int = 365,
+    last_commit_hash: Optional[str] = None,
+) -> Tuple[List[Node], List[Edge], Dict[str, Any]]:
+    """Ingest Git data from a repository.
+
+    Args:
+        repo_path: Path to the Git repository.
+        max_commits: Maximum number of commits to process.
+        days: Maximum age of commits to process in days.
+        last_commit_hash: The hash of the last processed commit for incremental builds.
+
+    Returns:
+        A tuple of (nodes, edges, metadata).
+
+    Raises:
+        GitError: If there's an error accessing the Git repository.
+        IngestError: If there's an error during ingestion.
+    """
+    logger.info(f"Ingesting Git data from {repo_path}")
+    logger.info(f"Max commits: {max_commits}, Max days: {days}")
+    if last_commit_hash:
+        logger.info(f"Incremental build from commit {last_commit_hash}")
+
+    try:
+        # Open the repository
+        repo = Repo(repo_path)
+
+        # Get commits
+        if last_commit_hash:
+            # Incremental: Get commits since last processed commit
+            try:
+                # Make sure the commit exists in the repo
+                repo.commit(last_commit_hash)
+                commit_range = f"{last_commit_hash}..HEAD"
+                commits = list(repo.iter_commits(commit_range, max_count=max_commits))
+            except git.exc.GitCommandError:
+                logger.warning(f"Commit {last_commit_hash} not found, falling back to full build")
+                commits = list(repo.iter_commits(max_count=max_commits))
+        else:
+            # Full build: Get commits with limits
+            since_date = datetime.now() - timedelta(days=days)
+            commits = list(repo.iter_commits(max_count=max_commits, since=since_date))
+
+        logger.info(f"Processing {len(commits)} commits")
+
+        # Process commits
+        nodes = []
+        edges = []
+        for commit in commits:
+            # Create commit node
+            commit_node = CommitNode(
+                id=f"commit:{commit.hexsha}",
+                type=NodeType.COMMIT,
+                title=commit.summary,
+                body=commit.message,
+                created_at=datetime.fromtimestamp(commit.committed_date),
+                author=commit.author.name,
+                files=list(commit.stats.files.keys()),
+                sha=commit.hexsha,
+            )
+            nodes.append(commit_node)
+
+            # Create edges to modified files
+            for file_path in commit.stats.files:
+                edge = Edge(
+                    src=commit_node.id,
+                    dst=f"file:{file_path}",
+                    rel=EdgeRel.MODIFIES,
+                    properties={
+                        "insertions": commit.stats.files[file_path]["insertions"],
+                        "deletions": commit.stats.files[file_path]["deletions"],
+                    },
+                )
+                edges.append(edge)
+
+        # Create metadata
+        metadata = {
+            "commit_count": len(commits),
+            "last_commit_hash": commits[0].hexsha if commits else last_commit_hash,
+            "timestamp": datetime.now().isoformat(),
+        }
+
+        logger.info(f"Processed {len(nodes)} commit nodes and {len(edges)} edges")
+        return nodes, edges, metadata
+    except git.exc.GitCommandError as e:
+        logger.error(f"Git command error: {e}")
+        raise GitError(f"Git command error: {e}")
+    except git.exc.InvalidGitRepositoryError:
+        logger.error(f"{repo_path} is not a valid Git repository")
+        raise GitError(f"{repo_path} is not a valid Git repository")
+    except Exception as e:
+        logger.exception("Unexpected error during Git ingestion")
+        raise IngestError(f"Failed to ingest Git data: {e}")
