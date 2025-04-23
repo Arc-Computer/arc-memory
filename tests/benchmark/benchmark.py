@@ -237,16 +237,37 @@ def run_benchmarks(repo_size: str, output_file: Optional[Path] = None) -> None:
 
         # Find a file to trace
         print("Finding a file to trace...")
-        python_files = list(temp_dir.glob("**/*.py"))
-        if not python_files:
-            print("No Python files found in the repository.")
-            return
 
-        file_to_trace = str(python_files[0].relative_to(temp_dir))
+        # Use repository-specific known files
+        if repo_size == "small":
+            file_to_trace = "arc_memory/version.py"
+        elif repo_size == "medium":
+            file_to_trace = "src/flask/__init__.py"
+        elif repo_size == "large":
+            file_to_trace = "django/__init__.py"
+        else:
+            # Unknown repository size, use a generic approach
+            file_to_trace = "README.md"
 
-        # Benchmark trace history
-        print(f"Benchmarking trace history for {file_to_trace}:10...")
-        trace_results = benchmark_trace(temp_dir, file_to_trace, 10)
+        # Verify the file exists
+        if not (temp_dir / file_to_trace).exists():
+            print(f"File {file_to_trace} not found. Skipping trace history benchmark.")
+            trace_results = {
+                "type": "trace",
+                "file_path": file_to_trace,
+                "line_number": 1,
+                "iterations": 0,
+                "durations_seconds": [],
+                "avg_duration_seconds": 0.0,
+                "min_duration_seconds": 0.0,
+                "max_duration_seconds": 0.0,
+                "result_count": 0,
+                "error": "File not found"
+            }
+        else:
+            # Benchmark trace history
+            print(f"Benchmarking trace history for {file_to_trace}:1...")
+            trace_results = benchmark_trace(temp_dir, file_to_trace, 1)
         results["benchmarks"].append(trace_results)
 
         # Print summary

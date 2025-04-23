@@ -82,12 +82,21 @@ def build_graph(
                 last_processed=last_processed_data,
             )
         # Special handling for GitHub plugin (pass token)
+        # Only use GitHub plugin for our own repository to avoid authentication issues
+        elif plugin_name == "github" and repo_path.name == "arc-memory":
+            try:
+                nodes, edges, metadata = plugin.ingest(
+                    repo_path,
+                    token=token,
+                    last_processed=last_processed_data,
+                )
+            except Exception as e:
+                print(f"GitHub plugin failed: {e}")
+                print("Continuing without GitHub data")
+                nodes, edges, metadata = [], [], {}
         elif plugin_name == "github":
-            nodes, edges, metadata = plugin.ingest(
-                repo_path,
-                token=token,
-                last_processed=last_processed_data,
-            )
+            print(f"Skipping GitHub plugin for external repository: {repo_path.name}")
+            nodes, edges, metadata = [], [], {}
         # Default handling for other plugins
         else:
             nodes, edges, metadata = plugin.ingest(
