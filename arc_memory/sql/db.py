@@ -3,6 +3,7 @@
 import json
 import os
 import sqlite3
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -22,6 +23,15 @@ from arc_memory.schema.models import (
 )
 
 logger = get_logger(__name__)
+
+
+class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder for datetime and date objects."""
+
+    def default(self, obj):
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        return super().default(obj)
 
 # Default paths
 DEFAULT_DB_PATH = Path.home() / ".arc" / "graph.db"
@@ -294,7 +304,7 @@ def add_nodes_and_edges(
                         node.type.value,
                         node.title,
                         node.body,
-                        json.dumps(node.extra),
+                        json.dumps(node.extra, cls=DateTimeEncoder),
                     ),
                 )
 
@@ -309,7 +319,7 @@ def add_nodes_and_edges(
                         edge.src,
                         edge.dst,
                         edge.rel.value,
-                        json.dumps(edge.properties),
+                        json.dumps(edge.properties, cls=DateTimeEncoder),
                     ),
                 )
 
