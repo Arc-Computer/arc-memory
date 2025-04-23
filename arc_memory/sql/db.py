@@ -91,8 +91,8 @@ def init_db(db_path: Optional[Path] = None) -> apsw.Connection:
         CREATE TABLE IF NOT EXISTS nodes(
             id TEXT PRIMARY KEY,
             type TEXT NOT NULL,
-            title TEXT NOT NULL,
-            body TEXT NOT NULL,
+            title TEXT,
+            body TEXT,
             extra TEXT
         )
         """
