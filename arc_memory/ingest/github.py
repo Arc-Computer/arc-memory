@@ -76,12 +76,128 @@ def get_repo_info(repo_path: Path) -> Tuple[str, str]:
         raise IngestError(f"Failed to get repository info: {e}")
 
 
+class GitHubIngestor:
+    """Ingestor plugin for GitHub repositories."""
+
+    def get_name(self) -> str:
+        """Return the name of this plugin."""
+        return "github"
+
+    def get_node_types(self) -> List[str]:
+        """Return the node types this plugin can create."""
+        return [NodeType.PR, NodeType.ISSUE]
+
+    def get_edge_types(self) -> List[str]:
+        """Return the edge types this plugin can create."""
+        return [EdgeRel.MENTIONS, EdgeRel.MERGES]
+
+    def ingest(
+        self,
+        repo_path: Path,
+        token: Optional[str] = None,
+        last_processed: Optional[Dict[str, Any]] = None,
+    ) -> Tuple[List[Any], List[Edge], Dict[str, Any]]:
+        """Ingest GitHub data for a repository.
+
+        Args:
+            repo_path: Path to the Git repository.
+            token: GitHub token to use for API calls.
+            last_processed: Metadata from the last build for incremental processing.
+
+        Returns:
+            A tuple of (nodes, edges, metadata).
+
+        Raises:
+            GitHubAuthError: If there's an error with GitHub authentication.
+            IngestError: If there's an error during ingestion.
+        """
+        logger.info(f"Ingesting GitHub data for repository at {repo_path}")
+        if last_processed:
+            logger.info("Performing incremental build")
+
+        try:
+            # Get repository owner and name
+            owner, repo = get_repo_info(repo_path)
+            logger.info(f"Repository: {owner}/{repo}")
+
+            # Get GitHub token
+            try:
+                # Try to get an installation token first
+                installation_token = get_installation_token_for_repo(owner, repo)
+                if installation_token:
+                    logger.info(f"Using GitHub App installation token for {owner}/{repo}")
+                    github_token = installation_token
+                else:
+                    # Fall back to personal access token
+                    github_token = get_github_token(token)
+                    logger.info("Using personal access token")
+            except GitHubAuthError as e:
+                logger.warning(f"GitHub authentication failed: {e}")
+                logger.warning("Continuing without GitHub data")
+                return [], [], {}
+
+            # Set up API headers
+            headers = {
+                "Authorization": f"token {github_token}",
+                "Accept": "application/vnd.github.v3+json",
+                "User-Agent": USER_AGENT,
+            }
+
+            # Get PRs
+            pr_nodes = []
+            pr_edges = []
+
+            # In a real implementation, we would:
+            # 1. Fetch PRs from GitHub API
+            # 2. For incremental builds, use the since parameter
+            # 3. Create PR nodes and edges
+            # 4. Handle pagination
+
+            # For now, we'll just return empty lists
+            logger.info("GitHub ingestion not fully implemented yet")
+            logger.info("Returning empty lists")
+
+            # Get issues
+            issue_nodes = []
+            issue_edges = []
+
+            # In a real implementation, we would:
+            # 1. Fetch issues from GitHub API
+            # 2. For incremental builds, use the since parameter
+            # 3. Create issue nodes and edges
+            # 4. Handle pagination
+
+            # Combine nodes and edges
+            nodes = pr_nodes + issue_nodes
+            edges = pr_edges + issue_edges
+
+            # Create metadata
+            metadata = {
+                "pr_count": len(pr_nodes),
+                "issue_count": len(issue_nodes),
+                "timestamp": datetime.now().isoformat(),
+            }
+
+            logger.info(f"Processed {len(nodes)} GitHub nodes and {len(edges)} edges")
+            return nodes, edges, metadata
+        except GitHubAuthError:
+            # Re-raise GitHubAuthError
+            raise
+        except Exception as e:
+            logger.exception("Unexpected error during GitHub ingestion")
+            raise IngestError(f"Failed to ingest GitHub data: {e}")
+
+
+# For backward compatibility
 def ingest_github(
     repo_path: Path,
     token: Optional[str] = None,
     last_processed: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List[Any], List[Edge], Dict[str, Any]]:
     """Ingest GitHub data for a repository.
+
+    This function is maintained for backward compatibility.
+    New code should use the GitHubIngestor class directly.
 
     Args:
         repo_path: Path to the Git repository.
@@ -90,83 +206,6 @@ def ingest_github(
 
     Returns:
         A tuple of (nodes, edges, metadata).
-
-    Raises:
-        GitHubAuthError: If there's an error with GitHub authentication.
-        IngestError: If there's an error during ingestion.
     """
-    logger.info(f"Ingesting GitHub data for repository at {repo_path}")
-    if last_processed:
-        logger.info("Performing incremental build")
-
-    try:
-        # Get repository owner and name
-        owner, repo = get_repo_info(repo_path)
-        logger.info(f"Repository: {owner}/{repo}")
-
-        # Get GitHub token
-        try:
-            # Try to get an installation token first
-            installation_token = get_installation_token_for_repo(owner, repo)
-            if installation_token:
-                logger.info(f"Using GitHub App installation token for {owner}/{repo}")
-                github_token = installation_token
-            else:
-                # Fall back to personal access token
-                github_token = get_github_token(token)
-                logger.info("Using personal access token")
-        except GitHubAuthError as e:
-            logger.warning(f"GitHub authentication failed: {e}")
-            logger.warning("Continuing without GitHub data")
-            return [], [], {}
-
-        # Set up API headers
-        headers = {
-            "Authorization": f"token {github_token}",
-            "Accept": "application/vnd.github.v3+json",
-            "User-Agent": USER_AGENT,
-        }
-
-        # Get PRs
-        pr_nodes = []
-        pr_edges = []
-
-        # In a real implementation, we would:
-        # 1. Fetch PRs from GitHub API
-        # 2. For incremental builds, use the since parameter
-        # 3. Create PR nodes and edges
-        # 4. Handle pagination
-
-        # For now, we'll just return empty lists
-        logger.info("GitHub ingestion not fully implemented yet")
-        logger.info("Returning empty lists")
-
-        # Get issues
-        issue_nodes = []
-        issue_edges = []
-
-        # In a real implementation, we would:
-        # 1. Fetch issues from GitHub API
-        # 2. For incremental builds, use the since parameter
-        # 3. Create issue nodes and edges
-        # 4. Handle pagination
-
-        # Combine nodes and edges
-        nodes = pr_nodes + issue_nodes
-        edges = pr_edges + issue_edges
-
-        # Create metadata
-        metadata = {
-            "pr_count": len(pr_nodes),
-            "issue_count": len(issue_nodes),
-            "timestamp": datetime.now().isoformat(),
-        }
-
-        logger.info(f"Processed {len(nodes)} GitHub nodes and {len(edges)} edges")
-        return nodes, edges, metadata
-    except GitHubAuthError:
-        # Re-raise GitHubAuthError
-        raise
-    except Exception as e:
-        logger.exception("Unexpected error during GitHub ingestion")
-        raise IngestError(f"Failed to ingest GitHub data: {e}")
+    ingestor = GitHubIngestor()
+    return ingestor.ingest(repo_path, token, last_processed)

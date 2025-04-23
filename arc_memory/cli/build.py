@@ -11,9 +11,7 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from arc_memory.errors import GraphBuildError
-from arc_memory.ingest.adr import ingest_adrs
-from arc_memory.ingest.git import ingest_git
-from arc_memory.ingest.github import ingest_github
+from arc_memory.plugins import discover_plugins
 from arc_memory.logging_conf import configure_logging, get_logger, is_debug_mode
 from arc_memory.schema.models import BuildManifest
 from arc_memory.sql.db import (
@@ -93,6 +91,8 @@ def build(
                 "[yellow]No existing build manifest found. Performing full build.[/yellow]"
             )
             incremental = False
+        else:
+            console.print(f"[green]Found existing build manifest. Last build: {manifest.build_time}[/green]")
 
     # Initialize database
     try:
@@ -108,36 +108,54 @@ def build(
         console=console,
     ) as progress:
         try:
-            # Ingest Git data
-            task = progress.add_task("Ingesting Git data...", total=None)
-            git_nodes, git_edges, git_metadata = ingest_git(
-                repo_path,
-                max_commits=max_commits,
-                days=days,
-                last_commit_hash=manifest.last_commit_hash if manifest and incremental else None,
-            )
-            progress.update(task, completed=True)
+            # Discover plugins
+            registry = discover_plugins()
+            logger.info(f"Discovered plugins: {registry.list_plugins()}")
 
-            # Ingest GitHub data
-            task = progress.add_task("Ingesting GitHub data...", total=None)
-            github_nodes, github_edges, github_metadata = ingest_github(
-                repo_path,
-                token=token,
-                last_processed=manifest.last_processed.get("github", {}) if manifest and incremental else None,
-            )
-            progress.update(task, completed=True)
+            # Initialize lists for all nodes and edges
+            all_nodes = []
+            all_edges = []
+            plugin_metadata = {}
 
-            # Ingest ADRs
-            task = progress.add_task("Ingesting ADRs...", total=None)
-            adr_nodes, adr_edges, adr_metadata = ingest_adrs(
-                repo_path,
-                last_processed=manifest.last_processed.get("adrs", {}) if manifest and incremental else None,
-            )
-            progress.update(task, completed=True)
+            # Process each plugin
+            for plugin in registry.get_all():
+                plugin_name = plugin.get_name()
+                task = progress.add_task(f"Ingesting {plugin_name} data...", total=None)
 
-            # Combine all nodes and edges
-            all_nodes = git_nodes + github_nodes + adr_nodes
-            all_edges = git_edges + github_edges + adr_edges
+                # Get last processed data for this plugin
+                last_processed_data = None
+                if manifest and incremental and plugin_name in manifest.last_processed:
+                    last_processed_data = manifest.last_processed[plugin_name]
+
+                # Special handling for Git plugin (pass max_commits and days)
+                if plugin_name == "git":
+                    nodes, edges, metadata = plugin.ingest(
+                        repo_path,
+                        max_commits=max_commits,
+                        days=days,
+                        last_processed=last_processed_data,
+                    )
+                # Special handling for GitHub plugin (pass token)
+                elif plugin_name == "github":
+                    nodes, edges, metadata = plugin.ingest(
+                        repo_path,
+                        token=token,
+                        last_processed=last_processed_data,
+                    )
+                # Default handling for other plugins
+                else:
+                    nodes, edges, metadata = plugin.ingest(
+                        repo_path,
+                        last_processed=last_processed_data,
+                    )
+
+                # Add results to the combined lists
+                all_nodes.extend(nodes)
+                all_edges.extend(edges)
+                plugin_metadata[plugin_name] = metadata
+
+                # Update progress
+                progress.update(task, completed=True)
 
             # Write to database
             task = progress.add_task("Writing to database...", total=None)
@@ -153,17 +171,18 @@ def build(
             progress.update(task, completed=True)
 
             # Create and save build manifest
+            # Get the last commit hash from the git plugin metadata
+            last_commit_hash = None
+            if "git" in plugin_metadata and "last_commit_hash" in plugin_metadata["git"]:
+                last_commit_hash = plugin_metadata["git"]["last_commit_hash"]
+
             build_manifest = BuildManifest(
                 schema="0.1.0",
                 build_time=datetime.now(),
-                commit=git_metadata.get("last_commit_hash"),
+                commit=last_commit_hash,
                 node_count=node_count,
                 edge_count=edge_count,
-                last_processed={
-                    "git": git_metadata,
-                    "github": github_metadata,
-                    "adrs": adr_metadata,
-                },
+                last_processed=plugin_metadata,
             )
             save_build_manifest(build_manifest)
 
