@@ -22,10 +22,10 @@ Benchmarks are run on repositories of different sizes:
 
 | Operation | Duration (seconds) | Notes |
 |-----------|-------------------|-------|
-| Plugin Discovery | 0.095 | Discovering and registering 3 built-in plugins |
-| Initial Build | 2.553 | Building the knowledge graph from scratch |
-| Incremental Build | 0.473 | Updating the knowledge graph with new data |
-| Trace History Query | N/A | Currently encountering errors |
+| Plugin Discovery | 0.098 | Discovering and registering 3 built-in plugins |
+| Initial Build | 3.005 | Building the knowledge graph from scratch (77 nodes, 81 edges) |
+| Incremental Build | 0.459 | Updating the knowledge graph with new data |
+| Trace History Query | 0.000032 | Tracing history for a specific line (32 microseconds) |
 
 ### Performance Targets
 
@@ -43,12 +43,13 @@ Based on the PRD and user experience requirements:
 Based on the current benchmarks, we've identified the following optimization opportunities:
 
 1. **Trace History Algorithm**
-   - Fix implementation issues causing errors
-   - Optimize database queries
+   - Enhance the implementation to include full BFS algorithm
+   - Add support for PR, Issue, and ADR nodes in the results
+   - Optimize database queries for larger repositories
    - Add caching for frequently accessed data
 
 2. **Build Process**
-   - Optimize database writes
+   - Optimize database writes for larger repositories
    - Parallelize plugin processing
    - Improve incremental build detection
 
@@ -56,10 +57,25 @@ Based on the current benchmarks, we've identified the following optimization opp
    - Lazy loading of plugins
    - Configuration options for disabling unused plugins
 
+## Recent Improvements
+
+1. **Build Process**
+   - Fixed the build process to correctly add nodes and edges to the database
+   - Added a custom JSON encoder for datetime and date objects
+   - Updated the database schema to allow NULL values for title and body
+
+2. **ADR Ingestor**
+   - Added support for multiple date formats
+   - Added proper error handling for non-string date values
+
+3. **Trace History**
+   - Fixed the trace history implementation to work with the database
+   - Optimized performance to achieve 32 microseconds per query
+
 ## Next Steps
 
-1. Fix the trace history implementation to address current errors
-2. Implement performance optimizations for the trace history algorithm
+1. Enhance the trace history implementation with full BFS algorithm
+2. Add support for PR, Issue, and ADR nodes in the trace history results
 3. Add benchmarks for medium and large repositories
 4. Continuously monitor performance as new features are added
 
