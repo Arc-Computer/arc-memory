@@ -1,0 +1,59 @@
+{
+  "timestamp": "2025-04-23T16:25:47.195754",
+  "system_info": {
+    "os": "Darwin",
+    "machine": "arm64",
+    "python_version": "3.12.3 (v3.12.3:f6650f9ad7, Apr  9 2024, 08:18:47) [Clang 13.0.0 (clang-1300.0.29.30)]"
+  },
+  "benchmarks": [
+    {
+      "type": "plugins",
+      "duration_seconds": 0.09005403518676758,
+      "plugin_count": 3,
+      "plugins": [
+        "git",
+        "github",
+        "adr"
+      ]
+    },
+    {
+      "type": "build",
+      "incremental": false,
+      "duration_seconds": 140.36239004135132,
+      "db_size_bytes": 4096,
+      "node_count": 2362,
+      "edge_count": 3463
+    },
+    {
+      "type": "build",
+      "incremental": true,
+      "duration_seconds": 0.2998631000518799,
+      "db_size_bytes": 1552384,
+      "node_count": 2362,
+      "edge_count": 3463
+    },
+    {
+      "type": "trace",
+      "file_path": "tests/sitecustomize.py",
+      "line_number": 10,
+      "iterations": 10,
+      "durations_seconds": [
+        0.00010919570922851562,
+        3.719329833984375e-05,
+        2.47955322265625e-05,
+        2.6226043701171875e-05,
+        2.9802322387695312e-05,
+        2.9802322387695312e-05,
+        3.218650817871094e-05,
+        2.4080276489257812e-05,
+        2.09808349609375e-05,
+        2.6941299438476562e-05
+      ],
+      "avg_duration_seconds": 3.612041473388672e-05,
+      "min_duration_seconds": 2.09808349609375e-05,
+      "max_duration_seconds": 0.00010919570922851562,
+      "result_count": 0,
+      "failed_iterations": 0
+    }
+  ]
+}

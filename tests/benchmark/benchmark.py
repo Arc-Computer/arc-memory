@@ -242,9 +242,9 @@ def run_benchmarks(repo_size: str, output_file: Optional[Path] = None) -> None:
         if repo_size == "small":
             file_to_trace = "arc_memory/version.py"
         elif repo_size == "medium":
-            file_to_trace = "src/flask/__init__.py"
+            file_to_trace = "flask/__init__.py"  # Flask repository structure
         elif repo_size == "large":
-            file_to_trace = "django/__init__.py"
+            file_to_trace = "django/__init__.py"  # Django repository structure
         else:
             # Unknown repository size, use a generic approach
             file_to_trace = "README.md"

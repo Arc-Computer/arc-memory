@@ -1,0 +1,59 @@
+{
+  "timestamp": "2025-04-23T16:31:23.535190",
+  "system_info": {
+    "os": "Darwin",
+    "machine": "arm64",
+    "python_version": "3.12.3 (v3.12.3:f6650f9ad7, Apr  9 2024, 08:18:47) [Clang 13.0.0 (clang-1300.0.29.30)]"
+  },
+  "benchmarks": [
+    {
+      "type": "plugins",
+      "duration_seconds": 0.0886380672454834,
+      "plugin_count": 3,
+      "plugins": [
+        "git",
+        "github",
+        "adr"
+      ]
+    },
+    {
+      "type": "build",
+      "incremental": false,
+      "duration_seconds": 15.79738998413086,
+      "db_size_bytes": 237568,
+      "node_count": 223,
+      "edge_count": 486
+    },
+    {
+      "type": "build",
+      "incremental": true,
+      "duration_seconds": 0.035156965255737305,
+      "db_size_bytes": 237568,
+      "node_count": 223,
+      "edge_count": 486
+    },
+    {
+      "type": "trace",
+      "file_path": "src/flask/__init__.py",
+      "line_number": 1,
+      "iterations": 10,
+      "durations_seconds": [
+        0.00011181831359863281,
+        3.218650817871094e-05,
+        2.5987625122070312e-05,
+        2.384185791015625e-05,
+        2.09808349609375e-05,
+        2.2172927856445312e-05,
+        2.09808349609375e-05,
+        1.9788742065429688e-05,
+        2.0265579223632812e-05,
+        2.0265579223632812e-05
+      ],
+      "avg_duration_seconds": 3.1828880310058594e-05,
+      "min_duration_seconds": 1.9788742065429688e-05,
+      "max_duration_seconds": 0.00011181831359863281,
+      "result_count": 0,
+      "failed_iterations": 0
+    }
+  ]
+}
