@@ -12,6 +12,8 @@
   <a href="https://github.com/Arc-Computer/arc-memory/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Arc-Computer/arc-memory" alt="License"></a>
 </p>
 
+At Arc, we're building the foundational memory layer for modern software engineering. Our mission is simple but powerful: ensure engineering teams never lose the critical "why" behind their code.
+
 ## Vision
 
 Software will soon be written by fleets of autonomous agents collaborating with humans.
@@ -29,7 +31,7 @@ That future needs a shared, trusted memory—one that captures not just what cha
 
 ## Overview
 
-Arc Memory embeds a local, bi-temporal knowledge graph (TKG) in every developer's workspace. It surfaces verifiable decision trails during code-review and exposes the same provenance to any LLM-powered agent through VS Code's Agent Mode.
+Arc Memory is a python package that embeds a local, bi-temporal knowledge graph (TKG) in every developer's workspace. It surfaces verifiable decision trails during code-review and exposes the same provenance to any LLM-powered agent through VS Code's Agent Mode.
 
 ## Features
 
