@@ -37,11 +37,13 @@ def trace_file(
 ) -> None:
     """Trace the history of a specific line in a file."""
     configure_logging(debug=debug)
-    
+
     try:
         # Get the database path
-        db_path = Path.home() / ".arc" / "graph.db"
-        
+        from arc_memory.sql.db import ensure_arc_dir
+        arc_dir = ensure_arc_dir()
+        db_path = arc_dir / "graph.db"
+
         # Check if the database exists
         if not db_path.exists():
             console.print(
@@ -51,7 +53,7 @@ def trace_file(
                 "Run [bold]arc build[/bold] to create the knowledge graph."
             )
             sys.exit(1)
-        
+
         # Trace the history
         results = trace_history_for_file_line(
             repo_path,
@@ -60,20 +62,20 @@ def trace_file(
             line_number,
             max_results
         )
-        
+
         if not results:
             console.print(
                 f"[yellow]No history found for {file_path}:{line_number}[/yellow]"
             )
             return
-        
+
         # Display the results
         table = Table(title=f"History for {file_path}:{line_number}")
         table.add_column("Type", style="cyan")
         table.add_column("ID", style="green")
         table.add_column("Title", style="white")
         table.add_column("Timestamp", style="dim")
-        
+
         for result in results:
             table.add_row(
                 result["type"],
@@ -81,9 +83,9 @@ def trace_file(
                 result["title"],
                 result["timestamp"] or "N/A"
             )
-        
+
         console.print(table)
-    
+
     except Exception as e:
         logger.exception("Error in trace_file command")
         console.print(f"[red]Error: {e}[/red]")
