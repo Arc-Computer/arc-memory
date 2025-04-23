@@ -83,27 +83,22 @@ def get_commit_for_line(repo_path: Path, file_path: str, line_number: int) -> Op
 
 
 def trace_history(
-    conn: sqlite3.Connection, file_path: str, line_number: int, max_nodes: int = 3
+    conn: sqlite3.Connection, file_path: str, line_number: int, max_nodes: int = 3, max_hops: int = 2
 ) -> List[Dict[str, Any]]:
     """
-    Trace the history of a file line.
+    Trace the history of a file line using a BFS algorithm.
 
     Args:
         conn: SQLite connection
         file_path: Path to the file, relative to the repository root
         line_number: Line number to check (1-based)
         max_nodes: Maximum number of nodes to return
+        max_hops: Maximum number of hops in the graph traversal
 
     Returns:
-        A list of nodes representing the history trail
+        A list of nodes representing the history trail, sorted by timestamp (newest first)
     """
     try:
-        # This is a placeholder implementation
-        # In a real implementation, we would:
-        # 1. Get the commit for the line using git blame
-        # 2. Trace the history of the commit
-        # 3. Format the results
-
         # Get the current working directory
         cwd = os.getcwd()
         repo_path = Path(cwd)
@@ -117,22 +112,44 @@ def trace_history(
         # Start with the commit node
         start_node_id = f"commit:{commit_id}"
 
-        # Get the commit node
-        commit_node = get_node_by_id(conn, start_node_id)
-        if not commit_node:
-            logger.warning(f"Commit node not found: {start_node_id}")
-            return []
+        # Initialize BFS
+        from collections import deque
+        visited = set()
+        queue = deque([(start_node_id, 0)])  # (node_id, hop_count)
+        result_nodes = []
 
-        # Format the result
-        result = [{
-            "type": "commit",
-            "id": start_node_id,
-            "title": commit_node.title or "",
-            "timestamp": commit_node.ts.isoformat() if commit_node.ts else None
-        }]
+        # Perform BFS
+        while queue and len(result_nodes) < max_nodes:
+            node_id, hop_count = queue.popleft()
 
-        # Return the result (limited to max_nodes)
-        return result[:max_nodes]
+            # Skip if already visited or max hops reached
+            if node_id in visited or hop_count > max_hops:
+                continue
+
+            visited.add(node_id)
+
+            # Get the node from the database
+            node = get_node_by_id(conn, node_id)
+            if node:
+                result_nodes.append(node)
+
+            # If we've reached max hops, don't explore further
+            if hop_count >= max_hops:
+                continue
+
+            # Get connected nodes based on the current node type
+            connected_nodes = get_connected_nodes(conn, node_id, hop_count)
+
+            # Add connected nodes to the queue
+            for connected_id in connected_nodes:
+                if connected_id not in visited:
+                    queue.append((connected_id, hop_count + 1))
+
+        # Format the results
+        formatted_results = format_trace_results(result_nodes)
+
+        # Return the results (limited to max_nodes)
+        return formatted_results[:max_nodes]
 
     except Exception as e:
         logger.error(f"Error in trace_history: {e}")
@@ -186,14 +203,17 @@ def get_node_by_id(conn: sqlite3.Connection, node_id: str) -> Optional[Node]:
         return None
 
 
-def get_connected_nodes(conn: sqlite3.Connection, node_id: str, hop_count: int) -> List[str]:
+def get_connected_nodes(conn: sqlite3.Connection, node_id: str, hop_count: int = 0) -> List[str]:
     """
-    Get nodes connected to the given node based on the hop count and node type.
+    Get nodes connected to the given node based on the node type.
+
+    This function returns all nodes connected to the given node, regardless of the hop count.
+    It supports all node types (Commit, PR, Issue, ADR, File) and all edge types (MODIFIES, MERGES, MENTIONS, DECIDES).
 
     Args:
         conn: SQLite connection
         node_id: The node ID to start from
-        hop_count: Current hop count in the BFS
+        hop_count: Optional hop count for future use (not currently used)
 
     Returns:
         List of connected node IDs
@@ -201,21 +221,45 @@ def get_connected_nodes(conn: sqlite3.Connection, node_id: str, hop_count: int) 
     try:
         # Extract node type from the ID
         node_type = node_id.split(':')[0] if ':' in node_id else None
+        connected_nodes = []
 
         # Define the edge relationships to follow based on the node type and hop count
-        if node_type == "commit" and hop_count == 0:
+        if node_type == "commit":
             # Commit → PR via MERGES
-            return get_nodes_by_edge(conn, node_id, "MERGES", is_source=True)
+            connected_nodes.extend(get_nodes_by_edge(conn, node_id, "MERGES", is_source=True))
 
-        elif node_type == "pr" and hop_count == 1:
+            # Commit → File via MODIFIES
+            connected_nodes.extend(get_nodes_by_edge(conn, node_id, "MODIFIES", is_source=True))
+
+        elif node_type == "pr":
             # PR → Issue via MENTIONS
-            return get_nodes_by_edge(conn, node_id, "MENTIONS", is_source=True)
+            connected_nodes.extend(get_nodes_by_edge(conn, node_id, "MENTIONS", is_source=True))
 
-        elif node_type == "issue" and hop_count == 1:
+            # PR → Commit via MERGES (inbound)
+            connected_nodes.extend(get_nodes_by_edge(conn, node_id, "MERGES", is_source=False))
+
+        elif node_type == "issue":
             # Issue → ADR via DECIDES (inbound)
-            return get_nodes_by_edge(conn, node_id, "DECIDES", is_source=False)
+            connected_nodes.extend(get_nodes_by_edge(conn, node_id, "DECIDES", is_source=False))
 
-        return []
+            # Issue → PR via MENTIONS (inbound)
+            connected_nodes.extend(get_nodes_by_edge(conn, node_id, "MENTIONS", is_source=False))
+
+        elif node_type == "adr":
+            # ADR → Issue via DECIDES
+            connected_nodes.extend(get_nodes_by_edge(conn, node_id, "DECIDES", is_source=True))
+
+            # ADR → File via DECIDES
+            connected_nodes.extend(get_nodes_by_edge(conn, node_id, "DECIDES", is_source=True))
+
+        elif node_type == "file":
+            # File → Commit via MODIFIES (inbound)
+            connected_nodes.extend(get_nodes_by_edge(conn, node_id, "MODIFIES", is_source=False))
+
+            # File → ADR via DECIDES (inbound)
+            connected_nodes.extend(get_nodes_by_edge(conn, node_id, "DECIDES", is_source=False))
+
+        return connected_nodes
 
     except Exception as e:
         logger.error(f"Error in get_connected_nodes: {e}")
@@ -276,16 +320,54 @@ def format_trace_results(nodes: List[Node]) -> List[Dict[str, Any]]:
             reverse=True
         )
 
-        # Format according to API spec
-        return [
-            {
-                "type": node.type,
+        results = []
+        for node in sorted_nodes:
+            # Base result with common fields
+            result = {
+                "type": node.type.value if node.type else "unknown",
                 "id": node.id,
                 "title": node.title or "",
                 "timestamp": node.ts.isoformat() if node.ts else None
             }
-            for node in sorted_nodes
-        ]
+
+            # Add type-specific fields
+            if node.type == NodeType.COMMIT:
+                # Add commit-specific fields
+                if "author" in node.extra:
+                    result["author"] = node.extra["author"]
+                if "sha" in node.extra:
+                    result["sha"] = node.extra["sha"]
+
+            elif node.type == NodeType.PR:
+                # Add PR-specific fields
+                if "number" in node.extra:
+                    result["number"] = node.extra["number"]
+                if "state" in node.extra:
+                    result["state"] = node.extra["state"]
+                if "url" in node.extra:
+                    result["url"] = node.extra["url"]
+
+            elif node.type == NodeType.ISSUE:
+                # Add issue-specific fields
+                if "number" in node.extra:
+                    result["number"] = node.extra["number"]
+                if "state" in node.extra:
+                    result["state"] = node.extra["state"]
+                if "url" in node.extra:
+                    result["url"] = node.extra["url"]
+
+            elif node.type == NodeType.ADR:
+                # Add ADR-specific fields
+                if "status" in node.extra:
+                    result["status"] = node.extra["status"]
+                if "decision_makers" in node.extra:
+                    result["decision_makers"] = node.extra["decision_makers"]
+                if "path" in node.extra:
+                    result["path"] = node.extra["path"]
+
+            results.append(result)
+
+        return results
 
     except Exception as e:
         logger.error(f"Error in format_trace_results: {e}")
@@ -296,7 +378,8 @@ def trace_history_for_file_line(
     db_path: Path,
     file_path: str,
     line_number: int,
-    max_results: int = 3
+    max_results: int = 3,
+    max_hops: int = 2
 ) -> List[Dict[str, Any]]:
     """
     Trace the history of a specific line in a file.
@@ -306,6 +389,7 @@ def trace_history_for_file_line(
         file_path: Path to the file, relative to the repository root
         line_number: Line number to check (1-based)
         max_results: Maximum number of results to return
+        max_hops: Maximum number of hops in the graph traversal
 
     Returns:
         Formatted results as specified in the API docs
@@ -315,7 +399,7 @@ def trace_history_for_file_line(
         conn = get_connection(db_path)
 
         # Call the trace_history function
-        results = trace_history(conn, file_path, line_number, max_nodes=max_results)
+        results = trace_history(conn, file_path, line_number, max_nodes=max_results, max_hops=max_hops)
 
         # Close the connection
         conn.close()

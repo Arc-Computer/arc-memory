@@ -29,6 +29,9 @@ def trace_file(
     max_results: int = typer.Option(
         3, "--max-results", "-m", help="Maximum number of results to return"
     ),
+    max_hops: int = typer.Option(
+        2, "--max-hops", "-h", help="Maximum number of hops in the graph traversal"
+    ),
     debug: bool = typer.Option(
         False, "--debug", help="Enable debug logging"
     ),
@@ -57,7 +60,8 @@ def trace_file(
             db_path,
             file_path,
             line_number,
-            max_results
+            max_results,
+            max_hops
         )
 
         if not results:
@@ -72,13 +76,44 @@ def trace_file(
         table.add_column("ID", style="green")
         table.add_column("Title", style="white")
         table.add_column("Timestamp", style="dim")
+        table.add_column("Details", style="yellow")
 
         for result in results:
+            # Extract type-specific details
+            details = ""
+            if result["type"] == "commit":
+                if "author" in result:
+                    details += f"Author: {result['author']}\n"
+                if "sha" in result:
+                    details += f"SHA: {result['sha']}"
+            elif result["type"] == "pr":
+                if "number" in result:
+                    details += f"PR #{result['number']}\n"
+                if "state" in result:
+                    details += f"State: {result['state']}\n"
+                if "url" in result:
+                    details += f"URL: {result['url']}"
+            elif result["type"] == "issue":
+                if "number" in result:
+                    details += f"Issue #{result['number']}\n"
+                if "state" in result:
+                    details += f"State: {result['state']}\n"
+                if "url" in result:
+                    details += f"URL: {result['url']}"
+            elif result["type"] == "adr":
+                if "status" in result:
+                    details += f"Status: {result['status']}\n"
+                if "decision_makers" in result:
+                    details += f"Decision Makers: {', '.join(result['decision_makers'])}\n"
+                if "path" in result:
+                    details += f"Path: {result['path']}"
+
             table.add_row(
                 result["type"],
                 result["id"],
                 result["title"],
-                result["timestamp"] or "N/A"
+                result["timestamp"] or "N/A",
+                details
             )
 
         console.print(table)
