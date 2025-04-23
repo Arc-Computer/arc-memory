@@ -10,7 +10,7 @@ from git import Repo
 
 from arc_memory.errors import GitError, IngestError
 from arc_memory.logging_conf import get_logger
-from arc_memory.schema.models import CommitNode, Edge, EdgeRel, Node, NodeType
+from arc_memory.schema.models import CommitNode, Edge, EdgeRel, FileNode, Node, NodeType
 
 logger = get_logger(__name__)
 
@@ -66,6 +66,8 @@ def ingest_git(
         # Process commits
         nodes = []
         edges = []
+        file_nodes = {}
+
         for commit in commits:
             # Create commit node
             commit_node = CommitNode(
@@ -73,18 +75,49 @@ def ingest_git(
                 type=NodeType.COMMIT,
                 title=commit.summary,
                 body=commit.message,
-                created_at=datetime.fromtimestamp(commit.committed_date),
+                ts=datetime.fromtimestamp(commit.committed_date),
                 author=commit.author.name,
                 files=list(commit.stats.files.keys()),
                 sha=commit.hexsha,
             )
             nodes.append(commit_node)
 
-            # Create edges to modified files
+            # Create File nodes and edges to modified files
             for file_path in commit.stats.files:
+                file_id = f"file:{file_path}"
+
+                # Create File node if it doesn't exist yet
+                if file_id not in file_nodes:
+                    try:
+                        # Try to get the file's last modification time
+                        file_full_path = repo_path / file_path
+                        if file_full_path.exists():
+                            last_modified = datetime.fromtimestamp(file_full_path.stat().st_mtime)
+                        else:
+                            last_modified = None
+
+                        # Try to determine the language based on file extension
+                        _, ext = os.path.splitext(file_path)
+                        language = ext[1:] if ext else None
+
+                        file_node = FileNode(
+                            id=file_id,
+                            type=NodeType.FILE,
+                            title=os.path.basename(file_path),
+                            path=file_path,
+                            language=language,
+                            last_modified=last_modified,
+                            ts=last_modified,
+                        )
+                        nodes.append(file_node)
+                        file_nodes[file_id] = file_node
+                    except Exception as e:
+                        logger.warning(f"Failed to create File node for {file_path}: {e}")
+
+                # Create edge from commit to file
                 edge = Edge(
                     src=commit_node.id,
-                    dst=f"file:{file_path}",
+                    dst=file_id,
                     rel=EdgeRel.MODIFIES,
                     properties={
                         "insertions": commit.stats.files[file_path]["insertions"],

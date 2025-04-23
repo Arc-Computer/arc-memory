@@ -165,10 +165,10 @@ def ingest_adrs(
                     else:
                         decision_makers = [frontmatter["decision_makers"]]
 
-                created_at = datetime.now()
+                ts = datetime.now()
                 if "date" in frontmatter:
                     try:
-                        created_at = datetime.fromisoformat(frontmatter["date"])
+                        ts = datetime.fromisoformat(frontmatter["date"])
                     except ValueError:
                         # Try other date formats
                         pass
@@ -178,7 +178,7 @@ def ingest_adrs(
                     type=NodeType.ADR,
                     title=title,
                     body=content,
-                    created_at=created_at,
+                    ts=ts,
                     status=status,
                     decision_makers=decision_makers,
                     path=rel_path,

@@ -11,6 +11,7 @@ class NodeType(str, Enum):
     """Types of nodes in the knowledge graph."""
 
     COMMIT = "commit"
+    FILE = "file"
     PR = "pr"
     ISSUE = "issue"
     ADR = "adr"
@@ -30,10 +31,19 @@ class Node(BaseModel):
 
     id: str
     type: NodeType
-    title: str
-    body: str
-    created_at: datetime
+    title: Optional[str] = None
+    body: Optional[str] = None
+    ts: Optional[datetime] = None
     extra: Dict[str, Any] = Field(default_factory=dict)
+
+
+class FileNode(Node):
+    """A file in the repository."""
+
+    type: NodeType = NodeType.FILE
+    path: str
+    language: Optional[str] = None
+    last_modified: Optional[datetime] = None
 
 
 class CommitNode(Node):
@@ -89,11 +99,12 @@ class Edge(BaseModel):
 class BuildManifest(BaseModel):
     """Metadata about a graph build."""
 
+    schema: str
+    build_time: datetime
+    commit: Optional[str] = None
     node_count: int
     edge_count: int
-    build_timestamp: datetime
-    schema_version: str
-    last_commit_hash: Optional[str] = None
+    # Additional fields for incremental builds
     last_processed: Dict[str, Any] = Field(default_factory=dict)
 
 

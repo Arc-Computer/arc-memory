@@ -154,11 +154,11 @@ def build(
 
             # Create and save build manifest
             build_manifest = BuildManifest(
+                schema="0.1.0",
+                build_time=datetime.now(),
+                commit=git_metadata.get("last_commit_hash"),
                 node_count=node_count,
                 edge_count=edge_count,
-                build_timestamp=datetime.now(),
-                schema_version="0.1.0",
-                last_commit_hash=git_metadata.get("last_commit_hash"),
                 last_processed={
                     "git": git_metadata,
                     "github": github_metadata,
