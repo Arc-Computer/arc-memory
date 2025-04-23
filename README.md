@@ -4,6 +4,14 @@
   <img src="public/arc_logo.png" alt="Arc Logo" width="200"/>
 </p>
 
+<p align="center">
+  <a href="https://www.arc.computer"><img src="https://img.shields.io/badge/website-arc.computer-blue" alt="Website"></a>
+  <a href="https://github.com/Arc-Computer/arc-memory/actions"><img src="https://img.shields.io/badge/tests-passing-brightgreen" alt="Tests"></a>
+  <a href="https://pypi.org/project/arc-memory/"><img src="https://img.shields.io/pypi/v/arc-memory" alt="PyPI"></a>
+  <a href="https://pypi.org/project/arc-memory/"><img src="https://img.shields.io/pypi/pyversions/arc-memory" alt="Python"></a>
+  <a href="https://github.com/Arc-Computer/arc-memory/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Arc-Computer/arc-memory" alt="License"></a>
+</p>
+
 ## Vision
 
 Software will soon be written by fleets of autonomous agents collaborating with humans.
@@ -177,6 +185,28 @@ setup(
 ### Performance
 
 Arc Memory is designed for high performance, with trace history queries completing in under 200ms (typically ~100μs). See our [performance benchmarks](./docs/performance-benchmarks.md) for more details.
+
+### Publishing to PyPI
+
+To publish the package to PyPI:
+
+```bash
+# Build the package
+python -m build
+
+# Upload to PyPI
+python -m twine upload dist/*
+```
+
+Users can then install the package with:
+
+```bash
+# Using pip
+pip install arc-memory
+
+# Using uv
+uv pip install arc-memory
+```
 
 ## Current Status
 

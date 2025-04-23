@@ -49,8 +49,9 @@ dev = [
 ]
 
 [project.urls]
-"Homepage" = "https://github.com/arc-memory/arc-memory"
-"Bug Tracker" = "https://github.com/arc-memory/arc-memory/issues"
+"Homepage" = "https://www.arc.computer"
+"Repository" = "https://github.com/Arc-Computer/arc-memory"
+"Bug Tracker" = "https://github.com/Arc-Computer/arc-memory/issues"
 
 [project.scripts]
 arc = "arc_memory.cli:app"
