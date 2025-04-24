@@ -5,12 +5,12 @@
 </p>
 
 <p align="center">
-  <a href="https://www.arc.computer"><img src="https://img.shields.io/badge/website-arc.computer-blue" alt="Website"></a>
-  <a href="https://github.com/Arc-Computer/arc-memory/actions"><img src="https://img.shields.io/badge/tests-passing-brightgreen" alt="Tests"></a>
-  <a href="https://pypi.org/project/arc-memory/0.1.0/"><img src="https://img.shields.io/badge/pypi-v0.1.0-blue" alt="PyPI"></a>
-  <a href="https://pypi.org/project/arc-memory/0.1.0/"><img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue" alt="Python"></a>
-  <a href="https://github.com/Arc-Computer/arc-memory/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Arc-Computer/arc-memory" alt="License"></a>
-  <a href="https://docs.arc.computer"><img src="https://img.shields.io/badge/docs-mintlify-teal" alt="Documentation"></a>
+  <a href="https://www.arc.computer"><img src="https://img.shields.io/badge/website-arc.computer-blue" alt="Website"/></a>
+  <a href="https://github.com/Arc-Computer/arc-memory/actions"><img src="https://img.shields.io/badge/tests-passing-brightgreen" alt="Tests"/></a>
+  <a href="https://pypi.org/project/arc-memory/0.1.0/"><img src="https://img.shields.io/badge/pypi-v0.1.0-blue" alt="PyPI"/></a>
+  <a href="https://pypi.org/project/arc-memory/0.1.0/"><img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue" alt="Python"/></a>
+  <a href="https://github.com/Arc-Computer/arc-memory/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Arc-Computer/arc-memory" alt="License"/></a>
+  <a href="https://docs.arc.computer"><img src="https://img.shields.io/badge/docs-mintlify-teal" alt="Documentation"/></a>
 </p>
 
 At Arc, we're building the foundational memory layer for modern software engineering. Our mission is simple but powerful: ensure engineering teams never lose the critical "why" behind their code. Our mission is to bridge the gap between human decisions and machine understanding, becoming the temporal source-of-truth for every engineering team and their agents.
