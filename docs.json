@@ -40,55 +40,57 @@
       "url": "examples"
     }
   ],
-  "navigation": [
-    {
-      "group": "Getting Started",
-      "pages": [
-        "README.md",
-        "docs/index.md"
-      ]
-    },
-    {
-      "group": "CLI Commands",
-      "pages": [
-        "docs/cli/auth.md",
-        "docs/cli/build.md",
-        "docs/cli/trace.md",
-        "docs/cli/doctor.md"
-      ]
-    },
-    {
-      "group": "API Documentation",
-      "pages": [
-        "docs/api/build.md",
-        "docs/api/trace.md",
-        "docs/api/models.md",
-        "docs/api/plugins.md"
-      ]
-    },
-    {
-      "group": "Usage Examples",
-      "pages": [
-        "docs/examples/building-graphs.md",
-        "docs/examples/tracing-history.md",
-        "docs/examples/custom-plugins.md"
-      ]
-    },
-    {
-      "group": "Architecture Decision Records",
-      "pages": [
-        "docs/adr/ADR-001-Incremental-Builds.md",
-        "docs/adr/ADR-002-Data-Model-Refinements.md",
-        "docs/adr/ADR-003-Plugin-Architecture.md"
-      ]
-    },
-    {
-      "group": "Benchmarks",
-      "pages": [
-        "docs/performance-benchmarks.md"
-      ]
-    }
-  ],
+  "navigation": {
+    "groups": [
+      {
+        "group": "Getting Started",
+        "pages": [
+          "README.md",
+          "docs/index.md"
+        ]
+      },
+      {
+        "group": "CLI Commands",
+        "pages": [
+          "docs/cli/auth.md",
+          "docs/cli/build.md",
+          "docs/cli/trace.md",
+          "docs/cli/doctor.md"
+        ]
+      },
+      {
+        "group": "API Documentation",
+        "pages": [
+          "docs/api/build.md",
+          "docs/api/trace.md",
+          "docs/api/models.md",
+          "docs/api/plugins.md"
+        ]
+      },
+      {
+        "group": "Usage Examples",
+        "pages": [
+          "docs/examples/building-graphs.md",
+          "docs/examples/tracing-history.md",
+          "docs/examples/custom-plugins.md"
+        ]
+      },
+      {
+        "group": "Architecture Decision Records",
+        "pages": [
+          "docs/adr/ADR-001-Incremental-Builds.md",
+          "docs/adr/ADR-002-Data-Model-Refinements.md",
+          "docs/adr/ADR-003-Plugin-Architecture.md"
+        ]
+      },
+      {
+        "group": "Benchmarks",
+        "pages": [
+          "docs/performance-benchmarks.md"
+        ]
+      }
+    ]
+  },
   "footerSocials": {
     "github": "https://github.com/Arc-Computer/arc-memory"
   }
