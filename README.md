@@ -31,8 +31,16 @@ Arc Memory is a python package that embeds a local, bi-temporal knowledge graph 
 
 ## Installation
 
+Arc Memory requires Python 3.10 or higher and is compatible with Python 3.10, 3.11, and 3.12.
+
 ```bash
 pip install arc-memory
+```
+
+Or using UV:
+
+```bash
+uv pip install arc-memory
 ```
 
 ## Quick Start
@@ -146,7 +154,7 @@ Arc Memory uses a plugin architecture to support additional data sources. To cre
 
 For detailed instructions and examples, see:
 - [Custom Plugins Guide](./docs/examples/custom-plugins.md) - Step-by-step guide with examples
-- [Plugin Architecture](./docs/plugin-architecture.md) - Technical details of the plugin system
+- [Plugin Architecture](./docs/api/plugins.md) - Technical details of the plugin system
 - [Plugins API](./docs/api/plugins.md) - API reference for plugin development
 
 Basic example:
