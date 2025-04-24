@@ -1,4 +1,4 @@
-# Arc Memory
+# Arc Memory SDK
 
 <p align="center">
   <img src="public/arc_logo.png" alt="Arc Logo" width="200"/>
@@ -16,7 +16,7 @@ At Arc, we're building the foundational memory layer for modern software enginee
 
 ## Overview
 
-Arc Memory is a python package that embeds a local, bi-temporal knowledge graph (TKG) in every developer's workspace. It surfaces verifiable decision trails during code-review and exposes the same provenance to any LLM-powered agent through VS Code's Agent Mode.
+Arc Memory is a comprehensive SDK (Software Development Kit) that embeds a local, bi-temporal knowledge graph (TKG) in every developer's workspace. It surfaces verifiable decision trails during code-review and exposes the same provenance to any LLM-powered agent through VS Code's Agent Mode.
 
 ## Features
 
@@ -90,7 +90,7 @@ For additional documentation, visit [arc.computer](https://www.arc.computer).
 
 Arc Memory consists of three components:
 
-1. **arc-memory** (this package) - Python library and CLI for graph building and querying
+1. **arc-memory** (this SDK) - Python SDK and CLI for graph building and querying
    - **Plugin Architecture** - Extensible system for adding new data sources
    - **Trace History Algorithm** - BFS-based algorithm for traversing the knowledge graph
    - **CLI Commands** - Interface for building graphs and tracing history

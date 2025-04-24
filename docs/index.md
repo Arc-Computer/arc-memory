@@ -1,6 +1,6 @@
-# Arc Memory Documentation
+# Arc Memory SDK Documentation
 
-Welcome to the Arc Memory documentation. This guide will help you get started with Arc Memory, a Python package that provides a local bi-temporal knowledge graph for software engineering.
+Welcome to the Arc Memory SDK documentation. This guide will help you get started with Arc Memory, a comprehensive Software Development Kit (SDK) that provides a local bi-temporal knowledge graph for software engineering.
 
 ## Getting Started
 

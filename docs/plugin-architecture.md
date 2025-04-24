@@ -1,4 +1,4 @@
-# Arc Memory Plugin Architecture
+# Arc Memory SDK Plugin Architecture
 
 > **Status**: Draft
 >
@@ -8,7 +8,7 @@
 
 ## Overview
 
-Arc Memory's plugin architecture enables extensible ingestion of data from various sources beyond the core Git, GitHub, and ADR integrations. This document describes the plugin system design, how to implement custom plugins, and the standard interfaces that all plugins must follow.
+The Arc Memory SDK's plugin architecture enables extensible ingestion of data from various sources beyond the core Git, GitHub, and ADR integrations. This document describes the plugin system design, how to implement custom plugins, and the standard interfaces that all plugins must follow.
 
 ## Core Concepts
 
@@ -27,23 +27,23 @@ class IngestorPlugin(Protocol):
     def get_name(self) -> str:
         """Return a unique name for this plugin."""
         ...
-    
+
     def get_node_types(self) -> list[str]:
         """Return a list of node types this plugin can create."""
         ...
-    
+
     def get_edge_types(self) -> list[str]:
         """Return a list of edge types this plugin can create."""
         ...
-    
+
     def ingest(self, last_processed: Optional[dict] = None) -> tuple[list[Node], list[Edge], dict]:
         """
         Ingest data from the source and return nodes, edges, and metadata.
-        
+
         Args:
             last_processed: Optional dictionary containing metadata from the previous run,
                             used for incremental ingestion.
-        
+
         Returns:
             A tuple containing:
             - list[Node]: List of nodes created from the data source
@@ -90,41 +90,41 @@ class IngestorRegistry:
     def __init__(self):
         """Initialize an empty registry."""
         self.ingestors = {}
-    
+
     def register(self, ingestor: IngestorPlugin) -> None:
         """
         Register a plugin with the registry.
-        
+
         Args:
             ingestor: An instance of a class implementing the IngestorPlugin protocol
         """
         self.ingestors[ingestor.get_name()] = ingestor
-    
+
     def get(self, name: str) -> Optional[IngestorPlugin]:
         """
         Get a plugin by name.
-        
+
         Args:
             name: The name of the plugin to retrieve
-            
+
         Returns:
             The plugin instance, or None if not found
         """
         return self.ingestors.get(name)
-    
+
     def list_plugins(self) -> list[str]:
         """
         List all registered plugins.
-        
+
         Returns:
             A list of plugin names
         """
         return list(self.ingestors.keys())
-    
+
     def get_all(self) -> list[IngestorPlugin]:
         """
         Get all registered plugins.
-        
+
         Returns:
             A list of plugin instances
         """
@@ -139,17 +139,17 @@ Arc Memory uses Python's entry point system to discover third-party plugins:
 def discover_plugins() -> IngestorRegistry:
     """
     Discover and register all available plugins.
-    
+
     Returns:
         An IngestorRegistry containing all discovered plugins
     """
     registry = IngestorRegistry()
-    
+
     # Register built-in plugins
     registry.register(GitIngestor())
     registry.register(GitHubIngestor())
     registry.register(ADRIngestor())
-    
+
     # Discover and register third-party plugins
     for entry_point in pkg_resources.iter_entry_points('arc_memory.plugins'):
         try:
@@ -157,13 +157,13 @@ def discover_plugins() -> IngestorRegistry:
             registry.register(plugin_class())
         except Exception as e:
             logger.warning(f"Failed to load plugin {entry_point.name}: {e}")
-    
+
     return registry
 ```
 
 ## Implementing a Custom Plugin
 
-To create a custom plugin for Arc Memory:
+To create a custom plugin for the Arc Memory SDK:
 
 1. Create a class that implements the `IngestorPlugin` protocol
 2. Register it using the entry point system in your package's `setup.py` or `pyproject.toml`
@@ -178,29 +178,29 @@ from arc_memory.schema.models import Node, Edge, NodeType
 class NotionIngestor(IngestorPlugin):
     def get_name(self) -> str:
         return "notion"
-    
+
     def get_node_types(self) -> list[str]:
         return ["notion_page", "notion_database"]
-    
+
     def get_edge_types(self) -> list[str]:
         return ["REFERENCES", "CONTAINS"]
-    
+
     def ingest(self, last_processed: Optional[dict] = None) -> tuple[list[Node], list[Edge], dict]:
         # Initialize empty lists for nodes and edges
         nodes = []
         edges = []
-        
+
         # Get the timestamp from last_processed, or use a default
         last_timestamp = None
         if last_processed and "timestamp" in last_processed:
             last_timestamp = last_processed["timestamp"]
-        
+
         # Connect to Notion API and fetch data
         # This is a simplified example - real implementation would use the Notion API
         notion_client = self._get_notion_client()
         pages = notion_client.fetch_pages(updated_since=last_timestamp)
         databases = notion_client.fetch_databases(updated_since=last_timestamp)
-        
+
         # Process pages
         for page in pages:
             # Create a node for the page
@@ -219,7 +219,7 @@ class NotionIngestor(IngestorPlugin):
                 }
             )
             nodes.append(page_node)
-            
+
             # Create edges for references to other pages
             for reference in page.references:
                 edge = Edge(
@@ -228,7 +228,7 @@ class NotionIngestor(IngestorPlugin):
                     rel="REFERENCES"
                 )
                 edges.append(edge)
-        
+
         # Process databases
         for database in databases:
             # Create a node for the database
@@ -246,7 +246,7 @@ class NotionIngestor(IngestorPlugin):
                 }
             )
             nodes.append(db_node)
-            
+
             # Create edges for pages in this database
             for page_id in database.pages:
                 edge = Edge(
@@ -255,7 +255,7 @@ class NotionIngestor(IngestorPlugin):
                     rel="CONTAINS"
                 )
                 edges.append(edge)
-        
+
         # Create metadata for incremental builds
         metadata = {
             "timestamp": notion_client.current_time,
@@ -263,9 +263,9 @@ class NotionIngestor(IngestorPlugin):
             "database_count": len(databases),
             "api_version": notion_client.api_version
         }
-        
+
         return nodes, edges, metadata
-    
+
     def _get_notion_client(self):
         # Implementation would initialize and return a Notion API client
         pass
@@ -296,7 +296,7 @@ setup(
 
 ## Built-in Plugins
 
-Arc Memory includes several built-in plugins:
+The Arc Memory SDK includes several built-in plugins:
 
 1. **GitIngestor**: Ingests commit history from Git repositories
 2. **GitHubIngestor**: Ingests issues and pull requests from GitHub
@@ -351,4 +351,4 @@ The plugin architecture is designed to be extended in the future:
 3. **Plugin Versioning**: Version compatibility checking
 4. **UI Integration**: Allow plugins to extend the VS Code UI
 
-Arc Memory's plugin architecture provides a flexible and extensible way to ingest data from various sources. By implementing the `IngestorPlugin` protocol and registering your plugin, you can extend Arc Memory to support new data sources and integrate them seamlessly into the knowledge graph.
+The Arc Memory SDK's plugin architecture provides a flexible and extensible way to ingest data from various sources. By implementing the `IngestorPlugin` protocol and registering your plugin, you can extend the Arc Memory SDK to support new data sources and integrate them seamlessly into the knowledge graph.
