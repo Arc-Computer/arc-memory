@@ -4,10 +4,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "arc-memory"
-version = "0.1.0b20250425"  # Using the versioning format specified in the docs
+version = "0.1.0"  # First stable release
 description = "Arc Memory - Local bi-temporal knowledge graph for code repositories"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.10"
 license = {text = "MIT"}
 authors = [
     {name = "Jarrod Barnes", email = "jbarnes850@gmail.com"},
@@ -17,6 +17,8 @@ classifiers = [
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Topic :: Software Development :: Libraries :: Python Modules",
     "Topic :: Software Development :: Version Control :: Git",
