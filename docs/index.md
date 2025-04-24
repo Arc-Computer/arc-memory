@@ -1,0 +1,166 @@
+# Arc Memory Documentation
+
+Welcome to the Arc Memory documentation. This guide will help you get started with Arc Memory, a Python package that provides a local bi-temporal knowledge graph for software engineering.
+
+## Getting Started
+
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Documentation Overview](#documentation-overview)
+
+## Installation
+
+```bash
+pip install arc-memory
+```
+
+Or using UV:
+
+```bash
+uv pip install arc-memory
+```
+
+## Quick Start
+
+```bash
+# Authenticate with GitHub
+arc auth gh
+
+# Build the full knowledge graph
+arc build
+
+# Or update incrementally
+arc build --incremental
+
+# Check the graph status
+arc doctor
+
+# Trace history for a specific file and line
+arc trace file path/to/file.py 42
+```
+
+## Documentation Overview
+
+### CLI Commands
+
+- [Authentication](./cli/auth.md) - GitHub authentication commands
+  - `arc auth gh` - Authenticate with GitHub
+  - `arc auth gh-app` - Authenticate with a GitHub App
+
+- [Build](./cli/build.md) - Building the knowledge graph
+  - `arc build` - Build the knowledge graph from Git, GitHub, and ADRs
+
+- [Trace](./cli/trace.md) - Tracing history for files and lines
+  - `arc trace file` - Trace the history of a specific line in a file
+
+- [Doctor](./cli/doctor.md) - Checking graph status and diagnostics
+  - `arc doctor` - Check the status of the Arc Memory database
+
+### Usage Examples
+
+- [Building Graphs](./examples/building-graphs.md) - Examples of building knowledge graphs
+  - Basic graph building
+  - Incremental builds
+  - Limiting the build scope
+  - Custom output location
+  - CI/CD integration
+
+- [Tracing History](./examples/tracing-history.md) - Examples of tracing history
+  - Basic history tracing
+  - Adjusting search depth and results
+  - Finding the decision behind a feature
+  - Programmatic tracing
+
+- [Custom Plugins](./examples/custom-plugins.md) - Creating custom data source plugins
+  - Basic plugin template
+  - Notion plugin example
+  - Jira plugin example
+  - Best practices
+
+### API Documentation
+
+- [Build API](./api/build.md) - Build process API
+  - Building the knowledge graph
+  - Incremental builds
+  - Plugin integration
+
+- [Trace API](./api/trace.md) - Trace history API
+  - Tracing history for a file line
+  - Graph traversal
+  - Performance considerations
+
+- [Models](./api/models.md) - Data models
+  - Node types
+  - Edge types
+  - Build manifest
+
+- [Plugins](./api/plugins.md) - Plugin architecture API
+  - Plugin interface
+  - Plugin registry
+  - Plugin discovery
+
+### Architecture
+
+- [Plugin Architecture](./plugin-architecture.md) - Technical details of the plugin system
+- [Performance Benchmarks](./performance-benchmarks.md) - Performance metrics and benchmarks
+
+### Architecture Decision Records (ADRs)
+
+- [ADR-001: Knowledge Graph Schema](./adr/001-knowledge-graph-schema.md)
+- [ADR-002: Data Model Refinements](./adr/002-data-model-refinements.md)
+- [ADR-003: Plugin Architecture](./adr/003-plugin-architecture.md)
+
+## Common Tasks
+
+### Building a Knowledge Graph
+
+To build a knowledge graph for your repository:
+
+```bash
+# Navigate to your repository
+cd /path/to/your/repo
+
+# Authenticate with GitHub (if needed)
+arc auth gh
+
+# Build the knowledge graph
+arc build
+```
+
+For more details, see [Building Graphs](./examples/building-graphs.md).
+
+### Tracing History
+
+To trace the history of a specific line in a file:
+
+```bash
+arc trace file path/to/file.py 42
+```
+
+For more details, see [Tracing History](./examples/tracing-history.md).
+
+### Creating a Custom Plugin
+
+To create a custom plugin for Arc Memory:
+
+1. Create a class that implements the `IngestorPlugin` protocol
+2. Register your plugin using entry points
+3. Package and distribute your plugin
+
+For more details, see [Custom Plugins](./examples/custom-plugins.md).
+
+## Troubleshooting
+
+If you encounter issues with Arc Memory:
+
+1. Check the [Doctor](./cli/doctor.md) command for diagnostics
+2. Look for specific troubleshooting sections in each command's documentation
+3. Enable debug logging with the `--debug` flag
+
+## Getting Help
+
+If you need additional help:
+
+- Visit [arc.computer](https://www.arc.computer) for more resources
+- Open an issue on [GitHub](https://github.com/Arc-Computer/arc-memory/issues)
+- Check the [FAQ](https://www.arc.computer/faq) for common questions

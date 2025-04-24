@@ -12,22 +12,7 @@
   <a href="https://github.com/Arc-Computer/arc-memory/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Arc-Computer/arc-memory" alt="License"></a>
 </p>
 
-At Arc, we're building the foundational memory layer for modern software engineering. Our mission is simple but powerful: ensure engineering teams never lose the critical "why" behind their code.
-
-## Vision
-
-Software will soon be written by fleets of autonomous agents collaborating with humans.
-That future needs a shared, trusted memory—one that captures not just what changed, but why every decision was made.
-
-**Arc builds that memory:**
-
-- **Temporal Knowledge Graph, in your IDE** – embeds commit history, PR rationales, issues and ADRs directly in VS Code, so every line knows its past.
-- **Agent-ready API** – any LLM or tool can query the graph (`/searchEntity`, `/traceHistory`, `/openFile`, `/runTests`) to plan safe, multi-step fixes.
-- **Local-first & privacy-first** – graphs are built in CI and stay on the developer's machine; no code or IP leaves your repo.
-- **Verification layer for AI code** – provenance and test execution ensure AI-generated patches don't reopen old bugs or violate arch decisions.
-- **Foundation for distributed AI systems** – scalable to monorepos and multi-service graphs, aligning with long-context frontier models.
-
-**Mission:** Bridge the gap between human decisions and machine understanding, becoming the temporal source-of-truth for every engineering team and their agents.
+At Arc, we're building the foundational memory layer for modern software engineering. Our mission is simple but powerful: ensure engineering teams never lose the critical "why" behind their code. Our mission is to bridge the gap between human decisions and machine understanding, becoming the temporal source-of-truth for every engineering team and their agents.
 
 ## Overview
 
@@ -74,7 +59,24 @@ arc trace file path/to/file.py 42 --max-hops 3
 
 ## Documentation
 
-For full documentation, visit [arc.computer](https://www.arc.computer).
+### CLI Commands
+- [Authentication](./docs/cli/auth.md) - GitHub authentication commands
+- [Build](./docs/cli/build.md) - Building the knowledge graph
+- [Trace](./docs/cli/trace.md) - Tracing history for files and lines
+- [Doctor](./docs/cli/doctor.md) - Checking graph status and diagnostics
+
+### Usage Examples
+- [Building Graphs](./docs/examples/building-graphs.md) - Examples of building knowledge graphs
+- [Tracing History](./docs/examples/tracing-history.md) - Examples of tracing history
+- [Custom Plugins](./docs/examples/custom-plugins.md) - Creating custom data source plugins
+
+### API Documentation
+- [Build API](./docs/api/build.md) - Build process API
+- [Trace API](./docs/api/trace.md) - Trace history API
+- [Models](./docs/api/models.md) - Data models
+- [Plugins](./docs/api/plugins.md) - Plugin architecture API
+
+For additional documentation, visit [arc.computer](https://www.arc.computer).
 
 ## Architecture
 
@@ -138,50 +140,40 @@ python tests/benchmark/benchmark.py --repo-size small
 
 Arc Memory uses a plugin architecture to support additional data sources. To create a new plugin:
 
-1. Create a class that implements the `IngestorPlugin` protocol:
+1. Create a class that implements the `IngestorPlugin` protocol
+2. Register your plugin using entry points
+3. Package and distribute your plugin
+
+For detailed instructions and examples, see:
+- [Custom Plugins Guide](./docs/examples/custom-plugins.md) - Step-by-step guide with examples
+- [Plugin Architecture](./docs/plugin-architecture.md) - Technical details of the plugin system
+- [Plugins API](./docs/api/plugins.md) - API reference for plugin development
+
+Basic example:
 
 ```python
-from typing import Any, Dict, List, Optional, Tuple
-from pathlib import Path
+from arc_memory.plugins import IngestorPlugin
+from arc_memory.schema.models import Node, Edge, NodeType, EdgeRel
 
-from arc_memory.schema.models import Edge, Node, NodeType, EdgeRel
-
-class MyCustomIngestor:
-    """Custom ingestor plugin for Arc Memory."""
-
+class MyCustomPlugin(IngestorPlugin):
     def get_name(self) -> str:
-        """Return the name of this plugin."""
         return "my-custom-source"
 
     def get_node_types(self) -> List[str]:
-        """Return the node types this plugin can create."""
-        return [NodeType.COMMIT, NodeType.FILE]
+        return ["custom_node"]
 
     def get_edge_types(self) -> List[str]:
-        """Return the edge types this plugin can create."""
-        return [EdgeRel.MODIFIES]
+        return [EdgeRel.MENTIONS]
 
-    def ingest(
-        self,
-        repo_path: Path,
-        last_processed: Optional[Dict[str, Any]] = None,
-    ) -> Tuple[List[Node], List[Edge], Dict[str, Any]]:
-        """Ingest data from the custom source."""
+    def ingest(self, last_processed=None):
         # Your implementation here
-        return [], [], {}
+        return nodes, edges, metadata
 ```
 
-2. Register your plugin using entry points in your `setup.py`:
-
-```python
-setup(
-    # ...
-    entry_points={
-        "arc_memory.plugins": [
-            "my-custom-source = my_package.my_module:MyCustomIngestor",
-        ],
-    },
-)
+Register in `pyproject.toml`:
+```toml
+[project.entry-points."arc_memory.plugins"]
+my-custom-source = "my_package.my_module:MyCustomPlugin"
 ```
 
 ### Performance
@@ -209,22 +201,6 @@ pip install arc-memory
 # Using uv
 uv pip install arc-memory
 ```
-
-## Current Status
-
-Arc Memory is currently in active development. The core Python package (`arc-memory`) is functional and includes:
-
-- ✅ Plugin Architecture - Extensible system for adding new data sources
-- ✅ Knowledge Graph - Build a local graph from Git commits, GitHub PRs, issues, and ADRs
-- ✅ Trace History Algorithm - BFS-based algorithm for traversing the knowledge graph
-- ✅ CLI Commands - Interface for building graphs and tracing history
-
-Upcoming milestones:
-
-- 🔄 MCP Edge Server (`arc-memory-mcp`) - Local daemon exposing API endpoints
-- 🔄 VS Code Extension (`vscode-arc-hover`) - Extension for displaying decision trails
-
-See our [Week 2 Implementation Plan](./docs/week2.md) for more details on upcoming features.
 
 ## License
 
