@@ -1,0 +1,94 @@
+{
+  "$schema": "https://mintlify.com/schema.json",
+  "name": "Arc Memory SDK",
+  "logo": {
+    "dark": "/public/arc_logo.png",
+    "light": "/public/arc_logo.png"
+  },
+  "favicon": "/public/arc_logo.png",
+  "colors": {
+    "primary": "#0077CC",
+    "light": "#4DA8FF",
+    "dark": "#005299"
+  },
+  "topbarLinks": [
+    {
+      "name": "GitHub",
+      "url": "https://github.com/Arc-Computer/arc-memory"
+    }
+  ],
+  "topbarCtaButton": {
+    "name": "Get Started",
+    "url": "/docs/index"
+  },
+  "anchors": [
+    {
+      "name": "API Reference",
+      "icon": "code",
+      "url": "docs/api"
+    },
+    {
+      "name": "CLI Commands",
+      "icon": "terminal",
+      "url": "docs/cli"
+    },
+    {
+      "name": "Examples",
+      "icon": "lightbulb",
+      "url": "docs/examples"
+    }
+  ],
+  "navigation": [
+    {
+      "group": "Getting Started",
+      "pages": [
+        "README.md",
+        "docs/index.md"
+      ]
+    },
+    {
+      "group": "CLI Commands",
+      "pages": [
+        "docs/cli/auth.md",
+        "docs/cli/build.md",
+        "docs/cli/trace.md",
+        "docs/cli/doctor.md"
+      ]
+    },
+    {
+      "group": "API Documentation",
+      "pages": [
+        "docs/api/build.md",
+        "docs/api/trace.md",
+        "docs/api/models.md",
+        "docs/api/plugins.md"
+      ]
+    },
+    {
+      "group": "Usage Examples",
+      "pages": [
+        "docs/examples/building-graphs.md",
+        "docs/examples/tracing-history.md",
+        "docs/examples/custom-plugins.md"
+      ]
+    },
+    {
+      "group": "Architecture",
+      "pages": [
+        "docs/api/plugin-architecture.md",
+        "docs/performance-benchmarks.md"
+      ]
+    },
+    {
+      "group": "Architecture Decision Records",
+      "pages": [
+        "docs/adr/ADR-001-Incremental-Builds.md",
+        "docs/adr/ADR-002-Data-Model-Refinements.md",
+        "docs/adr/ADR-003-Plugin-Architecture.md"
+      ]
+    }
+  ],
+  "footerSocials": {
+    "github": "https://github.com/Arc-Computer/arc-memory"
+  }
+}
