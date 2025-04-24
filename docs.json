@@ -22,21 +22,22 @@
     "name": "Get Started",
     "url": "/"
   },
+  "theme": "mint",
   "anchors": [
     {
       "name": "API Reference",
       "icon": "code",
-      "url": "/docs/api"
+      "url": "api"
     },
     {
       "name": "CLI Commands",
       "icon": "terminal",
-      "url": "/docs/cli"
+      "url": "cli"
     },
     {
       "name": "Examples",
       "icon": "lightbulb",
-      "url": "/docs/examples"
+      "url": "examples"
     }
   ],
   "navigation": [
