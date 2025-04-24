@@ -19,23 +19,23 @@
   ],
   "topbarCtaButton": {
     "name": "Get Started",
-    "url": "/docs/index"
+    "url": "/"
   },
   "anchors": [
     {
       "name": "API Reference",
       "icon": "code",
-      "url": "docs/api"
+      "url": "/api"
     },
     {
       "name": "CLI Commands",
       "icon": "terminal",
-      "url": "docs/cli"
+      "url": "/cli"
     },
     {
       "name": "Examples",
       "icon": "lightbulb",
-      "url": "docs/examples"
+      "url": "/examples"
     }
   ],
   "navigation": [
@@ -43,48 +43,47 @@
       "group": "Getting Started",
       "pages": [
         "README.md",
-        "docs/index.md"
+        "index.md"
       ]
     },
     {
       "group": "CLI Commands",
       "pages": [
-        "docs/cli/auth.md",
-        "docs/cli/build.md",
-        "docs/cli/trace.md",
-        "docs/cli/doctor.md"
+        "cli/auth.md",
+        "cli/build.md",
+        "cli/trace.md",
+        "cli/doctor.md"
       ]
     },
     {
       "group": "API Documentation",
       "pages": [
-        "docs/api/build.md",
-        "docs/api/trace.md",
-        "docs/api/models.md",
-        "docs/api/plugins.md"
+        "api/build.md",
+        "api/trace.md",
+        "api/models.md",
+        "api/plugins.md"
       ]
     },
     {
       "group": "Usage Examples",
       "pages": [
-        "docs/examples/building-graphs.md",
-        "docs/examples/tracing-history.md",
-        "docs/examples/custom-plugins.md"
-      ]
-    },
-    {
-      "group": "Architecture",
-      "pages": [
-        "docs/api/plugin-architecture.md",
-        "docs/performance-benchmarks.md"
+        "examples/building-graphs.md",
+        "examples/tracing-history.md",
+        "examples/custom-plugins.md"
       ]
     },
     {
       "group": "Architecture Decision Records",
       "pages": [
-        "docs/adr/ADR-001-Incremental-Builds.md",
-        "docs/adr/ADR-002-Data-Model-Refinements.md",
-        "docs/adr/ADR-003-Plugin-Architecture.md"
+        "adr/ADR-001-Incremental-Builds.md",
+        "adr/ADR-002-Data-Model-Refinements.md",
+        "adr/ADR-003-Plugin-Architecture.md"
+      ]
+    },
+    {
+      "group": "Benchmarks",
+      "pages": [
+        "../benchmarks/performance-benchmarks.md"
       ]
     }
   ],
