@@ -238,16 +238,24 @@ def run_benchmarks(repo_size: str, output_file: Optional[Path] = None) -> None:
         # Find a file to trace
         print("Finding a file to trace...")
 
-        # Use repository-specific known files
-        if repo_size == "small":
-            file_to_trace = "arc_memory/version.py"
-        elif repo_size == "medium":
-            file_to_trace = "flask/__init__.py"  # Flask repository structure
-        elif repo_size == "large":
-            file_to_trace = "django/__init__.py"  # Django repository structure
-        else:
-            # Unknown repository size, use a generic approach
+        # First try to find README.md which should exist in most repositories
+        if (temp_dir / "README.md").exists():
             file_to_trace = "README.md"
+        elif (temp_dir / "README.rst").exists():
+            file_to_trace = "README.rst"
+        else:
+            # Fallback to searching for any Python file
+            python_files = list(temp_dir.glob("**/*.py"))
+            if python_files:
+                file_to_trace = str(python_files[0].relative_to(temp_dir))
+            else:
+                # Last resort - use any file
+                all_files = list(temp_dir.glob("**/*.*"))
+                if all_files:
+                    file_to_trace = str(all_files[0].relative_to(temp_dir))
+                else:
+                    print("No files found in the repository.")
+                    file_to_trace = ""
 
         # Verify the file exists
         if not (temp_dir / file_to_trace).exists():
