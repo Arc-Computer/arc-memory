@@ -31,19 +31,19 @@ Benchmarks are run on repositories of different sizes:
 
 | Operation | Duration (seconds) | Notes |
 |-----------|-------------------|-------|
-| Plugin Discovery | 0.098 | Discovering and registering 3 built-in plugins |
-| Initial Build | 15.071 | Building the knowledge graph from scratch (223 nodes, 486 edges) |
-| Incremental Build | 0.235 | Updating the knowledge graph with new data |
-| Trace History Query | 0.000041 | Tracing history for a specific line (41 microseconds) |
+| Plugin Discovery | 0.087 | Discovering and registering 3 built-in plugins |
+| Initial Build | 14.300 | Building the knowledge graph from scratch (217 nodes, 474 edges) |
+| Incremental Build | 0.032 | Updating the knowledge graph with new data |
+| Trace History Query | 0.000030 | Tracing history for a specific line (30 microseconds) |
 
 ### Large Repository (Django)
 
 | Operation | Duration (seconds) | Notes |
 |-----------|-------------------|-------|
-| Plugin Discovery | 0.090 | Discovering and registering 3 built-in plugins |
-| Initial Build | 140.362 | Building the knowledge graph from scratch (2,362 nodes, 3,463 edges) |
-| Incremental Build | 0.300 | Updating the knowledge graph with new data |
-| Trace History Query | 0.000036 | Tracing history for a specific line (36 microseconds) |
+| Plugin Discovery | 0.085 | Discovering and registering 3 built-in plugins |
+| Initial Build | 127.800 | Building the knowledge graph from scratch (2,360 nodes, 3,462 edges) |
+| Incremental Build | 0.108 | Updating the knowledge graph with new data |
+| Trace History Query | 0.000038 | Tracing history for a specific line (38 microseconds) |
 
 ### Performance Targets
 
@@ -64,22 +64,22 @@ Based on the benchmarks across different repository sizes, we can make the follo
 
 2. **Initial Build** scales with repository size:
    - Small repository (Arc Memory): 3.342 seconds
-   - Medium repository (Flask): 15.071 seconds
-   - Large repository (Django): 140.362 seconds
+   - Medium repository (Flask): 14.300 seconds
+   - Large repository (Django): 127.800 seconds
 
    The build time increases roughly linearly with the number of nodes and edges. For the large repository, the build time is still well below the 5-minute target specified in the PRD.
 
 3. **Incremental Build** is very efficient across all repository sizes:
    - Small repository: 0.446 seconds
-   - Medium repository: 0.235 seconds
-   - Large repository: 0.300 seconds
+   - Medium repository: 0.032 seconds
+   - Large repository: 0.108 seconds
 
    Incremental builds are consistently fast, regardless of repository size, making them suitable for CI integration.
 
 4. **Trace History Query** is extremely fast across all repository sizes:
    - Small repository: 109 microseconds
-   - Medium repository: 41 microseconds
-   - Large repository: 36 microseconds
+   - Medium repository: 30 microseconds
+   - Large repository: 38 microseconds
 
    All trace history queries are well below the 200ms target specified in the PRD, ensuring a responsive user experience in the VS Code extension.
 
