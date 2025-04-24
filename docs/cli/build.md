@@ -109,7 +109,7 @@ The time required to build a knowledge graph depends on several factors:
 
 | Repository Size | Commits | PRs/Issues | Estimated Full Build Time | Incremental Build Time |
 |----------------|---------|------------|--------------------------|------------------------|
-| Small          | <500    | <100       | 10-30 seconds            | <1 second             |
+| Small          | &lt;500    | &lt;100       | 10-30 seconds            | &lt;1 second             |
 | Medium         | 500-5000| 100-1000   | 1-5 minutes              | 1-3 seconds           |
 | Large          | 5000+   | 1000+      | 5-15 minutes             | 3-10 seconds          |
 | Very Large     | 10000+  | 5000+      | 15-60 minutes            | 10-30 seconds         |

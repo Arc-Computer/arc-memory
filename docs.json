@@ -45,48 +45,47 @@
       {
         "group": "Getting Started",
         "pages": [
-          "README.md",
-          "docs/index.md"
+          "/index"
         ]
       },
       {
         "group": "CLI Commands",
         "pages": [
-          "docs/cli/auth.md",
-          "docs/cli/build.md",
-          "docs/cli/trace.md",
-          "docs/cli/doctor.md"
+          "/cli/auth",
+          "/cli/build",
+          "/cli/trace",
+          "/cli/doctor"
         ]
       },
       {
         "group": "API Documentation",
         "pages": [
-          "docs/api/build.md",
-          "docs/api/trace.md",
-          "docs/api/models.md",
-          "docs/api/plugins.md"
+          "/api/build",
+          "/api/trace",
+          "/api/models",
+          "/api/plugins"
         ]
       },
       {
         "group": "Usage Examples",
         "pages": [
-          "docs/examples/building-graphs.md",
-          "docs/examples/tracing-history.md",
-          "docs/examples/custom-plugins.md"
+          "/examples/building-graphs",
+          "/examples/tracing-history",
+          "/examples/custom-plugins"
         ]
       },
       {
         "group": "Architecture Decision Records",
         "pages": [
-          "docs/adr/ADR-001-Incremental-Builds.md",
-          "docs/adr/ADR-002-Data-Model-Refinements.md",
-          "docs/adr/ADR-003-Plugin-Architecture.md"
+          "/adr/ADR-001-Incremental-Builds",
+          "/adr/ADR-002-Data-Model-Refinements",
+          "/adr/ADR-003-Plugin-Architecture"
         ]
       },
       {
         "group": "Benchmarks",
         "pages": [
-          "docs/performance-benchmarks.md"
+          "/performance-benchmarks"
         ]
       }
     ]
