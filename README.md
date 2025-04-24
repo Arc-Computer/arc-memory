@@ -16,7 +16,7 @@ At Arc, we're building the foundational memory layer for modern software enginee
 
 ## Overview
 
-Arc Memory is a comprehensive SDK (Software Development Kit) that embeds a local, bi-temporal knowledge graph (TKG) in every developer's workspace. It surfaces verifiable decision trails during code-review and exposes the same provenance to any LLM-powered agent through VS Code's Agent Mode.
+Arc Memory is a comprehensive SDK that embeds a local, bi-temporal knowledge graph (TKG) in every developer's workspace. It surfaces verifiable decision trails during code-review and exposes the same provenance to any LLM-powered agent through VS Code's Agent Mode.
 
 ## Features
 
@@ -187,28 +187,6 @@ my-custom-source = "my_package.my_module:MyCustomPlugin"
 ### Performance
 
 Arc Memory is designed for high performance, with trace history queries completing in under 200ms (typically ~100μs). See our [performance benchmarks](./docs/performance-benchmarks.md) for more details.
-
-### Publishing to PyPI
-
-To publish the package to PyPI:
-
-```bash
-# Build the package
-python -m build
-
-# Upload to PyPI
-python -m twine upload dist/*
-```
-
-Users can then install the package with:
-
-```bash
-# Using pip
-pip install arc-memory
-
-# Using uv
-uv pip install arc-memory
-```
 
 ## License
 
