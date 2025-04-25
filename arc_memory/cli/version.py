@@ -9,13 +9,13 @@ app = typer.Typer(help="Version commands")
 console = Console()
 
 
-@app.callback()
+@app.callback(invoke_without_command=True)
 def callback() -> None:
-    """Version commands for Arc Memory."""
-    pass
+    """Show the version of Arc Memory."""
+    console.print(f"Arc Memory version: {arc_memory.__version__}")
 
 
 @app.command()
-def version() -> None:
+def show() -> None:
     """Show the version of Arc Memory."""
     console.print(f"Arc Memory version: {arc_memory.__version__}")
