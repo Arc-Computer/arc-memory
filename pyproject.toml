@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "arc-memory"
-version = "0.1.4"  # Fixed version command in CLI
+version = "0.1.5"  # Fixed schema field name in BuildManifest
 description = "Arc Memory - Local bi-temporal knowledge graph for code repositories"
 readme = "README.md"
 requires-python = ">=3.10"
