@@ -33,24 +33,35 @@ This command traces the history of a specific line in a file, showing the commit
 
 - `--max-results`, `-m INTEGER`: Maximum number of results to return (default: 3).
 - `--max-hops`, `-h INTEGER`: Maximum number of hops in the graph traversal (default: 2).
+- `--format`, `-f [text|json]`: Output format (default: text).
 - `--debug`: Enable debug logging.
 
 #### Example
 
 ```bash
-# Trace the history of line 42 in a file
+# Trace the history of line 42 in a file (default text format)
 arc trace file src/main.py 42
 
 # Trace with more results and hops
 arc trace file src/main.py 42 --max-results 5 --max-hops 3
 
+# Output in JSON format
+arc trace file src/main.py 42 --format json
+
+# Short form for JSON format
+arc trace file src/main.py 42 -f json
+
 # Enable debug logging
 arc trace file src/main.py 42 --debug
 ```
 
-## Output Format
+## Output Formats
 
-The trace command outputs a table with the following columns:
+The trace command supports two output formats: text (default) and JSON.
+
+### Text Format
+
+When using the default text format (`--format text`), the command outputs a table with the following columns:
 
 - **Type**: The type of the node (commit, pr, issue, adr, file).
 - **ID**: The unique identifier of the node.
@@ -58,7 +69,7 @@ The trace command outputs a table with the following columns:
 - **Timestamp**: When the node was created or last modified.
 - **Details**: Additional details specific to the node type.
 
-Example output:
+Example text output:
 
 ```
 ┌───────┬──────────────┬───────────────────────┬─────────────────────┬───────────────────────┐
@@ -76,6 +87,59 @@ Example output:
 │       │              │                       │                     │ URL: github.com/...   │
 └───────┴──────────────┴───────────────────────┴─────────────────────┴───────────────────────┘
 ```
+
+### JSON Format
+
+When using the JSON format (`--format json`), the command outputs a JSON array of objects, where each object represents a node in the history trail. This format is particularly useful for programmatic consumption, such as by the VS Code extension.
+
+Example JSON output:
+
+```json
+[
+  {
+    "type": "pr",
+    "id": "PR_kwDOK9Z4x85qXE9P",
+    "title": "Fix login issues",
+    "timestamp": "2023-04-16T09:15:22Z",
+    "number": 42,
+    "state": "MERGED",
+    "url": "https://github.com/example/repo/pull/42"
+  },
+  {
+    "type": "commit",
+    "id": "commit:abc123",
+    "title": "Fix bug in login form",
+    "timestamp": "2023-04-15T14:32:10Z",
+    "author": "John Doe",
+    "sha": "abc123def456"
+  },
+  {
+    "type": "issue",
+    "id": "Issue_123",
+    "title": "Login form bug",
+    "timestamp": "2023-04-10T11:20:05Z",
+    "number": 123,
+    "state": "closed",
+    "url": "https://github.com/example/repo/issues/123"
+  }
+]
+```
+
+Each object in the JSON array contains:
+
+- Common fields for all node types:
+  - `type`: The type of the node (commit, pr, issue, adr, file)
+  - `id`: The unique identifier of the node
+  - `title`: The title or description of the node
+  - `timestamp`: When the node was created or last modified (ISO format)
+
+- Type-specific fields:
+  - For `commit`: `author`, `sha`
+  - For `pr`: `number`, `state`, `url`
+  - For `issue`: `number`, `state`, `url`
+  - For `adr`: `status`, `decision_makers`, `path`
+
+The JSON output is sorted chronologically, with the newest events first, matching the behavior of the text output.
 
 ## Interpreting Trace Results
 

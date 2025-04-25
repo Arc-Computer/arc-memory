@@ -130,6 +130,22 @@ The trace history algorithm traverses the knowledge graph using the following ru
 
 The algorithm uses a breadth-first search to ensure that the most relevant entities are returned first.
 
+## CLI Integration
+
+The trace history API is integrated with the Arc Memory CLI through the `arc trace file` command. This command now supports both human-readable text output and machine-readable JSON output via the `--format` option:
+
+```bash
+# Output in human-readable text format (default)
+arc trace file src/main.py 42 --format text
+
+# Output in machine-readable JSON format
+arc trace file src/main.py 42 --format json
+```
+
+The JSON output format is particularly useful for programmatic consumption, such as by the VS Code extension. It returns the exact same data structure as the `trace_history_for_file_line` function, serialized as JSON.
+
+See the [CLI documentation](../cli/trace.md) for more details.
+
 ## Performance
 
 The trace history algorithm is designed for high performance, with queries typically completing in under 200 microseconds. This ensures a responsive user experience in the VS Code extension.
