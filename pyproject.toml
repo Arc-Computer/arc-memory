@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "arc-memory"
-version = "0.1.1"  # Added JSON output format to trace command
+version = "0.1.2"  # Fixed version string in __init__.py
 description = "Arc Memory - Local bi-temporal knowledge graph for code repositories"
 readme = "README.md"
 requires-python = ">=3.10"
