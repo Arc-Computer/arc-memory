@@ -26,8 +26,3 @@ app.add_typer(build_app, name="build")
 app.add_typer(doctor_app, name="doctor")
 app.add_typer(trace_app, name="trace")
 app.add_typer(version_app, name="version")
-
-@app.command()
-def version() -> None:
-    """Show the version of Arc Memory."""
-    console.print(f"Arc Memory version: {arc_memory.__version__}")
