@@ -3,9 +3,9 @@
 > Status: Accepted
 >
 > **Date:** 2025-04-26
-> 
+>
 > **Decision makers:** Jarrod Barnes (Founder), Core Eng Team
-> 
+>
 > **Context:** After initial implementation of the data model, we identified several refinements needed to fully support the hover and trace-history features in Arc Memory.
 
 ## 1 · Problem Statement
@@ -86,7 +86,7 @@ Simplify the `BuildManifest` model to match the suggested structure:
 ```python
 class BuildManifest(BaseModel):
     """Metadata about a graph build."""
-    schema: str
+    schema_version: str
     build_time: datetime
     commit: Optional[str] = None
     node_count: int

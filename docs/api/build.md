@@ -118,7 +118,7 @@ The build manifest is a JSON file that stores metadata about the build:
 
 ```python
 class BuildManifest(BaseModel):
-    schema: str
+    schema_version: str
     build_time: datetime
     commit: Optional[str]
     node_count: int

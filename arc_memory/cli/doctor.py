@@ -130,7 +130,7 @@ def doctor(
                 table.add_column("Value")
 
                 table.add_row("Build Time", str(manifest.build_time))
-                table.add_row("Schema Version", manifest.schema)
+                table.add_row("Schema Version", manifest.schema_version)
                 table.add_row("Node Count", str(manifest.node_count))
                 table.add_row("Edge Count", str(manifest.edge_count))
                 table.add_row("Last Commit Hash", manifest.commit or "N/A")

@@ -128,7 +128,7 @@ def build_graph(
         last_commit_hash = plugin_metadata["git"]["last_commit_hash"]
 
     build_manifest = BuildManifest(
-        schema="0.1.0",
+        schema_version="0.1.0",
         build_time=datetime.now(),
         commit=last_commit_hash,
         node_count=node_count,

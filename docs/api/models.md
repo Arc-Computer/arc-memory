@@ -182,7 +182,7 @@ Represents an edge connecting two nodes in the knowledge graph:
 
 ```python
 class BuildManifest(BaseModel):
-    schema: str
+    schema_version: str
     build_time: datetime
     commit: Optional[str] = None
     node_count: int
@@ -192,7 +192,7 @@ class BuildManifest(BaseModel):
 
 Stores metadata about a graph build:
 
-- `schema`: The schema version of the build manifest
+- `schema_version`: The schema version of the build manifest
 - `build_time`: When the build was performed
 - `commit`: The commit hash at the time of the build
 - `node_count`: The number of nodes in the graph
@@ -265,7 +265,7 @@ from arc_memory.schema.models import BuildManifest
 
 # Create a build manifest
 manifest = BuildManifest(
-    schema="0.1.0",
+    schema_version="0.1.0",
     build_time=datetime.now(),
     commit="abc123",
     node_count=100,

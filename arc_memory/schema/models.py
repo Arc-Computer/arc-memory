@@ -99,7 +99,7 @@ class Edge(BaseModel):
 class BuildManifest(BaseModel):
     """Metadata about a graph build."""
 
-    schema: str
+    schema_version: str
     build_time: datetime
     commit: Optional[str] = None
     node_count: int
