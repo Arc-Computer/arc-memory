@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Fixed version string in `__init__.py` to match package version
+- Fixed `arc version` command in CLI
 
 ## [0.1.1] - 2025-04-25
 
