@@ -7,17 +7,82 @@
 <p align="center">
   <a href="https://www.arc.computer"><img src="https://img.shields.io/badge/website-arc.computer-blue" alt="Website"/></a>
   <a href="https://github.com/Arc-Computer/arc-memory/actions"><img src="https://img.shields.io/badge/tests-passing-brightgreen" alt="Tests"/></a>
-  <a href="https://pypi.org/project/arc-memory/0.1.0/"><img src="https://img.shields.io/badge/pypi-v0.1.0-blue" alt="PyPI"/></a>
-  <a href="https://pypi.org/project/arc-memory/0.1.0/"><img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue" alt="Python"/></a>
+  <a href="https://pypi.org/project/arc-memory/"><img src="https://img.shields.io/pypi/v/arc-memory" alt="PyPI"/></a>
+  <a href="https://pypi.org/project/arc-memory/"><img src="https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12-blue" alt="Python"/></a>
   <a href="https://github.com/Arc-Computer/arc-memory/blob/main/LICENSE"><img src="https://img.shields.io/github/license/Arc-Computer/arc-memory" alt="License"/></a>
   <a href="https://docs.arc.computer"><img src="https://img.shields.io/badge/docs-mintlify-teal" alt="Documentation"/></a>
 </p>
 
-At Arc, we're building the foundational memory layer for modern software engineering. Our mission is simple but powerful: ensure engineering teams never lose the critical "why" behind their code. Our mission is to bridge the gap between human decisions and machine understanding, becoming the temporal source-of-truth for every engineering team and their agents.
+At Arc, we're building the foundational memory layer for modern software engineering. Our mission is simple but powerful: ensure engineering teams never lose the critical "why" behind their code. We bridge the gap between human decisions and machine understanding, becoming the temporal source-of-truth for every engineering team and their AI agents.
 
 ## Overview
 
 Arc Memory is a comprehensive SDK that embeds a local, bi-temporal knowledge graph (TKG) in every developer's workspace. It surfaces verifiable decision trails during code-review and exposes the same provenance to any LLM-powered agent through VS Code's Agent Mode.
+
+## Arc Memory Ecosystem
+
+The Arc Memory SDK is part of a broader ecosystem that connects your codebase to AI assistants:
+
+```mermaid
+graph TD
+    subgraph "Data Sources"
+        Git["Git Repository"]
+        GitHub["GitHub Issues/PRs"]
+        ADRs["Architecture Decisions"]
+        Other["Other Sources"]
+    end
+
+    subgraph "Arc Memory SDK"
+        TKG["Temporal Knowledge Graph"]
+        Plugins["Plugin Architecture"]
+        CLI["Command Line Interface"]
+        TraceAlgo["Trace History Algorithm"]
+    end
+
+    subgraph "Arc Memory MCP Server"
+        API["Model Context Protocol"]
+        TraceHistory["arc_trace_history"]
+        EntityDetails["arc_get_entity_details"]
+        RelatedEntities["arc_find_related_entities"]
+        BlameLine["arc_blame_line"]
+    end
+
+    subgraph "AI Assistants & Tools"
+        VSCode["VS Code Agent Mode"]
+        Claude["Claude Desktop"]
+        Cursor["Cursor"]
+        Windsurf["Windsurf"]
+        OtherClients["Other MCP Clients"]
+    end
+
+    Git --> TKG
+    GitHub --> TKG
+    ADRs --> TKG
+    Other --> TKG
+
+    TKG --> API
+
+    API --> VSCode
+    API --> Claude
+    API --> Cursor
+    API --> Windsurf
+    API --> OtherClients
+
+    classDef current fill:#c2f0c2,stroke:#0f5f0f,stroke-width:2px;
+    classDef future fill:#f0f0c2,stroke:#5f5f0f,stroke-width:1px;
+
+    class TKG,Plugins,CLI,TraceAlgo,API,TraceHistory,EntityDetails,RelatedEntities,BlameLine current;
+    class VSCode future;
+```
+
+The diagram shows how:
+
+1. **Data Sources** (Git, GitHub, ADRs, etc.) are processed by the **Arc Memory SDK** to build the Temporal Knowledge Graph
+2. The **Arc Memory MCP Server** exposes this knowledge graph through Anthropic's Model Context Protocol (MCP)
+3. **AI Assistants** (Claude Desktop, VS Code Agent Mode, Cursor, etc.) connect to the server to access the knowledge graph
+4. This enables AI assistants to provide context-aware assistance grounded in the project's actual history and decisions
+
+> **Note:** Green components are currently available. Yellow components are future milestones.
 
 ## Features
 
@@ -27,6 +92,7 @@ Arc Memory is a comprehensive SDK that embeds a local, bi-temporal knowledge gra
 - **High Performance** - Trace history queries complete in under 200ms (typically ~100μs)
 - **Incremental Builds** - Efficiently update the graph with only new data
 - **Rich CLI** - Command-line interface for building graphs and tracing history
+- **MCP Integration** - Connect to AI assistants via Anthropic's Model Context Protocol
 - **Privacy-First** - All data stays on your machine; no code or IP leaves your repo
 - **CI Integration** - Team-wide graph updates through CI workflows
 
@@ -96,9 +162,10 @@ Arc Memory consists of three components:
    - **Trace History Algorithm** - BFS-based algorithm for traversing the knowledge graph
    - **CLI Commands** - Interface for building graphs and tracing history
 
-2. **arc-memory-mcp** - Local daemon exposing API endpoints (future milestone)
-   - Will provide HTTP API for VS Code extension and other tools
-   - Will be implemented as a static binary in Go
+2. **arc-memory-mcp** - MCP server exposing the knowledge graph to AI assistants
+   - Available at [github.com/Arc-Computer/arc-mcp-server](https://github.com/Arc-Computer/arc-mcp-server)
+   - Implements Anthropic's Model Context Protocol (MCP) for standardized AI tool access
+   - Provides tools like `arc_trace_history`, `arc_get_entity_details`, and more
 
 3. **vscode-arc-hover** - VS Code extension for displaying decision trails (future milestone)
    - Will integrate with the MCP server to display trace history
