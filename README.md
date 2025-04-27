@@ -24,6 +24,7 @@ Arc Memory is a comprehensive SDK that embeds a local, bi-temporal knowledge gra
 The Arc Memory SDK is part of a broader ecosystem that connects your codebase to AI assistants:
 
 ```mermaid
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#242424', 'primaryTextColor': '#fff', 'primaryBorderColor': '#fff', 'lineColor': '#F8B229', 'secondaryColor': '#006100', 'tertiaryColor': '#fff' }}}%%
 graph TD
     subgraph "Data Sources"
         Git["Git Repository"]
@@ -68,11 +69,19 @@ graph TD
     API --> Windsurf
     API --> OtherClients
 
-    classDef current fill:#c2f0c2,stroke:#0f5f0f,stroke-width:2px;
-    classDef future fill:#f0f0c2,stroke:#5f5f0f,stroke-width:1px;
+    %% Define styles that work in both light and dark mode
+    classDef current fill:#4CAF50,stroke:#FFFFFF,stroke-width:2px,color:#FFFFFF,font-weight:bold;
+    classDef future fill:#FFC107,stroke:#FFFFFF,stroke-width:2px,color:#000000,font-weight:bold;
 
+    %% Apply styles
     class TKG,Plugins,CLI,TraceAlgo,API,TraceHistory,EntityDetails,RelatedEntities,BlameLine current;
     class VSCode future;
+
+    %% Style subgraphs for better visibility
+    style "Data Sources" fill:#37474F,stroke:#FFFFFF,color:#FFFFFF,stroke-width:2px;
+    style "Arc Memory SDK" fill:#1976D2,stroke:#FFFFFF,color:#FFFFFF,stroke-width:2px;
+    style "Arc Memory MCP Server" fill:#512DA8,stroke:#FFFFFF,color:#FFFFFF,stroke-width:2px;
+    style "AI Assistants & Tools" fill:#D32F2F,stroke:#FFFFFF,color:#FFFFFF,stroke-width:2px;
 ```
 
 The diagram shows how:
@@ -82,7 +91,7 @@ The diagram shows how:
 3. **AI Assistants** (Claude Desktop, VS Code Agent Mode, Cursor, etc.) connect to the server to access the knowledge graph
 4. This enables AI assistants to provide context-aware assistance grounded in the project's actual history and decisions
 
-> **Note:** Green components are currently available. Yellow components are future milestones.
+> **Note:** Green components are currently available. Yellow/gold components are future milestones. The diagram is designed to be visible in both light and dark modes.
 
 ## Features
 
