@@ -4,7 +4,6 @@ import json
 import os
 import time
 from datetime import datetime
-from pathlib import Path
 from typing import Optional, Tuple
 
 import jwt
@@ -301,13 +300,12 @@ def start_device_flow(client_id: str) -> Tuple[str, str, int]:
 
 
 def poll_device_flow(
-    client_id: str, client_secret: str, device_code: str, interval: int, timeout: int = 300
+    client_id: str, device_code: str, interval: int, timeout: int = 300
 ) -> str:
     """Poll the GitHub device flow for an access token.
 
     Args:
         client_id: The GitHub OAuth client ID.
-        client_secret: The GitHub OAuth client secret.
         device_code: The device code from start_device_flow.
         interval: The polling interval in seconds.
         timeout: The timeout in seconds.
@@ -329,7 +327,6 @@ def poll_device_flow(
                 },
                 json={
                     "client_id": client_id,
-                    "client_secret": client_secret,
                     "device_code": device_code,
                     "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
                 },

@@ -7,10 +7,7 @@ from typing import Optional
 import typer
 from rich.console import Console
 
-from arc_memory.auth.default_credentials import (
-    DEFAULT_GITHUB_CLIENT_ID,
-    DEFAULT_GITHUB_CLIENT_SECRET,
-)
+from arc_memory.auth.default_credentials import DEFAULT_GITHUB_CLIENT_ID
 from arc_memory.auth.github import (
     GitHubAppConfig,
     get_github_app_config_from_env,
@@ -41,9 +38,6 @@ def github_auth(
     client_id: str = typer.Option(
         None, help="GitHub OAuth client ID. If not provided, uses the default Arc Memory app."
     ),
-    client_secret: str = typer.Option(
-        None, help="GitHub OAuth client secret. If not provided, uses the default Arc Memory app."
-    ),
     timeout: int = typer.Option(
         300, help="Timeout in seconds for the device flow."
     ),
@@ -51,7 +45,11 @@ def github_auth(
         False, "--debug", help="Enable debug logging."
     ),
 ) -> None:
-    """Authenticate with GitHub using device flow."""
+    """Authenticate with GitHub using device flow.
+
+    This command uses GitHub's Device Flow, which is the recommended approach for CLI applications.
+    It will display a code and URL for you to visit in your browser to complete authentication.
+    """
     configure_logging(debug=debug)
 
     # Check if we already have a token
@@ -83,32 +81,29 @@ def github_auth(
             )
             return
 
-    # Use default Arc Memory app if client ID/secret not provided
-    if not client_id or not client_secret:
+    # Use default Arc Memory app if client ID not provided
+    if not client_id:
         # First try environment variables (for development or custom overrides)
         env_client_id = os.environ.get("ARC_GITHUB_CLIENT_ID")
-        env_client_secret = os.environ.get("ARC_GITHUB_CLIENT_SECRET")
 
-        if env_client_id and env_client_secret:
-            logger.debug("Using GitHub OAuth credentials from environment variables")
+        if env_client_id:
+            logger.debug("Using GitHub OAuth Client ID from environment variables")
             client_id = env_client_id
-            client_secret = env_client_secret
         else:
-            # Use the default embedded credentials
-            logger.debug("Using default embedded GitHub OAuth credentials")
+            # Use the default embedded Client ID
+            logger.debug("Using default embedded GitHub OAuth Client ID")
             client_id = DEFAULT_GITHUB_CLIENT_ID
-            client_secret = DEFAULT_GITHUB_CLIENT_SECRET
 
-            # Verify that the default credentials are valid (not placeholder values)
-            if client_id == "YOUR_CLIENT_ID" or client_secret == "YOUR_CLIENT_SECRET":
+            # Verify that the default Client ID is valid (not a placeholder value)
+            if client_id == "YOUR_CLIENT_ID":
                 console.print(
-                    "[red]Default GitHub OAuth credentials are not configured.[/red]"
+                    "[red]Default GitHub OAuth Client ID is not configured.[/red]"
                 )
                 console.print(
-                    "Please provide client ID and secret with --client-id and --client-secret,"
+                    "Please provide a Client ID with --client-id,"
                 )
                 console.print(
-                    "or set ARC_GITHUB_CLIENT_ID and ARC_GITHUB_CLIENT_SECRET environment variables."
+                    "or set the ARC_GITHUB_CLIENT_ID environment variable."
                 )
                 sys.exit(1)
             else:
@@ -117,12 +112,19 @@ def github_auth(
                 )
 
     try:
-        # Start device flow
+        # Start device flow (only requires Client ID)
         device_code, verification_uri, interval = start_device_flow(client_id)
 
-        # Poll for token
+        console.print(
+            f"[bold blue]Please visit: [link={verification_uri}]{verification_uri}[/link][/bold blue]"
+        )
+        console.print(
+            f"[bold]And enter the code: [green]{device_code}[/green][/bold]"
+        )
+
+        # Poll for token (Client Secret not required for Device Flow)
         token = poll_device_flow(
-            client_id, client_secret, device_code, interval, timeout
+            client_id, device_code, interval, timeout
         )
 
         # Store token in keyring

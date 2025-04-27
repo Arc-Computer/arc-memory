@@ -26,7 +26,6 @@ This command initiates the GitHub device flow authentication process. It will di
 #### Options
 
 - `--client-id TEXT`: GitHub OAuth client ID. If not provided, uses the default Arc Memory app from the Arc-Computer organization.
-- `--client-secret TEXT`: GitHub OAuth client secret. If not provided, uses the default Arc Memory app from the Arc-Computer organization.
 - `--timeout INTEGER`: Timeout in seconds for the device flow (default: 300).
 - `--debug`: Enable debug logging.
 
@@ -67,6 +66,22 @@ This command configures authentication for a GitHub App. GitHub Apps provide mor
 # Authenticate with a GitHub App
 arc auth gh-app --app-id 12345 --private-key path/to/private-key.pem
 ```
+
+## GitHub Device Flow
+
+Arc Memory uses GitHub's Device Flow for authentication, which is the recommended approach for CLI applications:
+
+1. **How It Works**:
+   - When you run `arc auth gh`, the CLI generates a user code and verification URL
+   - You visit the URL in your browser and enter the code
+   - You authenticate directly with GitHub in your browser
+   - GitHub then authorizes the application and provides a token to the CLI
+
+2. **Security Benefits**:
+   - You never enter your GitHub credentials in the CLI
+   - The CLI only needs a Client ID (public information) to initiate the flow
+   - Your browser handles the secure authentication with GitHub
+   - The token is generated directly between GitHub and the CLI
 
 ## Authentication Storage
 
@@ -115,10 +130,10 @@ If you encounter authentication issues:
    - Enterprise accounts typically have higher rate limits
 
 5. **Default Credentials**:
-   - Arc Memory uses default GitHub OAuth credentials from the Arc-Computer organization
-   - If you see "Using Arc Memory's GitHub OAuth app for authentication", the default credentials are being used
-   - If you see "Default GitHub OAuth credentials are not configured", contact the Arc Memory team
-   - You can always provide your own credentials with `--client-id` and `--client-secret`
+   - Arc Memory uses a default GitHub OAuth Client ID from the Arc-Computer organization
+   - If you see "Using Arc Memory's GitHub OAuth app for authentication", the default Client ID is being used
+   - If you see "Default GitHub OAuth Client ID is not configured", contact the Arc Memory team
+   - You can always provide your own Client ID with `--client-id`
 
 ### Re-authentication
 
