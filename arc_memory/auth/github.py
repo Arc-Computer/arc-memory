@@ -23,7 +23,7 @@ KEYRING_APP_USERNAME = "github-app"
 GITHUB_API_URL = "https://api.github.com"
 DEVICE_CODE_URL = f"{GITHUB_API_URL}/login/device/code"
 DEVICE_TOKEN_URL = f"{GITHUB_API_URL}/login/oauth/access_token"
-USER_AGENT = "Arc-Memory/0.1.8"
+USER_AGENT = "Arc-Memory/0.1.9"
 
 # Environment variable names
 ENV_APP_ID = "ARC_GITHUB_APP_ID"
