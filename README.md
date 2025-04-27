@@ -26,35 +26,47 @@ The Arc Memory SDK is part of a broader ecosystem that connects your codebase to
 ```mermaid
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#242424', 'primaryTextColor': '#fff', 'primaryBorderColor': '#fff', 'lineColor': '#F8B229', 'secondaryColor': '#006100', 'tertiaryColor': '#fff' }}}%%
 graph TD
-    subgraph "Data Sources"
+    %% Define styles that work in both light and dark mode
+    classDef current fill:#4CAF50,stroke:#FFFFFF,stroke-width:2px,color:#FFFFFF,font-weight:bold;
+    classDef future fill:#FFC107,stroke:#FFFFFF,stroke-width:2px,color:#000000,font-weight:bold;
+    classDef dataSources fill:#37474F,stroke:#FFFFFF,color:#FFFFFF,stroke-width:2px;
+    classDef sdkSection fill:#1976D2,stroke:#FFFFFF,color:#FFFFFF,stroke-width:2px;
+    classDef mcpSection fill:#512DA8,stroke:#FFFFFF,color:#FFFFFF,stroke-width:2px;
+    classDef aiSection fill:#D32F2F,stroke:#FFFFFF,color:#FFFFFF,stroke-width:2px;
+
+    subgraph DataSources["Data Sources"]
         Git["Git Repository"]
         GitHub["GitHub Issues/PRs"]
         ADRs["Architecture Decisions"]
         Other["Other Sources"]
     end
+    class DataSources dataSources;
 
-    subgraph "Arc Memory SDK"
+    subgraph SDK["Arc Memory SDK"]
         TKG["Temporal Knowledge Graph"]
         Plugins["Plugin Architecture"]
         CLI["Command Line Interface"]
         TraceAlgo["Trace History Algorithm"]
     end
+    class SDK sdkSection;
 
-    subgraph "Arc Memory MCP Server"
+    subgraph MCP["Arc Memory MCP Server"]
         API["Model Context Protocol"]
         TraceHistory["arc_trace_history"]
         EntityDetails["arc_get_entity_details"]
         RelatedEntities["arc_find_related_entities"]
         BlameLine["arc_blame_line"]
     end
+    class MCP mcpSection;
 
-    subgraph "AI Assistants & Tools"
+    subgraph AI["AI Assistants & Tools"]
         VSCode["VS Code Agent Mode"]
         Claude["Claude Desktop"]
         Cursor["Cursor"]
         Windsurf["Windsurf"]
         OtherClients["Other MCP Clients"]
     end
+    class AI aiSection;
 
     Git --> TKG
     GitHub --> TKG
@@ -69,19 +81,9 @@ graph TD
     API --> Windsurf
     API --> OtherClients
 
-    %% Define styles that work in both light and dark mode
-    classDef current fill:#4CAF50,stroke:#FFFFFF,stroke-width:2px,color:#FFFFFF,font-weight:bold;
-    classDef future fill:#FFC107,stroke:#FFFFFF,stroke-width:2px,color:#000000,font-weight:bold;
-
-    %% Apply styles
+    %% Apply styles to nodes
     class TKG,Plugins,CLI,TraceAlgo,API,TraceHistory,EntityDetails,RelatedEntities,BlameLine current;
     class VSCode future;
-
-    %% Style subgraphs for better visibility
-    style "Data Sources" fill:#37474F,stroke:#FFFFFF,color:#FFFFFF,stroke-width:2px;
-    style "Arc Memory SDK" fill:#1976D2,stroke:#FFFFFF,color:#FFFFFF,stroke-width:2px;
-    style "Arc Memory MCP Server" fill:#512DA8,stroke:#FFFFFF,color:#FFFFFF,stroke-width:2px;
-    style "AI Assistants & Tools" fill:#D32F2F,stroke:#FFFFFF,color:#FFFFFF,stroke-width:2px;
 ```
 
 The diagram shows how:
