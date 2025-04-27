@@ -31,7 +31,7 @@ jobs:
 
     - name: Test device flow initialization
       run: |
-        python -c "
+        cat > test_device_flow.py << 'EOF'
         import sys
         from unittest.mock import patch
         from arc_memory.auth.github import start_device_flow
@@ -61,7 +61,8 @@ jobs:
             assert kwargs['json']['client_id'] == 'test-client-id'
 
             print('Device flow initialization test passed!')
-        "
+        EOF
+        python test_device_flow.py
 
     - name: Verify documentation
       run: |
