@@ -24,7 +24,7 @@ Arc Memory is our foundational SDK that embeds a local, bi-temporal knowledge gr
 The Arc Memory SDK is part of a broader ecosystem that connects your team's collective history to AI assistants:
 
 <div align="center">
-  <img src="public/arc-vision-diagram.png" alt="Arc Memory Ecosystem Diagram" width="600"/>
+  <img src="public/arc-vision-diagram.png" alt="Arc Memory Ecosystem Diagram" width="1200"/>
 </div>
 
 ### How It Works
