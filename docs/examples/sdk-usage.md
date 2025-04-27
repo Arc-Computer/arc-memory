@@ -139,58 +139,6 @@ pipeline {
 }
 ```
 
-## Integration with Jupyter Notebooks
-
-### Jupyter Notebook
-
-```python
-# Import Arc Memory SDK
-from arc_memory.sql.db import init_db, get_node_count, search_entities
-from arc_memory.trace import trace_history_for_file_line
-from pathlib import Path
-import matplotlib.pyplot as plt
-import networkx as nx
-
-# Initialize the database
-conn = init_db()
-
-# Get basic statistics
-node_count = get_node_count(conn)
-print(f"Knowledge graph contains {node_count} nodes")
-
-# Search for entities
-results = search_entities(conn, "important feature", limit=5)
-for result in results:
-    print(f"{result.type.value}: {result.title}")
-    print(f"  {result.snippet}")
-    print()
-
-# Trace history
-history = trace_history_for_file_line(
-    db_path=Path("~/.arc/graph.db"),
-    file_path="src/main.py",
-    line_number=42
-)
-
-# Visualize the history as a graph
-G = nx.DiGraph()
-
-# Add nodes
-for item in history:
-    G.add_node(item["id"], label=f"{item['type']}: {item['title']}")
-
-# Add edges (simplified)
-for i in range(len(history) - 1):
-    G.add_edge(history[i]["id"], history[i+1]["id"])
-
-# Plot the graph
-plt.figure(figsize=(12, 8))
-pos = nx.spring_layout(G)
-nx.draw(G, pos, with_labels=True, node_color="skyblue", node_size=1500, arrows=True)
-plt.title("History Graph")
-plt.show()
-```
-
 ## Next Steps
 
 - [Learn about building knowledge graphs](./building-graphs.md)

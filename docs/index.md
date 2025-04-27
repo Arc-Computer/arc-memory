@@ -80,7 +80,6 @@ arc trace file path/to/file.py 42
 - [SDK Usage](./examples/sdk-usage.md) - Using the SDK
   - Basic SDK operations
   - CI/CD pipelines
-  - Jupyter notebooks
 
 - [Custom Plugins](./examples/custom-plugins.md) - Creating custom data source plugins
   - Basic plugin template
