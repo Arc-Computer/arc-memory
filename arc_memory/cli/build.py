@@ -28,6 +28,7 @@ logger = get_logger(__name__)
 
 @app.callback(invoke_without_command=True)
 def callback(
+    ctx: typer.Context,
     repo_path: Path = typer.Option(
         Path.cwd(), "--repo", "-r", help="Path to the Git repository."
     ),
@@ -52,7 +53,6 @@ def callback(
     debug: bool = typer.Option(
         False, "--debug", help="Enable debug logging."
     ),
-    ctx: typer.Context = typer.Context,
 ) -> None:
     """Build the knowledge graph from Git, GitHub, and ADRs."""
     configure_logging(debug=debug or is_debug_mode())
@@ -61,10 +61,14 @@ def callback(
     if ctx.invoked_subcommand is not None:
         return
 
+    # Determine output path
+    arc_dir = ensure_arc_dir()
+    output_path_to_use = output_path if output_path is not None else arc_dir / "graph.db"
+
     # Run the build command (moved to a separate function)
     build_graph(
         repo_path=repo_path,
-        output_path=output_path,
+        output_path=output_path_to_use,
         max_commits=max_commits,
         days=days,
         incremental=incremental,

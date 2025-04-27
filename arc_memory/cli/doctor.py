@@ -22,6 +22,7 @@ logger = get_logger(__name__)
 
 @app.callback(invoke_without_command=True)
 def callback(
+    ctx: typer.Context,
     db_path: Optional[Path] = typer.Option(
         None, "--db", help="Path to the database file."
     ),
@@ -34,7 +35,6 @@ def callback(
     debug: bool = typer.Option(
         False, "--debug", help="Enable debug logging."
     ),
-    ctx: typer.Context = typer.Context,
 ) -> None:
     """Check the health of the knowledge graph."""
     configure_logging(debug=debug or is_debug_mode())
