@@ -77,12 +77,10 @@ arc trace file path/to/file.py 42
   - Finding the decision behind a feature
   - Programmatic tracing
 
-- [SDK Usage](./examples/sdk-usage.md) - Using the SDK in different contexts
-  - Web applications
+- [SDK Usage](./examples/sdk-usage.md) - Using the SDK
+  - Basic SDK operations
   - CI/CD pipelines
-  - VS Code extensions
   - Jupyter notebooks
-  - AI assistants
 
 - [Custom Plugins](./examples/custom-plugins.md) - Creating custom data source plugins
   - Basic plugin template
