@@ -1,6 +1,5 @@
 """Build commands for Arc Memory CLI."""
 
-import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -22,19 +21,13 @@ from arc_memory.sql.db import (
     save_build_manifest,
 )
 
-app = typer.Typer(help="Build commands")
+app = typer.Typer(help="Build the knowledge graph from Git, GitHub, and ADRs")
 console = Console()
 logger = get_logger(__name__)
 
 
-@app.callback()
-def callback() -> None:
-    """Build commands for Arc Memory."""
-    configure_logging(debug=is_debug_mode())
-
-
-@app.command()
-def build(
+@app.callback(invoke_without_command=True)
+def callback(
     repo_path: Path = typer.Option(
         Path.cwd(), "--repo", "-r", help="Path to the Git repository."
     ),
@@ -59,6 +52,37 @@ def build(
     debug: bool = typer.Option(
         False, "--debug", help="Enable debug logging."
     ),
+    ctx: typer.Context = typer.Context,
+) -> None:
+    """Build the knowledge graph from Git, GitHub, and ADRs."""
+    configure_logging(debug=debug or is_debug_mode())
+
+    # If a subcommand was invoked, don't run the default command
+    if ctx.invoked_subcommand is not None:
+        return
+
+    # Run the build command (moved to a separate function)
+    build_graph(
+        repo_path=repo_path,
+        output_path=output_path,
+        max_commits=max_commits,
+        days=days,
+        incremental=incremental,
+        pull=pull,
+        token=token,
+        debug=debug,
+    )
+
+
+def build_graph(
+    repo_path: Path,
+    output_path: Optional[Path] = None,
+    max_commits: int = 5000,
+    days: int = 365,
+    incremental: bool = False,
+    pull: bool = False,
+    token: Optional[str] = None,
+    debug: bool = False,
 ) -> None:
     """Build the knowledge graph from Git, GitHub, and ADRs."""
     configure_logging(debug=debug)
@@ -204,3 +228,45 @@ def build(
             logger.exception("Unexpected error during build")
             console.print(f"[red]Unexpected error: {e}[/red]")
             sys.exit(1)
+
+
+# Keep the original command for backward compatibility
+@app.command(hidden=True)
+def build(
+    repo_path: Path = typer.Option(
+        Path.cwd(), "--repo", "-r", help="Path to the Git repository."
+    ),
+    output_path: Optional[Path] = typer.Option(
+        None, "--output", "-o", help="Path to the output database file."
+    ),
+    max_commits: int = typer.Option(
+        5000, "--max-commits", help="Maximum number of commits to process."
+    ),
+    days: int = typer.Option(
+        365, "--days", help="Maximum age of commits to process in days."
+    ),
+    incremental: bool = typer.Option(
+        False, "--incremental", help="Only process new data since last build."
+    ),
+    pull: bool = typer.Option(
+        False, "--pull", help="Pull the latest CI-built graph."
+    ),
+    token: Optional[str] = typer.Option(
+        None, "--token", help="GitHub token to use for API calls."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="Enable debug logging."
+    ),
+) -> None:
+    """Build the knowledge graph from Git, GitHub, and ADRs."""
+    # Call the extracted function
+    build_graph(
+        repo_path=repo_path,
+        output_path=output_path,
+        max_commits=max_commits,
+        days=days,
+        incremental=incremental,
+        pull=pull,
+        token=token,
+        debug=debug,
+    )

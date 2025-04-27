@@ -1,15 +1,11 @@
 """Doctor commands for Arc Memory CLI."""
 
-import os
-import sys
 from pathlib import Path
 from typing import Optional
 
 import typer
 from rich.console import Console
 from rich.table import Table
-
-from arc_memory.errors import GraphQueryError
 from arc_memory.logging_conf import configure_logging, get_logger, is_debug_mode
 from arc_memory.sql.db import (
     decompress_db,
@@ -19,19 +15,13 @@ from arc_memory.sql.db import (
     load_build_manifest,
 )
 
-app = typer.Typer(help="Doctor commands")
+app = typer.Typer(help="Check the health of the knowledge graph")
 console = Console()
 logger = get_logger(__name__)
 
 
-@app.callback()
-def callback() -> None:
-    """Doctor commands for Arc Memory."""
-    configure_logging(debug=is_debug_mode())
-
-
-@app.command()
-def doctor(
+@app.callback(invoke_without_command=True)
+def callback(
     db_path: Optional[Path] = typer.Option(
         None, "--db", help="Path to the database file."
     ),
@@ -44,6 +34,29 @@ def doctor(
     debug: bool = typer.Option(
         False, "--debug", help="Enable debug logging."
     ),
+    ctx: typer.Context = typer.Context,
+) -> None:
+    """Check the health of the knowledge graph."""
+    configure_logging(debug=debug or is_debug_mode())
+
+    # If a subcommand was invoked, don't run the default command
+    if ctx.invoked_subcommand is not None:
+        return
+
+    # Run the doctor command (moved to a separate function)
+    check_health(
+        db_path=db_path,
+        compressed_path=compressed_path,
+        manifest_path=manifest_path,
+        debug=debug,
+    )
+
+
+def check_health(
+    db_path: Optional[Path] = None,
+    compressed_path: Optional[Path] = None,
+    manifest_path: Optional[Path] = None,
+    debug: bool = False,
 ) -> None:
     """Check the health of the knowledge graph."""
     configure_logging(debug=debug)
@@ -149,3 +162,29 @@ def doctor(
         console.print(
             "[red]Arc Memory is not set up. Run 'arc build' to build the knowledge graph.[/red]"
         )
+
+
+# Keep the original command for backward compatibility
+@app.command(hidden=True)
+def doctor(
+    db_path: Optional[Path] = typer.Option(
+        None, "--db", help="Path to the database file."
+    ),
+    compressed_path: Optional[Path] = typer.Option(
+        None, "--compressed", help="Path to the compressed database file."
+    ),
+    manifest_path: Optional[Path] = typer.Option(
+        None, "--manifest", help="Path to the build manifest file."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="Enable debug logging."
+    ),
+) -> None:
+    """Check the health of the knowledge graph."""
+    # Call the extracted function
+    check_health(
+        db_path=db_path,
+        compressed_path=compressed_path,
+        manifest_path=manifest_path,
+        debug=debug,
+    )
