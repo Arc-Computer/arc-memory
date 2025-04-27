@@ -80,9 +80,6 @@ class TestDatabaseInitialization(unittest.TestCase):
         with self.assertRaises(DatabaseInitializationError):
             init_db(invalid_path)
 
-        # Skip the second test for now as it's difficult to mock properly
-        pass
-
     def test_add_nodes_edges_error_handling(self):
         """Test error handling when adding nodes and edges."""
         # Initialize the database
