@@ -24,22 +24,37 @@ classifiers = [
     "Topic :: Software Development :: Version Control :: Git",
 ]
 dependencies = [
-    "networkx>=3.0",
-    "apsw>=3.40.0",
-    "requests>=2.28.0",
-    "pydantic>=2.0.0",
-    "typer>=0.9.0",
-    "pyjwt>=2.6.0",
-    "cryptography>=43.0.0",  # Required for PyJWT's RS256 algorithm
-    "pyyaml>=6.0",
-    "markdown-it-py>=2.2.0",
-    "zstandard>=0.20.0",
-    "tqdm>=4.65.0",
-    "keyring>=23.13.1",
-    "gitpython>=3.1.30",
+    # Core database and graph dependencies
+    "networkx>=3.0",        # Graph algorithms and data structures
+    "apsw>=3.40.0",         # SQLite database wrapper with advanced features
+
+    # API and data handling
+    "requests>=2.28.0",     # HTTP requests for GitHub API
+    "pydantic>=2.0.0",      # Data validation and settings management
+
+    # CLI and user interface
+    "typer>=0.9.0",         # Command-line interface
+    "rich>=13.0.0",         # Rich text and formatting in terminal
+    "tqdm>=4.65.0",         # Progress bars
+
+    # Authentication and security
+    "pyjwt>=2.6.0",         # JWT token handling for GitHub auth
+    "cryptography>=43.0.0", # Required for PyJWT's RS256 algorithm
+    "keyring>=23.13.1",     # Secure credential storage
+
+    # Data formats and parsing
+    "pyyaml>=6.0",          # YAML parsing for ADRs
+    "markdown-it-py>=2.2.0", # Markdown parsing for ADRs
+
+    # Compression
+    "zstandard>=0.20.0",    # Database compression
+
+    # Git integration
+    "gitpython>=3.1.30",    # Git repository interaction
 ]
 
 [project.optional-dependencies]
+# Development dependencies
 dev = [
     "pytest>=7.3.1",
     "pytest-cov>=4.1.0",
@@ -48,6 +63,28 @@ dev = [
     "isort>=5.12.0",
     "pre-commit>=3.3.2",
     "responses>=0.23.1",  # For mocking API responses in tests
+]
+
+# Testing dependencies (subset of dev dependencies)
+test = [
+    "pytest>=7.3.1",
+    "pytest-cov>=4.1.0",
+    "responses>=0.23.1",  # For mocking API responses in tests
+]
+
+# CLI-only dependencies (for users who only need the command-line interface)
+cli = [
+    "typer>=0.9.0",
+    "rich>=13.0.0",
+    "tqdm>=4.65.0",
+    "keyring>=23.13.1",  # For storing GitHub credentials
+]
+
+# Documentation dependencies
+docs = [
+    "mkdocs>=1.4.0",
+    "mkdocs-material>=9.0.0",
+    "mkdocstrings>=0.20.0",
 ]
 
 [project.urls]

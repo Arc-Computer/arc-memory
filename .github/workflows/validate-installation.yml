@@ -1,0 +1,105 @@
+name: Validate Installation
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  validate-linux:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install package and dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+        pip install pyjwt gitpython pyyaml markdown-it-py
+
+    - name: Validate dependencies
+      run: |
+        python -c "from arc_memory.dependencies import validate_dependencies; validate_dependencies(include_optional=True)"
+
+    - name: Test database initialization
+      run: |
+        python -c "from arc_memory.sql.db import init_db, get_node_count; conn = init_db(); print(f'Node count: {get_node_count(conn)}')"
+
+    - name: Test with test mode
+      run: |
+        python -c "from arc_memory.sql.db import init_db, get_node_count; conn = init_db(test_mode=True); print(f'Test mode node count: {get_node_count(conn)}')"
+
+  validate-macos:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install package and dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+        pip install pyjwt gitpython pyyaml markdown-it-py
+
+    - name: Validate dependencies
+      run: |
+        python -c "from arc_memory.dependencies import validate_dependencies; validate_dependencies(include_optional=True)"
+
+    - name: Test database initialization
+      run: |
+        python -c "from arc_memory.sql.db import init_db, get_node_count; conn = init_db(); print(f'Node count: {get_node_count(conn)}')"
+
+    - name: Test with test mode
+      run: |
+        python -c "from arc_memory.sql.db import init_db, get_node_count; conn = init_db(test_mode=True); print(f'Test mode node count: {get_node_count(conn)}')"
+
+  validate-windows:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install package and dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+        pip install pyjwt gitpython pyyaml markdown-it-py
+
+    - name: Validate dependencies
+      run: |
+        python -c "from arc_memory.dependencies import validate_dependencies; validate_dependencies(include_optional=True)"
+
+    - name: Test database initialization
+      run: |
+        python -c "from arc_memory.sql.db import init_db, get_node_count; conn = init_db(); print(f'Node count: {get_node_count(conn)}')"
+
+    - name: Test with test mode
+      run: |
+        python -c "from arc_memory.sql.db import init_db, get_node_count; conn = init_db(test_mode=True); print(f'Test mode node count: {get_node_count(conn)}')"

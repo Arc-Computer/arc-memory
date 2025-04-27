@@ -41,6 +41,12 @@ arc trace file path/to/file.py 42
 
 ## Documentation Overview
 
+### Guides
+
+- [Dependencies Guide](./guides/dependencies.md) - Complete list of dependencies
+- [Test Environment Setup](./guides/test-environment.md) - Setting up a test environment
+- [Troubleshooting](./guides/troubleshooting.md) - Common issues and solutions
+
 ### CLI Commands
 
 - [Authentication](./cli/auth.md) - GitHub authentication commands
@@ -70,6 +76,10 @@ arc trace file path/to/file.py 42
   - Adjusting search depth and results
   - Finding the decision behind a feature
   - Programmatic tracing
+
+- [SDK Usage](./examples/sdk-usage.md) - Using the SDK
+  - Basic SDK operations
+  - CI/CD pipelines
 
 - [Custom Plugins](./examples/custom-plugins.md) - Creating custom data source plugins
   - Basic plugin template
@@ -153,9 +163,11 @@ For more details, see [Custom Plugins](./examples/custom-plugins.md).
 
 If you encounter issues with Arc Memory:
 
-1. Check the [Doctor](./cli/doctor.md) command for diagnostics
-2. Look for specific troubleshooting sections in each command's documentation
-3. Enable debug logging with the `--debug` flag
+1. Check the [Troubleshooting Guide](./guides/troubleshooting.md) for common issues and solutions
+2. Use the [Doctor](./cli/doctor.md) command for diagnostics
+3. Look for specific troubleshooting sections in each command's documentation
+4. Enable debug logging with the `--debug` flag
+5. Check the [Dependencies Guide](./guides/dependencies.md) to ensure all requirements are met
 
 ## Getting Help
 
