@@ -167,7 +167,7 @@ Arc Memory consists of three components:
    - Implements Anthropic's Model Context Protocol (MCP) for standardized AI tool access
    - Provides tools like `arc_trace_history`, `arc_get_entity_details`, and more
 
-3. **vscode-arc-hover** - VS Code extension for displaying decision trails (future milestone)
+3. **vscode-arc-hover** - VS Code extension for displaying decision trails (in development)
    - Will integrate with the MCP server to display trace history
    - Will provide hover cards with decision trails
 
