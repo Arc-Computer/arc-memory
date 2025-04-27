@@ -17,85 +17,27 @@ At Arc, we're building the foundational memory layer for modern software enginee
 
 ## Overview
 
-Arc Memory is a comprehensive SDK that embeds a local, bi-temporal knowledge graph (TKG) in every developer's workspace. It surfaces verifiable decision trails during code-review and exposes the same provenance to any LLM-powered agent through VS Code's Agent Mode.
+Arc Memory is our foundational SDK that embeds a local, bi-temporal knowledge graph (TKG) in every developer's workspace. It surfaces verifiable decision trails during code-review and exposes the same provenance to any LLM-powered agent through VS Code's Agent Mode.
 
 ## Arc Memory Ecosystem
 
-The Arc Memory SDK is part of a broader ecosystem that connects your codebase to AI assistants:
+The Arc Memory SDK is part of a broader ecosystem that connects your team's collective history to AI assistants:
 
-```mermaid
-%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#242424', 'primaryTextColor': '#fff', 'primaryBorderColor': '#fff', 'lineColor': '#F8B229', 'secondaryColor': '#006100', 'tertiaryColor': '#fff' }}}%%
-graph TD
-    %% Define styles that work in both light and dark mode
-    classDef current fill:#4CAF50,stroke:#FFFFFF,stroke-width:2px,color:#FFFFFF,font-weight:bold;
-    classDef future fill:#FFC107,stroke:#FFFFFF,stroke-width:2px,color:#000000,font-weight:bold;
-    classDef dataSources fill:#37474F,stroke:#FFFFFF,color:#FFFFFF,stroke-width:2px;
-    classDef sdkSection fill:#1976D2,stroke:#FFFFFF,color:#FFFFFF,stroke-width:2px;
-    classDef mcpSection fill:#512DA8,stroke:#FFFFFF,color:#FFFFFF,stroke-width:2px;
-    classDef aiSection fill:#D32F2F,stroke:#FFFFFF,color:#FFFFFF,stroke-width:2px;
+<div align="center">
+  <img src="public/arc-vision-diagram.png" alt="Arc Memory Ecosystem Diagram" width="600"/>
+</div>
 
-    subgraph DataSources["Data Sources"]
-        Git["Git Repository"]
-        GitHub["GitHub Issues/PRs"]
-        ADRs["Architecture Decisions"]
-        Other["Other Sources"]
-    end
-    class DataSources dataSources;
+### How It Works
 
-    subgraph SDK["Arc Memory SDK"]
-        TKG["Temporal Knowledge Graph"]
-        Plugins["Plugin Architecture"]
-        CLI["Command Line Interface"]
-        TraceAlgo["Trace History Algorithm"]
-    end
-    class SDK sdkSection;
+- **Data Sources** (G-Suite, Slack, Notion, GitHub, Jira) seamlessly feed into the **Arc Memory SDK**, which captures organizational decisions in a local-first Temporal Knowledge Graph (TKG).
 
-    subgraph MCP["Arc Memory MCP Server"]
-        API["Model Context Protocol"]
-        TraceHistory["arc_trace_history"]
-        EntityDetails["arc_get_entity_details"]
-        RelatedEntities["arc_find_related_entities"]
-        BlameLine["arc_blame_line"]
-    end
-    class MCP mcpSection;
+- The **Arc MCP Server** provides persistent, cross-repository decision context, enabling memory-aware multi-step reasoning for integrated tooling.
 
-    subgraph AI["AI Assistants & Tools"]
-        VSCode["VS Code Agent Mode"]
-        Claude["Claude Desktop"]
-        Cursor["Cursor"]
-        Windsurf["Windsurf"]
-        OtherClients["Other MCP Clients"]
-    end
-    class AI aiSection;
+- Through the **VS Code Extension**, developers interact directly with decision trails embedded into code reviews, and leverage verifiable citations and team-wide search across organizational decisions.
 
-    Git --> TKG
-    GitHub --> TKG
-    ADRs --> TKG
-    Other --> TKG
+Together, these components form the foundation for **organizational intelligence**, empowering sophisticated reasoning and enabling AI agents to build robust world models from your team's collective history.
 
-    TKG --> API
-
-    API --> VSCode
-    API --> Claude
-    API --> Cursor
-    API --> Windsurf
-    API --> OtherClients
-
-    %% Apply styles to nodes
-    class TKG,Plugins,CLI,TraceAlgo,API,TraceHistory,EntityDetails,RelatedEntities,BlameLine current;
-    class VSCode future;
-```
-
-The diagram shows how:
-
-1. **Data Sources** (Git, GitHub, ADRs, etc.) are processed by the **Arc Memory SDK** to build the Temporal Knowledge Graph
-2. The **Arc Memory MCP Server** exposes this knowledge graph through Anthropic's Model Context Protocol (MCP)
-3. **AI Assistants** (Claude Desktop, VS Code Agent Mode, Cursor, etc.) connect to the server to access the knowledge graph
-4. This enables AI assistants to provide context-aware assistance grounded in the project's actual history and decisions
-
-> **Note:** Green components are currently available. Yellow/gold components are future milestones. The diagram is designed to be visible in both light and dark modes.
-
-## Features
+## Arc Memory Features
 
 - **Extensible Plugin Architecture** - Easily add new data sources beyond Git, GitHub, and ADRs
 - **Comprehensive Knowledge Graph** - Build a local graph from Git commits, GitHub PRs, issues, and ADRs
