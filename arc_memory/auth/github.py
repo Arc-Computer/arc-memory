@@ -3,9 +3,8 @@
 import json
 import os
 import time
-from datetime import datetime, timedelta
-from pathlib import Path
-from typing import Dict, Optional, Tuple
+from datetime import datetime
+from typing import Optional, Tuple
 
 import jwt
 import keyring
@@ -24,7 +23,7 @@ KEYRING_APP_USERNAME = "github-app"
 GITHUB_API_URL = "https://api.github.com"
 DEVICE_CODE_URL = f"{GITHUB_API_URL}/login/device/code"
 DEVICE_TOKEN_URL = f"{GITHUB_API_URL}/login/oauth/access_token"
-USER_AGENT = "Arc-Memory/0.1.0"
+USER_AGENT = "Arc-Memory/0.1.8"
 
 # Environment variable names
 ENV_APP_ID = "ARC_GITHUB_APP_ID"
@@ -301,13 +300,12 @@ def start_device_flow(client_id: str) -> Tuple[str, str, int]:
 
 
 def poll_device_flow(
-    client_id: str, client_secret: str, device_code: str, interval: int, timeout: int = 300
+    client_id: str, device_code: str, interval: int, timeout: int = 300
 ) -> str:
     """Poll the GitHub device flow for an access token.
 
     Args:
         client_id: The GitHub OAuth client ID.
-        client_secret: The GitHub OAuth client secret.
         device_code: The device code from start_device_flow.
         interval: The polling interval in seconds.
         timeout: The timeout in seconds.
@@ -329,7 +327,6 @@ def poll_device_flow(
                 },
                 json={
                     "client_id": client_id,
-                    "client_secret": client_secret,
                     "device_code": device_code,
                     "grant_type": "urn:ietf:params:oauth:grant-type:device_code",
                 },

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "arc-memory"
-version = "0.1.7"  # Fixed version in __init__.py
+version = "0.1.8"  # Added default GitHub OAuth Client ID for secure authentication
 description = "Arc Memory - Local bi-temporal knowledge graph for code repositories"
 readme = "README.md"
 requires-python = ">=3.10"
