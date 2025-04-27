@@ -55,6 +55,7 @@ class TestDependencyValidation(unittest.TestCase):
             # Test without optional dependencies
             mock_check.reset_mock()
             mock_check.return_value = True
+            mock_check.side_effect = None  # Clear the side effect
             success, missing = check_dependencies(include_optional=False)
             self.assertTrue(success)
             self.assertEqual(missing, {})
