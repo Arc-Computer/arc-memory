@@ -29,8 +29,20 @@ def check_dependencies():
     """Check if all required dependencies are installed."""
     print("Checking dependencies...")
     try:
-        validate_dependencies(include_optional=False, raise_error=True)
-        print("✅ All required dependencies are installed.")
+        # Check core dependencies first
+        missing = validate_dependencies(include_optional=False, raise_error=True)
+        print("✅ All required core dependencies are installed.")
+
+        # Check optional dependencies but don't fail if they're missing
+        optional_missing = validate_dependencies(include_optional=True, raise_error=False)
+        if any(category != "core" for category in optional_missing):
+            print("⚠️ Some optional dependencies are missing. Functionality may be limited.")
+            for category, deps in optional_missing.items():
+                if category != "core":
+                    print(f"  - Missing {category} dependencies: {', '.join(deps)}")
+        else:
+            print("✅ All optional dependencies are installed.")
+
         return True
     except DependencyError as e:
         print(f"❌ Dependency check failed: {e}")
@@ -56,15 +68,15 @@ def check_database_initialization():
         # Try to initialize the database in test mode
         conn = init_db(test_mode=True)
         print("✅ Database initialization successful (test mode).")
-        
+
         # Try to initialize a real database in a temporary location
         import tempfile
         temp_dir = tempfile.TemporaryDirectory()
         db_path = Path(temp_dir.name) / "test.db"
-        
+
         conn_real = init_db(db_path)
         print(f"✅ Database initialization successful (real mode at {db_path}).")
-        
+
         temp_dir.cleanup()
         return True
     except DatabaseError as e:
@@ -78,15 +90,15 @@ def check_database_operations():
     try:
         # Initialize the database in test mode
         conn = init_db(test_mode=True)
-        
+
         # Check initial counts
         node_count = get_node_count(conn)
         edge_count = get_edge_count(conn)
         print(f"Initial counts: {node_count} nodes, {edge_count} edges")
-        
+
         # Add some test data
         from datetime import datetime
-        
+
         nodes = [
             Node(
                 id="test:1",
@@ -97,7 +109,7 @@ def check_database_operations():
                 extra={}
             )
         ]
-        
+
         edges = [
             Edge(
                 src="test:1",
@@ -106,15 +118,15 @@ def check_database_operations():
                 properties={}
             )
         ]
-        
+
         # Add the data
         add_nodes_and_edges(conn, nodes, edges)
-        
+
         # Check the counts again
         new_node_count = get_node_count(conn)
         new_edge_count = get_edge_count(conn)
         print(f"After adding data: {new_node_count} nodes, {new_edge_count} edges")
-        
+
         if new_node_count > node_count and new_edge_count > edge_count:
             print("✅ Database operations successful.")
             return True
@@ -130,23 +142,23 @@ def main():
     """Run all validation checks."""
     print("Running Arc Memory environment validation...")
     print("=" * 50)
-    
+
     # Check dependencies
     deps_ok = check_dependencies()
     print()
-    
+
     # Check Python version
     python_ok = check_python_version()
     print()
-    
+
     # Check database initialization
     db_init_ok = check_database_initialization()
     print()
-    
+
     # Check database operations
     db_ops_ok = check_database_operations()
     print()
-    
+
     # Summary
     print("=" * 50)
     print("Validation Summary:")
@@ -155,7 +167,7 @@ def main():
     print(f"Database Initialization: {'✅ PASS' if db_init_ok else '❌ FAIL'}")
     print(f"Database Operations: {'✅ PASS' if db_ops_ok else '❌ FAIL'}")
     print("=" * 50)
-    
+
     # Exit with appropriate code
     if not deps_ok:
         sys.exit(1)

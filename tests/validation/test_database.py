@@ -1,12 +1,9 @@
 """Tests for database initialization and error handling."""
 
-import os
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import patch
-
-import pytest
 
 from arc_memory.errors import DatabaseError, DatabaseInitializationError, DatabaseNotFoundError
 from arc_memory.sql.db import (

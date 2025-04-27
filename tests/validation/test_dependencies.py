@@ -4,8 +4,6 @@ import sys
 import unittest
 from unittest.mock import patch
 
-import pytest
-
 from arc_memory.dependencies import (
     check_dependency,
     check_dependencies,
@@ -68,16 +66,21 @@ class TestDependencyValidation(unittest.TestCase):
             result = validate_dependencies()
             self.assertEqual(result, {})
 
-            # Missing dependencies, but don't raise error
+            # Missing core dependencies, but don't raise error
             mock_check.return_value = (False, {"core": ["networkx"]})
             result = validate_dependencies(raise_error=False)
             self.assertEqual(result, {"core": ["networkx"]})
 
-            # Missing dependencies, raise error
+            # Missing core dependencies, raise error
             with self.assertRaises(DependencyError) as context:
                 validate_dependencies(raise_error=True)
-            self.assertIn("Missing required dependencies", str(context.exception))
+            self.assertIn("Missing required core dependencies", str(context.exception))
             self.assertIn("networkx", str(context.exception))
+
+            # Missing optional dependencies, don't raise error
+            mock_check.return_value = (False, {"github": ["pyjwt"]})
+            result = validate_dependencies(raise_error=True)
+            self.assertEqual(result, {"github": ["pyjwt"]})
 
     def test_check_python_version(self):
         """Test checking Python version."""
