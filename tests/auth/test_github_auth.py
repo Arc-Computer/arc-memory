@@ -55,10 +55,9 @@ class TestGitHubAuth(unittest.TestCase):
         # or if it's set to the placeholder value
         self.assertIsNotNone(DEFAULT_GITHUB_CLIENT_ID)
         self.assertNotEqual(DEFAULT_GITHUB_CLIENT_ID, "")
-        
-        # This check will be disabled in CI since we're using a placeholder
-        # but should be enabled when the actual client ID is set
-        # self.assertNotEqual(DEFAULT_GITHUB_CLIENT_ID, "YOUR_CLIENT_ID")
+
+        # This check ensures we're not using the placeholder value
+        self.assertNotEqual(DEFAULT_GITHUB_CLIENT_ID, "YOUR_CLIENT_ID")
 
 
 if __name__ == "__main__":
