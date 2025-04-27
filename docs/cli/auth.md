@@ -25,8 +25,8 @@ This command initiates the GitHub device flow authentication process. It will di
 
 #### Options
 
-- `--client-id TEXT`: GitHub OAuth client ID. If not provided, uses the default Arc Memory app.
-- `--client-secret TEXT`: GitHub OAuth client secret. If not provided, uses the default Arc Memory app.
+- `--client-id TEXT`: GitHub OAuth client ID. If not provided, uses the default Arc Memory app from the Arc-Computer organization.
+- `--client-secret TEXT`: GitHub OAuth client secret. If not provided, uses the default Arc Memory app from the Arc-Computer organization.
 - `--timeout INTEGER`: Timeout in seconds for the device flow (default: 300).
 - `--debug`: Enable debug logging.
 
@@ -113,6 +113,12 @@ If you encounter authentication issues:
    - GitHub API has rate limits
    - If you hit them, wait or use a token with higher limits
    - Enterprise accounts typically have higher rate limits
+
+5. **Default Credentials**:
+   - Arc Memory uses default GitHub OAuth credentials from the Arc-Computer organization
+   - If you see "Using Arc Memory's GitHub OAuth app for authentication", the default credentials are being used
+   - If you see "Default GitHub OAuth credentials are not configured", contact the Arc Memory team
+   - You can always provide your own credentials with `--client-id` and `--client-secret`
 
 ### Re-authentication
 

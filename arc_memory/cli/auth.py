@@ -7,6 +7,10 @@ from typing import Optional
 import typer
 from rich.console import Console
 
+from arc_memory.auth.default_credentials import (
+    DEFAULT_GITHUB_CLIENT_ID,
+    DEFAULT_GITHUB_CLIENT_SECRET,
+)
 from arc_memory.auth.github import (
     GitHubAppConfig,
     get_github_app_config_from_env,
@@ -81,22 +85,36 @@ def github_auth(
 
     # Use default Arc Memory app if client ID/secret not provided
     if not client_id or not client_secret:
-        # In a real implementation, these would be embedded in the package
-        # For now, we'll use environment variables for development
-        client_id = os.environ.get("ARC_GITHUB_CLIENT_ID")
-        client_secret = os.environ.get("ARC_GITHUB_CLIENT_SECRET")
+        # First try environment variables (for development or custom overrides)
+        env_client_id = os.environ.get("ARC_GITHUB_CLIENT_ID")
+        env_client_secret = os.environ.get("ARC_GITHUB_CLIENT_SECRET")
 
-        if not client_id or not client_secret:
-            console.print(
-                "[red]No GitHub OAuth client ID/secret provided and no default available.[/red]"
-            )
-            console.print(
-                "Please provide client ID and secret with --client-id and --client-secret,"
-            )
-            console.print(
-                "or set ARC_GITHUB_CLIENT_ID and ARC_GITHUB_CLIENT_SECRET environment variables."
-            )
-            sys.exit(1)
+        if env_client_id and env_client_secret:
+            logger.debug("Using GitHub OAuth credentials from environment variables")
+            client_id = env_client_id
+            client_secret = env_client_secret
+        else:
+            # Use the default embedded credentials
+            logger.debug("Using default embedded GitHub OAuth credentials")
+            client_id = DEFAULT_GITHUB_CLIENT_ID
+            client_secret = DEFAULT_GITHUB_CLIENT_SECRET
+
+            # Verify that the default credentials are valid (not placeholder values)
+            if client_id == "YOUR_CLIENT_ID" or client_secret == "YOUR_CLIENT_SECRET":
+                console.print(
+                    "[red]Default GitHub OAuth credentials are not configured.[/red]"
+                )
+                console.print(
+                    "Please provide client ID and secret with --client-id and --client-secret,"
+                )
+                console.print(
+                    "or set ARC_GITHUB_CLIENT_ID and ARC_GITHUB_CLIENT_SECRET environment variables."
+                )
+                sys.exit(1)
+            else:
+                console.print(
+                    "[green]Using Arc Memory's GitHub OAuth app for authentication.[/green]"
+                )
 
     try:
         # Start device flow
