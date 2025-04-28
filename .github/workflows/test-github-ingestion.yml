@@ -1,0 +1,189 @@
+name: Test GitHub Ingestion
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'arc_memory/ingest/github*.py'
+      - 'tests/unit/test_github*.py'
+      - 'tests/integration/test_github*.py'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'arc_memory/ingest/github*.py'
+      - 'tests/unit/test_github*.py'
+      - 'tests/integration/test_github*.py'
+  schedule:
+    # Run once a week on Monday at 00:00 UTC
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+jobs:
+  test-github-ingestion:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+        pip install pytest pytest-mock pytest-asyncio
+
+    - name: Run GitHub ingestion unit tests
+      run: |
+        python -m pytest tests/unit/test_github_rest.py tests/unit/test_github_graphql.py tests/unit/test_github_fetcher.py tests/unit/test_github_ingestor.py -v
+
+    - name: Verify GitHub ingestion core functionality
+      run: |
+        cat > test_github_ingestion_core.py << 'EOF'
+        import asyncio
+        from unittest.mock import patch, MagicMock
+        from arc_memory.ingest.github import GitHubIngestor
+        from arc_memory.ingest.github_fetcher import GitHubFetcher
+        from arc_memory.schema.models import PRNode, IssueNode
+
+        # Test the core ingestion flow with mocks
+        async def test_github_ingestion_core():
+            # Mock the GitHub fetcher - note that it's imported inside the ingest method
+            with patch('arc_memory.ingest.github_fetcher.GitHubFetcher') as mock_fetcher_class:
+                # Set up the mock fetcher
+                mock_fetcher = MagicMock()
+                mock_fetcher_class.return_value = mock_fetcher
+
+                # Mock the fetch methods to return test data with all required fields
+                mock_fetcher.fetch_pull_requests_sync.return_value = [
+                    {"id": "PR_1", "number": 1, "title": "Test PR", "body": "Test body", "state": "OPEN",
+                     "createdAt": "2023-01-01T00:00:00Z", "updatedAt": "2023-01-02T00:00:00Z",
+                     "author": {"login": "test-user"}, "baseRefName": "main", "headRefName": "feature",
+                     "url": "https://github.com/test/test/pull/1", "mergedAt": None, "closedAt": None,
+                     "mergeCommit": None}
+                ]
+                mock_fetcher.fetch_issues_sync.return_value = [
+                    {"id": "ISSUE_2", "number": 2, "title": "Test Issue", "body": "Test body", "state": "OPEN",
+                     "createdAt": "2023-01-01T00:00:00Z", "updatedAt": "2023-01-02T00:00:00Z",
+                     "author": {"login": "test-user"}, "url": "https://github.com/test/test/issues/2",
+                     "closedAt": None, "labels": {"nodes": []}}
+                ]
+                mock_fetcher.fetch_pr_details_sync.return_value = {
+                    "files": [], "reviews": [], "comments": [], "commits": [], "review_comments": []
+                }
+                mock_fetcher.fetch_issue_details_sync.return_value = {
+                    "comments": [], "events": [], "timeline": []
+                }
+                mock_fetcher.create_pr_node.return_value = PRNode(
+                    id="PR_1", title="Test PR", body="Test body", ts="2023-01-01T00:00:00Z",
+                    number=1, state="OPEN", url="https://github.com/test/test/pull/1"
+                )
+                mock_fetcher.create_issue_node.return_value = IssueNode(
+                    id="ISSUE_2", title="Test Issue", body="Test body", ts="2023-01-01T00:00:00Z",
+                    number=2, state="OPEN", url="https://github.com/test/test/issues/2"
+                )
+                mock_fetcher.create_mention_edges.return_value = []
+
+                # Create the ingestor and run it
+                ingestor = GitHubIngestor()
+
+                # Mock the get_repo_info function to return our test owner and repo
+                with patch('arc_memory.ingest.github.get_repo_info', return_value=("test-owner", "test-repo")):
+                    nodes, edges, metadata = ingestor.ingest(
+                        repo_path="/test/repo",
+                        token="test-token"
+                    )
+
+                # Verify the results
+                assert len(nodes) == 2  # 1 PR and 1 Issue
+                assert any(isinstance(node, PRNode) for node in nodes)
+                assert any(isinstance(node, IssueNode) for node in nodes)
+                assert "timestamp" in metadata
+
+                # Verify the fetcher was called correctly
+                mock_fetcher_class.assert_called_once_with("test-token")
+                mock_fetcher.fetch_pull_requests_sync.assert_called_once_with("test-owner", "test-repo", None)
+                mock_fetcher.fetch_issues_sync.assert_called_once_with("test-owner", "test-repo", None)
+
+                print("GitHub ingestion core functionality test passed!")
+
+        # Run the test
+        asyncio.run(test_github_ingestion_core())
+        EOF
+        python test_github_ingestion_core.py
+
+    - name: Verify GitHub API client structure
+      run: |
+        # Check that the GitHub clients follow the expected structure
+        python -c "
+        import inspect
+        from arc_memory.ingest.github_rest import GitHubRESTClient
+        from arc_memory.ingest.github_graphql import GitHubGraphQLClient
+
+        # Check REST client methods
+        rest_methods = [m for m in dir(GitHubRESTClient) if not m.startswith('_') and callable(getattr(GitHubRESTClient, m))]
+        required_rest_methods = ['request', 'paginate', 'batch_request', 'get_pr_files', 'get_commits_for_pr']
+        for method in required_rest_methods:
+            assert method in rest_methods, f'Required method {method} not found in GitHubRESTClient'
+
+        # Check GraphQL client methods
+        graphql_methods = [m for m in dir(GitHubGraphQLClient) if not m.startswith('_') and callable(getattr(GitHubGraphQLClient, m))]
+        required_graphql_methods = ['execute_query', 'execute_query_sync', 'paginate_query', 'paginate_query_sync']
+        for method in required_graphql_methods:
+            assert method in graphql_methods, f'Required method {method} not found in GitHubGraphQLClient'
+
+        print('GitHub API client structure verification passed!')
+        "
+
+  # This job only runs when a GitHub token is available (scheduled runs or manual triggers with token)
+  test-github-integration:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    needs: test-github-ingestion
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+        pip install pytest pytest-asyncio gql aiohttp
+
+    - name: Run GitHub integration tests
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      run: |
+        # Run a simple test that verifies we can connect to the GitHub API
+        python -c "
+        import os
+        import requests
+
+        # Get the token from environment
+        token = os.environ.get('GITHUB_TOKEN')
+        if not token:
+            print('No GitHub token available, skipping integration test')
+            exit(0)
+
+        # Make a simple request to the GitHub API
+        headers = {
+            'Authorization': f'token {token}',
+            'Accept': 'application/vnd.github.v3+json'
+        }
+        response = requests.get('https://api.github.com/repos/Arc-Computer/arc-memory', headers=headers)
+
+        # Check the response
+        assert response.status_code == 200, f'Failed to connect to GitHub API: {response.status_code} {response.text}'
+        data = response.json()
+        assert data['name'] == 'arc-memory', f'Unexpected repository name: {data.get(\"name\")}'
+
+        print('GitHub API connection test passed!')
+        "

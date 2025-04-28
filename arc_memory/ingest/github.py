@@ -148,29 +148,118 @@ class GitHubIngestor:
                 "User-Agent": USER_AGENT,
             }
 
+            # Initialize the GitHub fetcher
+            from arc_memory.ingest.github_fetcher import GitHubFetcher
+            fetcher = GitHubFetcher(github_token)
+
             # Get PRs
             pr_nodes = []
             pr_edges = []
 
-            # In a real implementation, we would:
-            # 1. Fetch PRs from GitHub API
-            # 2. For incremental builds, use the since parameter
-            # 3. Create PR nodes and edges
-            # 4. Handle pagination
+            # Determine if we need to do an incremental build
+            since = None
+            if last_processed and "timestamp" in last_processed:
+                try:
+                    since = datetime.fromisoformat(last_processed["timestamp"])
+                    logger.info(f"Performing incremental build since {since.isoformat()}")
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Invalid timestamp in last_processed: {e}")
 
-            # For now, we'll just return empty lists
-            logger.info("GitHub ingestion not fully implemented yet")
-            logger.info("Returning empty lists")
+            try:
+                # Fetch PRs
+                logger.info(f"Fetching PRs for {owner}/{repo}")
+                prs = fetcher.fetch_pull_requests_sync(owner, repo, since)
+                logger.info(f"Fetched {len(prs)} PRs")
 
-            # Get issues
-            issue_nodes = []
-            issue_edges = []
+                # Get issues (needed for mention edges)
+                logger.info(f"Fetching issues for {owner}/{repo}")
+                issues = fetcher.fetch_issues_sync(owner, repo, since)
+                logger.info(f"Fetched {len(issues)} issues")
 
-            # In a real implementation, we would:
-            # 1. Fetch issues from GitHub API
-            # 2. For incremental builds, use the since parameter
-            # 3. Create issue nodes and edges
-            # 4. Handle pagination
+                # Process each PR
+                for pr in prs:
+                    try:
+                        # Fetch additional PR details
+                        pr_number = pr["number"]
+                        logger.info(f"Fetching details for PR #{pr_number}")
+                        pr_details = fetcher.fetch_pr_details_sync(owner, repo, pr_number)
+
+                        # Create PR node
+                        pr_node = fetcher.create_pr_node(pr, pr_details)
+                        pr_nodes.append(pr_node)
+
+                        # Create mention edges from PR body
+                        if pr["body"]:
+                            mention_edges = fetcher.create_mention_edges(
+                                pr_node.id, pr["body"], issues, prs
+                            )
+                            pr_edges.extend(mention_edges)
+
+                        # Create mention edges from PR comments
+                        if pr_details.get("comments"):
+                            for comment in pr_details["comments"]:
+                                if comment.get("body"):
+                                    comment_mention_edges = fetcher.create_mention_edges(
+                                        pr_node.id, comment["body"], issues, prs
+                                    )
+                                    pr_edges.extend(comment_mention_edges)
+
+                        # Create MERGES edge if PR has a merge commit
+                        if pr_node.merged_commit_sha:
+                            pr_edges.append(
+                                Edge(
+                                    src=pr_node.id,
+                                    dst=pr_node.merged_commit_sha,
+                                    rel=EdgeRel.MERGES,
+                                    properties={"merged_at": pr_node.merged_at.isoformat() if pr_node.merged_at else None},
+                                )
+                            )
+                    except Exception as e:
+                        logger.error(f"Error processing PR #{pr['number']}: {e}")
+                        # Continue with the next PR
+
+                # Get issues
+                issue_nodes = []
+                issue_edges = []
+
+                # Process each issue
+                for issue in issues:
+                    try:
+                        # Fetch additional issue details
+                        issue_number = issue["number"]
+                        logger.info(f"Fetching details for issue #{issue_number}")
+                        issue_details = fetcher.fetch_issue_details_sync(owner, repo, issue_number)
+
+                        # Create issue node
+                        issue_node = fetcher.create_issue_node(issue, issue_details)
+                        issue_nodes.append(issue_node)
+
+                        # Create mention edges from issue body
+                        if issue["body"]:
+                            mention_edges = fetcher.create_mention_edges(
+                                issue_node.id, issue["body"], issues, prs
+                            )
+                            issue_edges.extend(mention_edges)
+
+                        # Create mention edges from issue comments
+                        if issue_details.get("comments"):
+                            for comment in issue_details["comments"]:
+                                if comment.get("body"):
+                                    comment_mention_edges = fetcher.create_mention_edges(
+                                        issue_node.id, comment["body"], issues, prs
+                                    )
+                                    issue_edges.extend(comment_mention_edges)
+                    except Exception as e:
+                        logger.error(f"Error processing issue #{issue['number']}: {e}")
+                        # Continue with the next issue
+            except Exception as e:
+                logger.error(f"Error fetching GitHub data: {e}")
+                # Return empty results but don't fail the build
+                return [], [], {
+                    "error": f"Error fetching GitHub data: {e}",
+                    "timestamp": datetime.now().isoformat(),
+                    "message": "GitHub data not fully included due to an error."
+                }
 
             # Combine nodes and edges
             nodes = pr_nodes + issue_nodes

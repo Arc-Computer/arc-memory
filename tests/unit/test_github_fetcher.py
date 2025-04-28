@@ -70,7 +70,7 @@ class TestGitHubFetcher:
         """Test fetching pull requests with since parameter."""
         # Set up mock response
         mock_prs = [
-            {"id": "PR_1", "number": 1, "title": "Test PR 1"},
+            {"id": "PR_1", "number": 1, "title": "Test PR 1", "updatedAt": "2023-01-02T00:00:00Z"},
         ]
         mock_graphql_client.paginate_query = AsyncMock(return_value=mock_prs)
 
@@ -83,10 +83,9 @@ class TestGitHubFetcher:
         mock_graphql_client.paginate_query.assert_called_once()
 
         # Check that the function was called with the correct arguments
-        since_str = since.isoformat()
         mock_graphql_client.paginate_query.assert_called_once_with(
             UPDATED_PRS_QUERY,
-            {"owner": "test-owner", "repo": "test-repo", "since": since_str},
+            {"owner": "test-owner", "repo": "test-repo"},
             ["repository", "pullRequests"]
         )
 
@@ -119,7 +118,7 @@ class TestGitHubFetcher:
         """Test fetching issues with since parameter."""
         # Set up mock response
         mock_issues = [
-            {"id": "ISSUE_1", "number": 1, "title": "Test Issue 1"},
+            {"id": "ISSUE_1", "number": 1, "title": "Test Issue 1", "updatedAt": "2023-01-02T00:00:00Z"},
         ]
         mock_graphql_client.paginate_query = AsyncMock(return_value=mock_issues)
 
@@ -132,10 +131,9 @@ class TestGitHubFetcher:
         mock_graphql_client.paginate_query.assert_called_once()
 
         # Check that the function was called with the correct arguments
-        since_str = since.isoformat()
         mock_graphql_client.paginate_query.assert_called_once_with(
             UPDATED_ISSUES_QUERY,
-            {"owner": "test-owner", "repo": "test-repo", "since": since_str},
+            {"owner": "test-owner", "repo": "test-repo"},
             ["repository", "issues"]
         )
 
