@@ -98,14 +98,50 @@ def build_graph(
                         from arc_memory.ingest.github import get_repo_info
                         owner, repo = get_repo_info(repo_path)
                         print(f"Repository identified as: {owner}/{repo}")
+
+                        # Test GitHub API directly
+                        import requests
+                        headers = {
+                            "Authorization": f"token {token}",
+                            "Accept": "application/vnd.github.v3+json",
+                            "User-Agent": "Arc-Memory-Benchmark/1.0"
+                        }
+
+                        # Test API access
+                        rate_limit_url = "https://api.github.com/rate_limit"
+                        rate_limit_response = requests.get(rate_limit_url, headers=headers)
+                        print(f"GitHub API rate limit response: {rate_limit_response.status_code}")
+                        if rate_limit_response.status_code == 200:
+                            rate_limit_data = rate_limit_response.json()
+                            print(f"Rate limit remaining: {rate_limit_data['resources']['core']['remaining']}")
+
+                        # Test repository access
+                        repo_url = f"https://api.github.com/repos/{owner}/{repo}"
+                        repo_response = requests.get(repo_url, headers=headers)
+                        print(f"GitHub API repo response: {repo_response.status_code}")
+
+                        # Test PR access
+                        prs_url = f"https://api.github.com/repos/{owner}/{repo}/pulls?state=all&per_page=1"
+                        prs_response = requests.get(prs_url, headers=headers)
+                        print(f"GitHub API PRs response: {prs_response.status_code}")
+                        if prs_response.status_code == 200:
+                            prs_data = prs_response.json()
+                            print(f"Number of PRs returned: {len(prs_data)}")
+                            if len(prs_data) > 0:
+                                print(f"First PR: #{prs_data[0]['number']} - {prs_data[0]['title']}")
                     except Exception as e:
-                        print(f"Error identifying repository: {e}")
+                        print(f"Error identifying repository or testing API: {e}")
 
                     # Run the ingestor with detailed logging
                     import logging
                     logging.getLogger("arc_memory.ingest.github").setLevel(logging.DEBUG)
                     logging.getLogger("arc_memory.ingest.github_fetcher").setLevel(logging.DEBUG)
                     logging.getLogger("arc_memory.ingest.github_graphql").setLevel(logging.DEBUG)
+
+                    # Configure logging to print to console
+                    logging.basicConfig(level=logging.DEBUG,
+                                       format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                                       force=True)
 
                     nodes, edges, metadata = plugin.ingest(
                         repo_path,
