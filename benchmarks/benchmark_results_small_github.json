@@ -1,0 +1,87 @@
+{
+  "timestamp": "2025-04-28T16:48:59.099991",
+  "system_info": {
+    "os": "Darwin",
+    "machine": "arm64",
+    "python_version": "3.12.3 (v3.12.3:f6650f9ad7, Apr  9 2024, 08:18:47) [Clang 13.0.0 (clang-1300.0.29.30)]"
+  },
+  "benchmarks": [
+    {
+      "type": "plugins",
+      "duration_seconds": 0.3362548351287842,
+      "plugin_count": 3,
+      "plugins": [
+        "git",
+        "github",
+        "adr"
+      ]
+    },
+    {
+      "type": "build",
+      "incremental": false,
+      "duration_seconds": 33.32099008560181,
+      "db_size_bytes": 4096,
+      "node_count": 297,
+      "edge_count": 457,
+      "github_enabled": true,
+      "github": {
+        "duration_seconds": 17.721261978149414,
+        "pr_count": 0,
+        "issue_count": 0,
+        "mention_edge_count": 10
+      }
+    },
+    {
+      "type": "build",
+      "incremental": true,
+      "duration_seconds": 10.996026039123535,
+      "db_size_bytes": 405504,
+      "node_count": 297,
+      "edge_count": 457,
+      "github_enabled": true,
+      "github": {
+        "duration_seconds": 10.942837953567505,
+        "pr_count": 0,
+        "issue_count": 0,
+        "mention_edge_count": 4
+      }
+    },
+    {
+      "type": "trace",
+      "file_path": "README.md",
+      "line_number": 1,
+      "iterations": 10,
+      "durations_seconds": [
+        0.0002770423889160156,
+        0.00020003318786621094,
+        0.00019478797912597656,
+        0.00018286705017089844,
+        0.0001800060272216797,
+        0.00017786026000976562,
+        0.00018405914306640625,
+        0.0001780986785888672,
+        0.00016999244689941406,
+        0.00016617774963378906
+      ],
+      "avg_duration_seconds": 0.00019109249114990234,
+      "min_duration_seconds": 0.00016617774963378906,
+      "max_duration_seconds": 0.0002770423889160156,
+      "result_count": 3,
+      "failed_iterations": 0,
+      "include_github": true,
+      "github": {
+        "node_count": 0,
+        "percentage": 0.0
+      }
+    },
+    {
+      "type": "github_summary",
+      "pr_count": 0,
+      "issue_count": 0,
+      "mention_edge_count": 10,
+      "initial_build_duration": 17.721261978149414,
+      "incremental_build_duration": 10.942837953567505,
+      "trace_github_node_count": 0
+    }
+  ]
+}
