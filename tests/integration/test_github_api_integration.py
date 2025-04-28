@@ -11,7 +11,7 @@ from datetime import datetime, timedelta
 import pytest
 
 from arc_memory.ingest.github_fetcher import GitHubFetcher
-from arc_memory.ingest.github_graphql import GraphQLClient
+from arc_memory.ingest.github_graphql import GitHubGraphQLClient
 from arc_memory.ingest.github_rest import GitHubRESTClient
 from arc_memory.schema.models import PRNode, IssueNode
 
@@ -32,7 +32,7 @@ def github_token():
 @pytest.fixture
 def graphql_client(github_token):
     """Create a GraphQL client with the GitHub token."""
-    return GraphQLClient(github_token)
+    return GitHubGraphQLClient(github_token)
 
 
 @pytest.fixture
@@ -77,12 +77,11 @@ class TestGraphQLClient:
         }
 
         # Execute the query
-        result = graphql_client.execute(query, variables)
+        result = graphql_client.execute_query_sync(query, variables)
 
         # Check the result
-        assert "data" in result
-        assert "repository" in result["data"]
-        assert result["data"]["repository"]["name"] == test_repo["repo"]
+        assert "repository" in result
+        assert result["repository"]["name"] == test_repo["repo"]
 
     def test_paginate_query(self, graphql_client, test_repo):
         """Test paginating a GraphQL query."""
@@ -110,7 +109,7 @@ class TestGraphQLClient:
         path = ["repository", "pullRequests"]
 
         # Paginate the query
-        results = graphql_client.paginate_query(query, variables, path, max_pages=2)
+        results = graphql_client.paginate_query_sync(query, variables, path)
 
         # Check the results
         assert isinstance(results, list)
@@ -160,15 +159,15 @@ class TestRESTClient:
         # Find a PR number to test with
         endpoint = f"/repos/{test_repo['owner']}/{test_repo['repo']}/pulls"
         prs = rest_client.paginate("GET", endpoint, max_pages=1)
-        
+
         if not prs:
             pytest.skip("No PRs found in the repository")
-        
+
         pr_number = prs[0]["number"]
-        
+
         # Get PR files
         files = rest_client.get_pr_files(test_repo["owner"], test_repo["repo"], pr_number)
-        
+
         # Check the results
         assert isinstance(files, list)
         # The PR might not have any files, so just check that we got a list
@@ -179,15 +178,15 @@ class TestRESTClient:
         # Find a PR number to test with
         endpoint = f"/repos/{test_repo['owner']}/{test_repo['repo']}/pulls"
         prs = rest_client.paginate("GET", endpoint, max_pages=1)
-        
+
         if not prs:
             pytest.skip("No PRs found in the repository")
-        
+
         pr_number = prs[0]["number"]
-        
+
         # Get PR commits
         commits = rest_client.get_commits_for_pr(test_repo["owner"], test_repo["repo"], pr_number)
-        
+
         # Check the results
         assert isinstance(commits, list)
         # The PR might not have any commits, so just check that we got a list
@@ -201,10 +200,10 @@ class TestGitHubFetcher:
         """Test fetching pull requests."""
         # Fetch pull requests
         prs = github_fetcher.fetch_pull_requests_sync(test_repo["owner"], test_repo["repo"])
-        
+
         # Check the results
         assert isinstance(prs, list)
-        
+
         # If we have PRs, check that they have the expected fields
         for pr in prs:
             assert "number" in pr
@@ -216,10 +215,10 @@ class TestGitHubFetcher:
         """Test fetching issues."""
         # Fetch issues
         issues = github_fetcher.fetch_issues_sync(test_repo["owner"], test_repo["repo"])
-        
+
         # Check the results
         assert isinstance(issues, list)
-        
+
         # If we have issues, check that they have the expected fields
         for issue in issues:
             assert "number" in issue
@@ -231,15 +230,15 @@ class TestGitHubFetcher:
         """Test fetching PR details."""
         # Find a PR number to test with
         prs = github_fetcher.fetch_pull_requests_sync(test_repo["owner"], test_repo["repo"])
-        
+
         if not prs:
             pytest.skip("No PRs found in the repository")
-        
+
         pr_number = prs[0]["number"]
-        
+
         # Fetch PR details
         details = github_fetcher.fetch_pr_details_sync(test_repo["owner"], test_repo["repo"], pr_number)
-        
+
         # Check the results
         assert isinstance(details, dict)
         assert "files" in details
@@ -252,15 +251,15 @@ class TestGitHubFetcher:
         """Test fetching issue details."""
         # Find an issue number to test with
         issues = github_fetcher.fetch_issues_sync(test_repo["owner"], test_repo["repo"])
-        
+
         if not issues:
             pytest.skip("No issues found in the repository")
-        
+
         issue_number = issues[0]["number"]
-        
+
         # Fetch issue details
         details = github_fetcher.fetch_issue_details_sync(test_repo["owner"], test_repo["repo"], issue_number)
-        
+
         # Check the results
         assert isinstance(details, dict)
         assert "comments" in details
@@ -271,19 +270,19 @@ class TestGitHubFetcher:
         """Test creating a PR node."""
         # Find a PR to test with
         prs = github_fetcher.fetch_pull_requests_sync(test_repo["owner"], test_repo["repo"])
-        
+
         if not prs:
             pytest.skip("No PRs found in the repository")
-        
+
         pr = prs[0]
         pr_number = pr["number"]
-        
+
         # Fetch PR details
         details = github_fetcher.fetch_pr_details_sync(test_repo["owner"], test_repo["repo"], pr_number)
-        
+
         # Create PR node
         node = github_fetcher.create_pr_node(pr, details)
-        
+
         # Check the node
         assert isinstance(node, PRNode)
         assert node.number == pr_number
@@ -293,19 +292,19 @@ class TestGitHubFetcher:
         """Test creating an issue node."""
         # Find an issue to test with
         issues = github_fetcher.fetch_issues_sync(test_repo["owner"], test_repo["repo"])
-        
+
         if not issues:
             pytest.skip("No issues found in the repository")
-        
+
         issue = issues[0]
         issue_number = issue["number"]
-        
+
         # Fetch issue details
         details = github_fetcher.fetch_issue_details_sync(test_repo["owner"], test_repo["repo"], issue_number)
-        
+
         # Create issue node
         node = github_fetcher.create_issue_node(issue, details)
-        
+
         # Check the node
         assert isinstance(node, IssueNode)
         assert node.number == issue_number
@@ -318,10 +317,10 @@ class TestGitHubFetcher:
         This is a test with @user1 and @user2 mentioned.
         Also mentioning @user-with-dashes and @123user.
         """
-        
+
         # Extract mentions
         mentions = github_fetcher.extract_mentions(text)
-        
+
         # Check the mentions
         assert len(mentions) == 4
         assert "user1" in mentions
@@ -353,10 +352,10 @@ class TestGitHubFetcher:
                 ]
             },
         )
-        
+
         # Create mention edges
         edges = github_fetcher.create_mention_edges(pr_node)
-        
+
         # Check the edges
         assert len(edges) == 2  # user1 and user2 from the PR body
         for edge in edges:
