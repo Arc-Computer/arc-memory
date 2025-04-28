@@ -265,6 +265,7 @@ def get_github_token(token: Optional[str] = None, owner: Optional[str] = None, r
         )
 
 
+
 def validate_client_id(client_id: str) -> bool:
     """Validate that a GitHub OAuth client ID is properly formatted.
 
@@ -278,6 +279,7 @@ def validate_client_id(client_id: str) -> bool:
     if not client_id:
         return False
 
+    # Note: This validation is intentionally strict to catch potential errors
     # Most GitHub client IDs are 20 characters long
     # Some newer ones start with "Iv1." and are longer
     if client_id.startswith("Iv1."):
@@ -285,7 +287,6 @@ def validate_client_id(client_id: str) -> bool:
     else:
         return len(client_id) >= 18
 
-    # Note: This validation is intentionally strict to catch potential errors
 
 
 def start_device_flow(client_id: str) -> Tuple[str, str, int]:
