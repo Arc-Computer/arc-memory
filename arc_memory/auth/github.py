@@ -24,7 +24,7 @@ GITHUB_API_URL = "https://api.github.com"
 GITHUB_URL = "https://github.com"
 DEVICE_CODE_URL = f"{GITHUB_URL}/login/device/code"
 DEVICE_TOKEN_URL = f"{GITHUB_URL}/login/oauth/access_token"
-USER_AGENT = "Arc-Memory/0.2.0"
+USER_AGENT = "Arc-Memory/0.2.1"
 
 # Environment variable names
 ENV_APP_ID = "ARC_GITHUB_APP_ID"
