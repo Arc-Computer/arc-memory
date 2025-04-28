@@ -57,14 +57,19 @@ jobs:
                 mock_fetcher = MagicMock()
                 mock_fetcher_class.return_value = mock_fetcher
 
-                # Mock the fetch methods to return test data
+                # Mock the fetch methods to return test data with all required fields
                 mock_fetcher.fetch_pull_requests_sync.return_value = [
-                    {"number": 1, "title": "Test PR", "body": "Test body", "state": "OPEN",
-                     "createdAt": "2023-01-01T00:00:00Z", "updatedAt": "2023-01-02T00:00:00Z"}
+                    {"id": "PR_1", "number": 1, "title": "Test PR", "body": "Test body", "state": "OPEN",
+                     "createdAt": "2023-01-01T00:00:00Z", "updatedAt": "2023-01-02T00:00:00Z",
+                     "author": {"login": "test-user"}, "baseRefName": "main", "headRefName": "feature",
+                     "url": "https://github.com/test/test/pull/1", "mergedAt": None, "closedAt": None,
+                     "mergeCommit": None}
                 ]
                 mock_fetcher.fetch_issues_sync.return_value = [
-                    {"number": 2, "title": "Test Issue", "body": "Test body", "state": "OPEN",
-                     "createdAt": "2023-01-01T00:00:00Z", "updatedAt": "2023-01-02T00:00:00Z"}
+                    {"id": "ISSUE_2", "number": 2, "title": "Test Issue", "body": "Test body", "state": "OPEN",
+                     "createdAt": "2023-01-01T00:00:00Z", "updatedAt": "2023-01-02T00:00:00Z",
+                     "author": {"login": "test-user"}, "url": "https://github.com/test/test/issues/2",
+                     "closedAt": None, "labels": {"nodes": []}}
                 ]
                 mock_fetcher.fetch_pr_details_sync.return_value = {
                     "files": [], "reviews": [], "comments": [], "commits": [], "review_comments": []
