@@ -12,17 +12,7 @@ from arc_memory.errors import GitHubAuthError, IngestError
 from arc_memory.ingest.github_rest import GitHubRESTClient, DEFAULT_RETRY_COUNT, RATE_LIMIT_BUFFER
 
 
-@pytest.fixture
-def mock_response():
-    """Create a mock response."""
-    mock = MagicMock()
-    mock.status_code = 200
-    mock.headers = {
-        "X-RateLimit-Remaining": "4999",
-        "X-RateLimit-Reset": "1619712000",
-    }
-    mock.json.return_value = {"id": 123, "name": "test-repo"}
-    return mock
+# No longer needed as we create mock responses in each test
 
 
 @pytest.fixture
@@ -59,8 +49,18 @@ class TestGitHubRESTClient:
         assert rest_client.rate_limit_limit == 5000
         assert isinstance(rest_client.rate_limit_reset, datetime)
 
-    def test_request_success(self, rest_client, mock_response):
+    def test_request_success(self, rest_client):
         """Test successful request."""
+        # Create a mock response with proper headers
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {"name": "test-repo"}
+        mock_response.headers = {
+            "X-RateLimit-Remaining": "4999",
+            "X-RateLimit-Reset": "1619712000",
+            "X-RateLimit-Limit": "5000",
+        }
+
         with patch("requests.request", return_value=mock_response) as mock_request:
             # Make request
             result = rest_client.request("GET", "/repos/test-owner/test-repo")
@@ -78,6 +78,7 @@ class TestGitHubRESTClient:
                 params=None,
                 data=None,
                 json=None,
+                timeout=30,
             )
 
     def test_request_auth_error(self, rest_client):
@@ -101,13 +102,17 @@ class TestGitHubRESTClient:
         mock_response.headers = {
             "X-RateLimit-Remaining": "0",
             "X-RateLimit-Reset": str(int(datetime.now().timestamp()) + 3600),
+            "X-RateLimit-Limit": "5000",
         }
 
+        # Set retry_count to 0 to avoid any retries
         with patch("requests.request", return_value=mock_response) as mock_request:
             # Make request and check for error
             with pytest.raises(IngestError) as excinfo:
-                rest_client.request("GET", "/repos/test-owner/test-repo")
+                rest_client.request("GET", "/repos/test-owner/test-repo", retry_count=0)
             assert "rate limit" in str(excinfo.value).lower()
+            # With retry_count=0, we should get the "after 0 retries" message
+            assert "after 0 retries" in str(excinfo.value).lower()
 
     def test_request_other_error(self, rest_client):
         """Test other request error."""
