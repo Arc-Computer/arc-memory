@@ -21,9 +21,10 @@ KEYRING_SERVICE = "arc-memory"
 KEYRING_USERNAME = "github-token"
 KEYRING_APP_USERNAME = "github-app"
 GITHUB_API_URL = "https://api.github.com"
-DEVICE_CODE_URL = f"{GITHUB_API_URL}/login/device/code"
-DEVICE_TOKEN_URL = f"{GITHUB_API_URL}/login/oauth/access_token"
-USER_AGENT = "Arc-Memory/0.1.9"
+GITHUB_URL = "https://github.com"
+DEVICE_CODE_URL = f"{GITHUB_URL}/login/device/code"
+DEVICE_TOKEN_URL = f"{GITHUB_URL}/login/oauth/access_token"
+USER_AGENT = "Arc-Memory/0.2.0"
 
 # Environment variable names
 ENV_APP_ID = "ARC_GITHUB_APP_ID"
@@ -217,19 +218,20 @@ def get_installation_token_for_repo(
         return None
 
 
-def get_github_token(token: Optional[str] = None, owner: Optional[str] = None, repo: Optional[str] = None) -> str:
+def get_github_token(token: Optional[str] = None, owner: Optional[str] = None, repo: Optional[str] = None, allow_failure: bool = False) -> Optional[str]:
     """Get a GitHub token from various sources.
 
     Args:
         token: An explicit token to use. If None, tries to find a token from other sources.
         owner: The repository owner. Used for GitHub App installation tokens.
         repo: The repository name. Used for GitHub App installation tokens.
+        allow_failure: If True, returns None instead of raising an error when no token is found.
 
     Returns:
-        A GitHub token.
+        A GitHub token, or None if allow_failure is True and no token could be found.
 
     Raises:
-        GitHubAuthError: If no token could be found.
+        GitHubAuthError: If no token could be found and allow_failure is False.
     """
     # Check explicit token
     if token:
@@ -253,9 +255,38 @@ def get_github_token(token: Optional[str] = None, owner: Optional[str] = None, r
             return installation_token
 
     # No token found
-    raise GitHubAuthError(
-        "No GitHub token found. Please run 'arc auth gh' to authenticate."
-    )
+    if allow_failure:
+        logger.warning("No GitHub token found. GitHub data will not be included in the graph.")
+        return None
+    else:
+        raise GitHubAuthError(
+            "No GitHub token found. Please run 'arc auth gh' to authenticate with GitHub. "
+            "Without GitHub authentication, only Git data will be included in the graph."
+        )
+
+
+
+def validate_client_id(client_id: str) -> bool:
+    """Validate that a GitHub OAuth client ID is properly formatted.
+
+    Args:
+        client_id: The client ID to validate.
+
+    Returns:
+        True if the client ID is valid, False otherwise.
+    """
+    # GitHub client IDs are typically 20 characters
+    if not client_id:
+        return False
+
+    # Note: This validation is intentionally strict to catch potential errors
+    # Most GitHub client IDs are 20 characters long
+    # Some newer ones start with "Iv1." and are longer
+    if client_id.startswith("Iv1."):
+        return len(client_id) >= 15
+    else:
+        return len(client_id) >= 18
+
 
 
 def start_device_flow(client_id: str) -> Tuple[str, str, int]:
@@ -270,6 +301,14 @@ def start_device_flow(client_id: str) -> Tuple[str, str, int]:
     Raises:
         GitHubAuthError: If the device flow could not be started.
     """
+    # Validate the client ID
+    if not validate_client_id(client_id):
+        logger.error(f"Invalid GitHub OAuth client ID: {client_id}")
+        raise GitHubAuthError(
+            f"Invalid GitHub OAuth client ID: {client_id}. "
+            "Please provide a valid client ID or check your configuration."
+        )
+
     try:
         response = requests.post(
             DEVICE_CODE_URL,
@@ -282,6 +321,20 @@ def start_device_flow(client_id: str) -> Tuple[str, str, int]:
                 "scope": "repo",
             },
         )
+
+        # Check for specific error responses
+        if response.status_code == 400:
+            try:
+                error_data = response.json()
+                error_message = error_data.get("error_description", "Unknown error")
+                logger.error(f"GitHub API error: {error_message}")
+                raise GitHubAuthError(
+                    f"GitHub authentication failed: {error_message}. "
+                    "This may be due to an invalid client ID or rate limiting."
+                )
+            except (ValueError, KeyError):
+                pass  # Fall back to generic error handling
+
         response.raise_for_status()
         data = response.json()
 
@@ -294,9 +347,15 @@ def start_device_flow(client_id: str) -> Tuple[str, str, int]:
         print(f"Please visit {verification_uri} and enter code: {user_code}")
 
         return device_code, verification_uri, interval
+    except GitHubAuthError:
+        # Re-raise GitHubAuthError
+        raise
     except Exception as e:
         logger.error(f"Failed to start device flow: {e}")
-        raise GitHubAuthError(f"Failed to start device flow: {e}")
+        raise GitHubAuthError(
+            f"Failed to start device flow: {e}. "
+            "Please check your internet connection and try again."
+        )
 
 
 def poll_device_flow(
@@ -353,10 +412,6 @@ def poll_device_flow(
         except Exception as e:
             logger.error(f"Failed to poll device flow: {e}")
             raise GitHubAuthError(f"Failed to poll device flow: {e}")
-
-        # This line is unreachable due to the continue/raise/return above,
-        # but we'll keep it for clarity in case the logic changes
-        # time.sleep(interval)
 
     # Timeout
     raise GitHubAuthError("Device flow timed out. Please try again.")

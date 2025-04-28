@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 
 # Constants
 GITHUB_API_URL = "https://api.github.com"
-USER_AGENT = "Arc-Memory/0.1.0"
+USER_AGENT = "Arc-Memory/0.2.0"
 
 
 def get_repo_info(repo_path: Path) -> Tuple[str, str]:
@@ -120,21 +120,26 @@ class GitHubIngestor:
             owner, repo = get_repo_info(repo_path)
             logger.info(f"Repository: {owner}/{repo}")
 
-            # Get GitHub token
-            try:
-                # Try to get an installation token first
-                installation_token = get_installation_token_for_repo(owner, repo)
-                if installation_token:
-                    logger.info(f"Using GitHub App installation token for {owner}/{repo}")
-                    github_token = installation_token
-                else:
-                    # Fall back to personal access token
-                    github_token = get_github_token(token)
+            # Get GitHub token with fallback
+            # Try to get an installation token first
+            installation_token = get_installation_token_for_repo(owner, repo)
+            if installation_token:
+                logger.info(f"Using GitHub App installation token for {owner}/{repo}")
+                github_token = installation_token
+            else:
+                # Fall back to personal access token, allowing failure
+                github_token = get_github_token(token, allow_failure=True)
+                if github_token:
                     logger.info("Using personal access token")
-            except GitHubAuthError as e:
-                logger.warning(f"GitHub authentication failed: {e}")
-                logger.warning("Continuing without GitHub data")
-                return [], [], {}
+                else:
+                    logger.warning("No GitHub token found. GitHub data will not be included in the graph.")
+                    logger.warning("To include GitHub data, run 'arc auth gh' to authenticate with GitHub.")
+                    # Return empty results but don't fail the build
+                    return [], [], {
+                        "error": "No GitHub token found",
+                        "timestamp": datetime.now().isoformat(),
+                        "message": "GitHub data not included. Run 'arc auth gh' to authenticate."
+                    }
 
             # Set up API headers
             headers = {

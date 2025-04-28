@@ -5,7 +5,7 @@ import os
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import yaml
 from markdown_it import MarkdownIt
@@ -13,6 +13,82 @@ from markdown_it import MarkdownIt
 from arc_memory.errors import ADRParseError, IngestError
 from arc_memory.logging_conf import get_logger
 from arc_memory.schema.models import ADRNode, Edge, EdgeRel, NodeType
+
+
+def parse_adr_date(date_value: Any, adr_file: Path) -> Optional[datetime]:
+    """Parse a date value from an ADR frontmatter.
+
+    This function attempts to parse a date value using multiple formats
+    and provides detailed error messages when parsing fails.
+
+    Args:
+        date_value: The date value to parse (string, date, datetime, etc.)
+        adr_file: The path to the ADR file (for error reporting)
+
+    Returns:
+        A datetime object if parsing succeeds, None otherwise.
+    """
+    logger = get_logger(__name__)
+
+    if date_value is None:
+        logger.warning(
+            f"Missing date in ADR: {adr_file}. "
+            f"Add a 'date: YYYY-MM-DD' field to the frontmatter."
+        )
+        return None
+
+    # Handle datetime objects directly
+    if isinstance(date_value, datetime):
+        return date_value
+
+    # Handle date objects
+    if hasattr(date_value, 'year') and hasattr(date_value, 'month') and hasattr(date_value, 'day'):
+        try:
+            return datetime(date_value.year, date_value.month, date_value.day)
+        except (ValueError, AttributeError):
+            pass
+
+    # Convert to string if not already
+    if not isinstance(date_value, str):
+        logger.warning(
+            f"Invalid date format in ADR: {adr_file}. "
+            f"Date value '{date_value}' is not a string. "
+            f"Use format 'YYYY-MM-DD' in the frontmatter."
+        )
+        return None
+
+    date_str = date_value.strip()
+
+    # Try different date formats
+    date_formats = [
+        ("%Y-%m-%d", "YYYY-MM-DD (e.g., 2023-11-15)"),
+        ("%Y-%m-%dT%H:%M:%S", "YYYY-MM-DDThh:mm:ss (e.g., 2023-11-15T14:30:00)"),
+        ("%Y-%m-%dT%H:%M:%S.%f", "YYYY-MM-DDThh:mm:ss.fff (e.g., 2023-11-15T14:30:00.123)"),
+        ("%Y/%m/%d", "YYYY/MM/DD (e.g., 2023/11/15)"),
+        ("%d-%m-%Y", "DD-MM-YYYY (e.g., 15-11-2023)"),
+        ("%d/%m/%Y", "DD/MM/YYYY (e.g., 15/11/2023)"),
+        ("%B %d, %Y", "Month DD, YYYY (e.g., November 15, 2023)"),
+        ("%b %d, %Y", "Mon DD, YYYY (e.g., Nov 15, 2023)"),
+    ]
+
+    for date_format, format_desc in date_formats:
+        try:
+            return datetime.strptime(date_str, date_format)
+        except ValueError:
+            continue
+
+    # If all formats fail, try fromisoformat as a last resort
+    try:
+        return datetime.fromisoformat(date_str)
+    except ValueError:
+        # Collect all supported formats for the error message
+        supported_formats = "\n".join([f"- {desc}" for _, desc in date_formats])
+        logger.warning(
+            f"Could not parse date '{date_str}' in ADR: {adr_file}. "
+            f"Supported date formats are:\n{supported_formats}\n"
+            f"Using current time as fallback."
+        )
+        return None
 
 logger = get_logger(__name__)
 
@@ -184,34 +260,9 @@ class ADRIngestor:
                     ts = datetime.now()
                     if "date" in frontmatter:
                         date_str = frontmatter["date"]
-                        if isinstance(date_str, str):
-                            # Try different date formats
-                            date_formats = [
-                                "%Y-%m-%d",  # ISO format: 2023-11-15
-                                "%Y-%m-%dT%H:%M:%S",  # ISO format with time: 2023-11-15T14:30:00
-                                "%Y-%m-%dT%H:%M:%S.%f",  # ISO format with microseconds: 2023-11-15T14:30:00.123456
-                                "%Y/%m/%d",  # Slash format: 2023/11/15
-                                "%d-%m-%Y",  # European format: 15-11-2023
-                                "%d/%m/%Y",  # European slash format: 15/11/2023
-                                "%B %d, %Y",  # Month name format: November 15, 2023
-                                "%b %d, %Y",  # Abbreviated month format: Nov 15, 2023
-                            ]
-
-                            for date_format in date_formats:
-                                try:
-                                    ts = datetime.strptime(date_str, date_format)
-                                    break
-                                except ValueError:
-                                    continue
-
-                            # If all formats fail, try fromisoformat as a last resort
-                            if ts == datetime.now():
-                                try:
-                                    ts = datetime.fromisoformat(date_str)
-                                except ValueError:
-                                    logger.warning(f"Could not parse date: {date_str}")
-                        else:
-                            logger.warning(f"Date is not a string: {date_str}")
+                        parsed_date = parse_adr_date(date_str, adr_file)
+                        if parsed_date:
+                            ts = parsed_date
 
                     adr_node = ADRNode(
                         id=adr_id,

@@ -53,7 +53,7 @@ This guide provides solutions for common issues you might encounter when using A
    ```bash
    # On Unix/macOS
    which python
-   
+
    # On Windows
    where python
    ```
@@ -81,7 +81,7 @@ This guide provides solutions for common issues you might encounter when using A
    ```bash
    # On Unix/macOS
    ls -la ~/.arc/graph.db
-   
+
    # On Windows
    dir %USERPROFILE%\.arc\graph.db
    ```
@@ -98,6 +98,45 @@ This guide provides solutions for common issues you might encounter when using A
    conn = init_db(test_mode=True)
    ```
 
+### Database Connection Errors
+
+**Symptom**: Errors like `'PosixPath' object has no attribute 'execute'` or `'str' object has no attribute 'execute'`.
+
+**Solution**:
+1. Make sure you're passing a database connection object to functions that require it:
+   ```python
+   from arc_memory.sql.db import get_connection, get_node_by_id
+
+   # Correct: Get a connection first
+   conn = get_connection(db_path)
+   node = get_node_by_id(conn, "node:123")
+   ```
+
+2. Use the `ensure_connection` function for flexible code that works with both paths and connections:
+   ```python
+   from arc_memory.sql.db import get_node_by_id
+
+   # This works with either a path or a connection
+   node = get_node_by_id(db_path, "node:123")
+   node = get_node_by_id(conn, "node:123")
+   ```
+
+3. Check the function documentation to understand parameter requirements:
+   ```python
+   help(get_node_by_id)  # Shows parameter types and descriptions
+   ```
+
+4. Use a context manager for automatic connection handling:
+   ```python
+   from contextlib import closing
+   from arc_memory.sql.db import get_connection
+
+   with closing(get_connection(db_path)) as conn:
+       # Use conn within this block
+       node = get_node_by_id(conn, "node:123")
+   # Connection is automatically closed here
+   ```
+
 ### Database Corruption
 
 **Symptom**: SQL errors or unexpected behavior when querying the database.
@@ -112,7 +151,7 @@ This guide provides solutions for common issues you might encounter when using A
    ```bash
    # Rename the existing database
    mv ~/.arc/graph.db ~/.arc/graph.db.bak
-   
+
    # Rebuild
    arc build
    ```
@@ -121,7 +160,7 @@ This guide provides solutions for common issues you might encounter when using A
    ```bash
    # On Unix/macOS
    cp ~/.arc/graph.db.zst ~/.arc/graph.db.zst.bak
-   
+
    # Decompress
    from arc_memory.sql.db import decompress_db
    decompress_db()
@@ -300,7 +339,7 @@ This guide provides solutions for common issues you might encounter when using A
    ```bash
    # On Unix/macOS
    which arc
-   
+
    # On Windows
    where arc
    ```
@@ -331,7 +370,7 @@ This guide provides solutions for common issues you might encounter when using A
    ```bash
    # On Unix/macOS
    env | grep ARC
-   
+
    # On Windows
    set | findstr ARC
    ```
@@ -359,7 +398,7 @@ This guide provides solutions for common issues you might encounter when using A
    ```python
    # Test database
    test_conn = init_db(test_mode=True)
-   
+
    # Real database
    real_conn = init_db(test_mode=False)
    ```

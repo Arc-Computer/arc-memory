@@ -24,13 +24,13 @@ class TestGitHubAppAuth(unittest.TestCase):
         config = GitHubAppConfig(
             app_id="test-app-id",
             private_key="test-private-key",
-            client_id="test-client-id",
+            client_id="1234567890abcdef1234",  # Valid format client ID
             client_secret="test-client-secret",
         )
 
         self.assertEqual(config.app_id, "test-app-id")
         self.assertEqual(config.private_key, "test-private-key")
-        self.assertEqual(config.client_id, "test-client-id")
+        self.assertEqual(config.client_id, "1234567890abcdef1234")
         self.assertEqual(config.client_secret, "test-client-secret")
 
     @patch("arc_memory.auth.github.keyring")
@@ -41,7 +41,7 @@ class TestGitHubAppAuth(unittest.TestCase):
         config = GitHubAppConfig(
             app_id="test-app-id",
             private_key="test-private-key",
-            client_id="test-client-id",
+            client_id="1234567890abcdef1234",  # Valid format client ID
             client_secret="test-client-secret",
         )
 
@@ -53,14 +53,14 @@ class TestGitHubAppAuth(unittest.TestCase):
     @patch("arc_memory.auth.github.keyring")
     def test_get_github_app_config_from_keyring(self, mock_keyring):
         """Test getting a GitHub App config from the keyring."""
-        mock_keyring.get_password.return_value = '{"app_id": "test-app-id", "private_key": "test-private-key", "client_id": "test-client-id", "client_secret": "test-client-secret"}'
+        mock_keyring.get_password.return_value = '{"app_id": "test-app-id", "private_key": "test-private-key", "client_id": "1234567890abcdef1234", "client_secret": "test-client-secret"}'
 
         config = get_github_app_config_from_keyring()
 
         self.assertIsNotNone(config)
         self.assertEqual(config.app_id, "test-app-id")
         self.assertEqual(config.private_key, "test-private-key")
-        self.assertEqual(config.client_id, "test-client-id")
+        self.assertEqual(config.client_id, "1234567890abcdef1234")
         self.assertEqual(config.client_secret, "test-client-secret")
 
     @patch("arc_memory.auth.github.os.environ")
@@ -69,7 +69,7 @@ class TestGitHubAppAuth(unittest.TestCase):
         mock_environ.get.side_effect = lambda key: {
             "ARC_GITHUB_APP_ID": "test-app-id",
             "ARC_GITHUB_PRIVATE_KEY_PATH": "/path/to/private/key",
-            "ARC_GITHUB_CLIENT_ID": "test-client-id",
+            "ARC_GITHUB_CLIENT_ID": "1234567890abcdef1234",
             "ARC_GITHUB_CLIENT_SECRET": "test-client-secret",
         }.get(key)
 
@@ -79,7 +79,7 @@ class TestGitHubAppAuth(unittest.TestCase):
         self.assertIsNotNone(config)
         self.assertEqual(config.app_id, "test-app-id")
         self.assertEqual(config.private_key, "test-private-key")
-        self.assertEqual(config.client_id, "test-client-id")
+        self.assertEqual(config.client_id, "1234567890abcdef1234")
         self.assertEqual(config.client_secret, "test-client-secret")
 
     @patch("arc_memory.auth.github.jwt.encode")
