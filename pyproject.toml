@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "arc-memory"
-version = "0.2.1" 
+version = "0.2.1"
 description = "Arc Memory - Local bi-temporal knowledge graph for code repositories"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -31,6 +31,8 @@ dependencies = [
     # API and data handling
     "requests>=2.28.0",     # HTTP requests for GitHub API
     "pydantic>=2.0.0",      # Data validation and settings management
+    "gql>=3.4.0",           # GraphQL client for GitHub API
+    "aiohttp>=3.8.0",       # Async HTTP client for GraphQL
 
     # CLI and user interface
     "typer>=0.9.0",         # Command-line interface
