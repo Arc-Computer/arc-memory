@@ -119,14 +119,36 @@ Based on the current benchmarks, we've identified the following optimization opp
    - Added support for all node types (Commit, PR, Issue, ADR, File)
    - Optimized performance to achieve 109 microseconds per query (still well below the 200ms target)
 
+## GitHub Integration Benchmarks
+
+In addition to the core benchmarks, we've added specific benchmarks for GitHub integration to measure the performance impact of fetching and processing GitHub data (PRs, issues, etc.).
+
+### GitHub Benchmark Methodology
+
+The GitHub benchmarks measure:
+
+1. **GitHub Data Fetching**: Time to fetch PRs, issues, and related data from GitHub API
+2. **GitHub Data Processing**: Time to process GitHub data and create nodes/edges
+3. **GitHub Trace Queries**: Time to trace history including GitHub nodes (PRs, issues)
+
+### GitHub Performance Targets
+
+| Operation | Target Duration | Rationale |
+|-----------|----------------|-----------|
+| GitHub Initial Fetch | < 5 minutes | Acceptable one-time cost for new repositories |
+| GitHub Incremental Fetch | < 30 seconds | Fast enough for CI integration |
+| GitHub Trace Query | < 200ms | Required for responsive VS Code extension |
+
 ## Next Steps
 
 1. ✅ Add benchmarks for medium and large repositories
-2. Add more comprehensive tests for the trace history algorithm
-3. Optimize database writes for larger repositories
-4. Implement parallel processing for the build process
-5. Add caching for git blame results
-6. Continuously monitor performance as new features are added
+2. ✅ Add GitHub-specific benchmarks and metrics
+3. Add more comprehensive tests for the trace history algorithm
+4. Optimize database writes for larger repositories
+5. Implement parallel processing for the build process
+6. Add caching for git blame results
+7. Continuously monitor performance as new features are added
+8. Add benchmarks for other data sources (Jira, Linear, Notion)
 
 ## Running Benchmarks
 
@@ -137,13 +159,28 @@ To run the benchmarks yourself:
 pip install -e .
 
 # Run benchmarks on a small repository
-python tests/benchmark/benchmark.py --repo-size small --output benchmark_results_small.json
+python tests/benchmark/benchmark.py --repo-size small --output benchmarks/benchmark_results_small.json
 
 # Run benchmarks on a medium repository
-python tests/benchmark/benchmark.py --repo-size medium --output benchmark_results_medium.json
+python tests/benchmark/benchmark.py --repo-size medium --output benchmarks/benchmark_results_medium.json
 
 # Run benchmarks on a large repository
-python tests/benchmark/benchmark.py --repo-size large --output benchmark_results_large.json
+python tests/benchmark/benchmark.py --repo-size large --output benchmarks/benchmark_results_large.json
+
+# Run GitHub benchmarks (requires a GitHub token)
+export GITHUB_TOKEN=your_github_token
+./run_github_benchmarks.sh
 ```
 
-The benchmark results will be saved to the specified output file in JSON format.
+The benchmark results will be saved to the specified output files in JSON format.
+
+### GitHub Benchmark Results
+
+When running GitHub benchmarks, you'll get additional metrics:
+
+- **PR Count**: Number of PRs fetched from GitHub
+- **Issue Count**: Number of issues fetched from GitHub
+- **Mention Edge Count**: Number of mention edges created
+- **GitHub Initial Build Duration**: Time to fetch and process GitHub data for the first time
+- **GitHub Incremental Build Duration**: Time to fetch and process updated GitHub data
+- **GitHub Nodes in Trace**: Number of GitHub nodes (PRs, issues) included in trace results
