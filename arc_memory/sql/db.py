@@ -4,7 +4,7 @@ import json
 import sqlite3
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 # These imports are handled dynamically to support graceful degradation
 # when dependencies are missing
@@ -506,6 +506,47 @@ def load_build_manifest(
         return None
 
 
+def ensure_connection(conn_or_path: Union[Any, Path, str]) -> sqlite3.Connection:
+    """Ensure we have a valid database connection.
+
+    This function accepts either:
+    - An existing database connection object
+    - A path to a database file (as Path or string)
+
+    It returns a valid database connection in all cases, opening a new
+    connection if a path was provided.
+
+    Args:
+        conn_or_path: Either a database connection object or a path to a database file.
+
+    Returns:
+        A valid database connection.
+
+    Raises:
+        DatabaseError: If the input is neither a valid connection nor a valid path.
+    """
+    from arc_memory.errors import DatabaseError
+
+    # Case 1: Already a connection object
+    if hasattr(conn_or_path, 'execute') or hasattr(conn_or_path, 'cursor'):
+        return conn_or_path
+
+    # Case 2: A Path object or string path
+    if isinstance(conn_or_path, (Path, str)):
+        path = Path(conn_or_path) if isinstance(conn_or_path, str) else conn_or_path
+        return get_connection(path)
+
+    # Case 3: Invalid input
+    raise DatabaseError(
+        f"Expected a database connection or path, got {type(conn_or_path).__name__}",
+        details={
+            "type": type(conn_or_path).__name__,
+            "value": str(conn_or_path),
+            "hint": "Pass either a database connection object or a Path to the database file."
+        }
+    )
+
+
 def add_nodes_and_edges(
     conn: Any, nodes: List[Node], edges: List[Edge]
 ) -> None:
@@ -727,11 +768,11 @@ def search_entities(
         )
 
 
-def get_node_by_id(conn: Any, node_id: str) -> Optional[Dict[str, Any]]:
+def get_node_by_id(conn_or_path: Union[Any, Path, str], node_id: str) -> Optional[Dict[str, Any]]:
     """Get a node by its ID.
 
     Args:
-        conn: A connection to the database (real or mock).
+        conn_or_path: Either a database connection object or a path to a database file.
         node_id: The ID of the node.
 
     Returns:
@@ -740,6 +781,9 @@ def get_node_by_id(conn: Any, node_id: str) -> Optional[Dict[str, Any]]:
     Raises:
         GraphQueryError: If getting the node fails.
     """
+    # Get a valid connection
+    conn = ensure_connection(conn_or_path)
+
     # Check if we're using a test database
     if hasattr(conn, 'nodes') and hasattr(conn, 'edges'):
         try:
@@ -771,21 +815,22 @@ def get_node_by_id(conn: Any, node_id: str) -> Optional[Dict[str, Any]]:
     except Exception as e:
         logger.error(f"Failed to get node by ID: {e}")
         raise GraphQueryError(
-            f"Failed to get node by ID: {e}",
+            f"Failed to get node by ID '{node_id}': {e}",
             details={
                 "node_id": node_id,
                 "error": str(e),
+                "hint": "Make sure you're passing a valid database connection or path."
             }
         )
 
 
 def get_edges_by_src(
-    conn: Any, src_id: str, rel_type: Optional[EdgeRel] = None
+    conn_or_path: Union[Any, Path, str], src_id: str, rel_type: Optional[EdgeRel] = None
 ) -> List[Dict[str, Any]]:
     """Get edges by source node ID.
 
     Args:
-        conn: A connection to the database (real or mock).
+        conn_or_path: Either a database connection object or a path to a database file.
         src_id: The ID of the source node.
         rel_type: Optional relationship type to filter by.
 
@@ -795,6 +840,9 @@ def get_edges_by_src(
     Raises:
         GraphQueryError: If getting the edges fails.
     """
+    # Get a valid connection
+    conn = ensure_connection(conn_or_path)
+
     # Check if we're using a test database
     if hasattr(conn, 'nodes') and hasattr(conn, 'edges'):
         try:
@@ -837,22 +885,23 @@ def get_edges_by_src(
     except Exception as e:
         logger.error(f"Failed to get edges by source: {e}")
         raise GraphQueryError(
-            f"Failed to get edges by source: {e}",
+            f"Failed to get edges by source node '{src_id}': {e}",
             details={
                 "src_id": src_id,
                 "rel_type": rel_type.value if rel_type else None,
                 "error": str(e),
+                "hint": "Make sure you're passing a valid database connection or path."
             }
         )
 
 
 def get_edges_by_dst(
-    conn: Any, dst_id: str, rel_type: Optional[EdgeRel] = None
+    conn_or_path: Union[Any, Path, str], dst_id: str, rel_type: Optional[EdgeRel] = None
 ) -> List[Dict[str, Any]]:
     """Get edges by destination node ID.
 
     Args:
-        conn: A connection to the database (real or mock).
+        conn_or_path: Either a database connection object or a path to a database file.
         dst_id: The ID of the destination node.
         rel_type: Optional relationship type to filter by.
 
@@ -862,6 +911,9 @@ def get_edges_by_dst(
     Raises:
         GraphQueryError: If getting the edges fails.
     """
+    # Get a valid connection
+    conn = ensure_connection(conn_or_path)
+
     # Check if we're using a test database
     if hasattr(conn, 'nodes') and hasattr(conn, 'edges'):
         try:
@@ -904,11 +956,12 @@ def get_edges_by_dst(
     except Exception as e:
         logger.error(f"Failed to get edges by destination: {e}")
         raise GraphQueryError(
-            f"Failed to get edges by destination: {e}",
+            f"Failed to get edges by destination node '{dst_id}': {e}",
             details={
                 "dst_id": dst_id,
                 "rel_type": rel_type.value if rel_type else None,
                 "error": str(e),
+                "hint": "Make sure you're passing a valid database connection or path."
             }
         )
 
