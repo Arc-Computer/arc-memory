@@ -51,7 +51,7 @@ def clone_repo(url: str, target_dir: Path) -> git.Repo:
     return Repo.clone_from(url, target_dir)
 
 
-def benchmark_build(repo_path: Path, incremental: bool = False) -> Dict:
+def benchmark_build(repo_path: Path, incremental: bool = False, github_token: Optional[str] = None) -> Dict:
     """Benchmark the build process.
 
     Args:
@@ -74,6 +74,7 @@ def benchmark_build(repo_path: Path, incremental: bool = False) -> Dict:
         repo_path=repo_path,
         output_path=arc_dir / "graph.db",
         incremental=incremental,
+        token=github_token,
     )
     end_time = time.time()
 
@@ -93,17 +94,31 @@ def benchmark_build(repo_path: Path, incremental: bool = False) -> Dict:
         edge_count = cursor.fetchone()[0]
         conn.close()
 
-    return {
+    # Prepare result dictionary
+    result = {
         "type": "build",
         "incremental": incremental,
         "duration_seconds": end_time - start_time,
         "db_size_bytes": db_size,
         "node_count": node_count,
         "edge_count": edge_count,
+        "github_enabled": github_token is not None,
     }
 
+    # Add GitHub-specific metrics if available
+    if github_token and "github" in plugin_metadata:
+        github_metrics = plugin_metadata["github"]
+        result["github"] = {
+            "duration_seconds": github_metrics.get("duration_seconds", 0),
+            "pr_count": github_metrics.get("pr_count", 0),
+            "issue_count": github_metrics.get("issue_count", 0),
+            "mention_edge_count": github_metrics.get("mention_edge_count", 0),
+        }
 
-def benchmark_trace(repo_path: Path, file_path: str, line_number: int, iterations: int = 10) -> Dict:
+    return result
+
+
+def benchmark_trace(repo_path: Path, file_path: str, line_number: int, iterations: int = 10, include_github: bool = False) -> Dict:
     """Benchmark the trace history algorithm.
 
     Args:
@@ -133,6 +148,8 @@ def benchmark_trace(repo_path: Path, file_path: str, line_number: int, iteration
     # Measure trace time
     durations = []
     result_count = 0
+    github_node_count = 0
+
     for _ in range(iterations):
         try:
             start_time = time.time()
@@ -140,6 +157,10 @@ def benchmark_trace(repo_path: Path, file_path: str, line_number: int, iteration
             end_time = time.time()
             durations.append(end_time - start_time)
             result_count = len(result) if result else 0
+
+            # Count GitHub nodes in the trace results
+            if include_github and result:
+                github_node_count = sum(1 for node in result if node.get("type") in ["PR", "Issue"])
         except Exception as e:
             print(f"Error in trace_history: {e}")
             durations.append(0.0)
@@ -164,7 +185,7 @@ def benchmark_trace(repo_path: Path, file_path: str, line_number: int, iteration
     # Filter out failed iterations
     valid_durations = [d for d in durations if d > 0.0]
 
-    return {
+    result = {
         "type": "trace",
         "file_path": file_path,
         "line_number": line_number,
@@ -174,8 +195,18 @@ def benchmark_trace(repo_path: Path, file_path: str, line_number: int, iteration
         "min_duration_seconds": min(valid_durations) if valid_durations else 0.0,
         "max_duration_seconds": max(valid_durations) if valid_durations else 0.0,
         "result_count": result_count,
-        "failed_iterations": iterations - len(valid_durations)
+        "failed_iterations": iterations - len(valid_durations),
+        "include_github": include_github
     }
+
+    # Add GitHub-specific metrics if enabled
+    if include_github:
+        result["github"] = {
+            "node_count": github_node_count,
+            "percentage": (github_node_count / result_count) * 100 if result_count > 0 else 0
+        }
+
+    return result
 
 
 def benchmark_plugins() -> Dict:
@@ -196,7 +227,7 @@ def benchmark_plugins() -> Dict:
     }
 
 
-def run_benchmarks(repo_size: str, output_file: Optional[Path] = None) -> None:
+def run_benchmarks(repo_size: str, output_file: Optional[Path] = None, github_token: Optional[str] = None) -> None:
     """Run all benchmarks.
 
     Args:
@@ -227,12 +258,12 @@ def run_benchmarks(repo_size: str, output_file: Optional[Path] = None) -> None:
 
         # Benchmark initial build
         print("Benchmarking initial build...")
-        build_results = benchmark_build(temp_dir, incremental=False)
+        build_results = benchmark_build(temp_dir, incremental=False, github_token=github_token)
         results["benchmarks"].append(build_results)
 
         # Benchmark incremental build
         print("Benchmarking incremental build...")
-        incremental_results = benchmark_build(temp_dir, incremental=True)
+        incremental_results = benchmark_build(temp_dir, incremental=True, github_token=github_token)
         results["benchmarks"].append(incremental_results)
 
         # Find a file to trace
@@ -275,8 +306,21 @@ def run_benchmarks(repo_size: str, output_file: Optional[Path] = None) -> None:
         else:
             # Benchmark trace history
             print(f"Benchmarking trace history for {file_to_trace}:1...")
-            trace_results = benchmark_trace(temp_dir, file_to_trace, 1)
+            trace_results = benchmark_trace(temp_dir, file_to_trace, 1, include_github=github_token is not None)
         results["benchmarks"].append(trace_results)
+
+        # If GitHub token is provided, add a summary of GitHub metrics
+        if github_token:
+            github_summary = {
+                "type": "github_summary",
+                "pr_count": build_results.get("github", {}).get("pr_count", 0),
+                "issue_count": build_results.get("github", {}).get("issue_count", 0),
+                "mention_edge_count": build_results.get("github", {}).get("mention_edge_count", 0),
+                "initial_build_duration": build_results.get("github", {}).get("duration_seconds", 0),
+                "incremental_build_duration": incremental_results.get("github", {}).get("duration_seconds", 0),
+                "trace_github_node_count": trace_results.get("github", {}).get("node_count", 0),
+            }
+            results["benchmarks"].append(github_summary)
 
         # Print summary
         print("\nBenchmark Summary:")
@@ -284,6 +328,16 @@ def run_benchmarks(repo_size: str, output_file: Optional[Path] = None) -> None:
         print(f"Initial Build: {build_results['duration_seconds']:.3f} seconds")
         print(f"Incremental Build: {incremental_results['duration_seconds']:.3f} seconds")
         print(f"Trace History: {trace_results['avg_duration_seconds']:.3f} seconds (avg)")
+
+        # Print GitHub summary if enabled
+        if github_token:
+            print("\nGitHub Metrics:")
+            print(f"PR Count: {build_results.get('github', {}).get('pr_count', 0)}")
+            print(f"Issue Count: {build_results.get('github', {}).get('issue_count', 0)}")
+            print(f"Mention Edge Count: {build_results.get('github', {}).get('mention_edge_count', 0)}")
+            print(f"GitHub Initial Build Duration: {build_results.get('github', {}).get('duration_seconds', 0):.3f} seconds")
+            print(f"GitHub Incremental Build Duration: {incremental_results.get('github', {}).get('duration_seconds', 0):.3f} seconds")
+            print(f"GitHub Nodes in Trace: {trace_results.get('github', {}).get('node_count', 0)}")
 
         # Write results to file
         if output_file:
@@ -310,6 +364,10 @@ if __name__ == "__main__":
         type=Path,
         help="File to write benchmark results to.",
     )
+    parser.add_argument(
+        "--github-token",
+        help="GitHub token to use for API calls. If not provided, GitHub integration will be skipped.",
+    )
 
     args = parser.parse_args()
-    run_benchmarks(args.repo_size, args.output)
+    run_benchmarks(args.repo_size, args.output, args.github_token)

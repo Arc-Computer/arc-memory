@@ -1,5 +1,6 @@
 """Helper functions for benchmarking the build process."""
 
+import time
 from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Any
@@ -82,21 +83,33 @@ def build_graph(
                 last_processed=last_processed_data,
             )
         # Special handling for GitHub plugin (pass token)
-        # Only use GitHub plugin for our own repository to avoid authentication issues
-        elif plugin_name == "github" and repo_path.name == "arc-memory":
+        elif plugin_name == "github":
             try:
-                nodes, edges, metadata = plugin.ingest(
-                    repo_path,
-                    token=token,
-                    last_processed=last_processed_data,
-                )
+                # Track GitHub API metrics
+                github_start_time = time.time()
+
+                # Enable GitHub integration for all repository sizes if token is provided
+                if token:
+                    print(f"Running GitHub plugin for repository: {repo_path.name}")
+                    nodes, edges, metadata = plugin.ingest(
+                        repo_path,
+                        token=token,
+                        last_processed=last_processed_data,
+                    )
+
+                    # Add GitHub-specific metrics
+                    github_end_time = time.time()
+                    metadata["duration_seconds"] = github_end_time - github_start_time
+                    metadata["pr_count"] = sum(1 for node in nodes if hasattr(node, "type") and node.type == "PR")
+                    metadata["issue_count"] = sum(1 for node in nodes if hasattr(node, "type") and node.type == "Issue")
+                    metadata["mention_edge_count"] = sum(1 for edge in edges if hasattr(edge, "rel") and edge.rel == "MENTIONS")
+                else:
+                    print(f"Skipping GitHub plugin for repository {repo_path.name} (no token provided)")
+                    nodes, edges, metadata = [], [], {}
             except Exception as e:
                 print(f"GitHub plugin failed: {e}")
                 print("Continuing without GitHub data")
                 nodes, edges, metadata = [], [], {}
-        elif plugin_name == "github":
-            print(f"Skipping GitHub plugin for external repository: {repo_path.name}")
-            nodes, edges, metadata = [], [], {}
         # Default handling for other plugins
         else:
             nodes, edges, metadata = plugin.ingest(
