@@ -374,7 +374,7 @@ query Issues($owner: String!, $repo: String!, $cursor: String) {
 
 # GraphQL query for updated pull requests (for incremental builds)
 UPDATED_PRS_QUERY = """
-query UpdatedPRs($owner: String!, $repo: String!, $since: DateTime!, $cursor: String) {
+query UpdatedPRs($owner: String!, $repo: String!, $cursor: String) {
   repository(owner: $owner, name: $repo) {
     pullRequests(first: 100, after: $cursor, orderBy: {field: UPDATED_AT, direction: DESC}) {
       pageInfo {
@@ -420,7 +420,7 @@ query UpdatedPRs($owner: String!, $repo: String!, $since: DateTime!, $cursor: St
 
 # GraphQL query for updated issues (for incremental builds)
 UPDATED_ISSUES_QUERY = """
-query UpdatedIssues($owner: String!, $repo: String!, $since: DateTime!, $cursor: String) {
+query UpdatedIssues($owner: String!, $repo: String!, $cursor: String) {
   repository(owner: $owner, name: $repo) {
     issues(first: 100, after: $cursor, orderBy: {field: UPDATED_AT, direction: DESC}) {
       pageInfo {

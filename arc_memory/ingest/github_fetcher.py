@@ -57,7 +57,7 @@ class GitHubFetcher:
             if since:
                 logger.info(f"Fetching PRs updated since {since.isoformat()}")
                 query = UPDATED_PRS_QUERY
-                variables = {"owner": owner, "repo": repo, "since": since.isoformat()}
+                variables = {"owner": owner, "repo": repo}
             else:
                 logger.info("Fetching all PRs")
                 query = PULL_REQUESTS_QUERY
@@ -110,7 +110,7 @@ class GitHubFetcher:
             if since:
                 logger.info(f"Fetching issues updated since {since.isoformat()}")
                 query = UPDATED_ISSUES_QUERY
-                variables = {"owner": owner, "repo": repo, "since": since.isoformat()}
+                variables = {"owner": owner, "repo": repo}
             else:
                 logger.info("Fetching all issues")
                 query = ISSUES_QUERY
