@@ -117,6 +117,16 @@ class GitHubGraphQLClient:
             logger.error(f"GraphQL query error: {e}")
             raise IngestError(f"GraphQL query error: {e}")
         except Exception as e:
+            # Check for authentication errors in the exception message
+            if "401" in str(e) or "Unauthorized" in str(e):
+                logger.error(f"GitHub authentication error: {e}")
+                raise GitHubAuthError(f"GitHub authentication error: {e}")
+
+            # Check for other specific error types in the exception message
+            if "500" in str(e) or "Internal Server Error" in str(e):
+                logger.error(f"GraphQL query error: {e}")
+                raise IngestError(f"GraphQL query error: {e}")
+
             logger.exception(f"Unexpected error executing GraphQL query: {e}")
             raise IngestError(f"Failed to execute GraphQL query: {e}")
 
