@@ -135,7 +135,10 @@ class TestIncrementalBuild:
         # If we have PRs, check that they were updated after the since timestamp
         for pr in prs:
             updated_at = datetime.fromisoformat(pr["updatedAt"].replace("Z", "+00:00"))
-            assert updated_at >= since
+            # Convert to naive datetime for comparison
+            updated_at_naive = updated_at.replace(tzinfo=None)
+            since_naive = since.replace(tzinfo=None)
+            assert updated_at_naive >= since_naive
 
     def test_fetch_updated_issues(self, github_fetcher, test_repo):
         """Test fetching updated issues."""
