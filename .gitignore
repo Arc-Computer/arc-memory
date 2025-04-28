@@ -33,6 +33,7 @@ htmlcov/
 env/
 venv/
 ENV/
+/fresh_env
 
 # IDE
 .idea/
