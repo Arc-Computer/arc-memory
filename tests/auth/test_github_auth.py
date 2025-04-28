@@ -35,7 +35,7 @@ class TestGitHubAuth(unittest.TestCase):
         # Check that the request was made correctly
         mock_post.assert_called_once()
         args, kwargs = mock_post.call_args
-        self.assertEqual(args[0], "https://api.github.com/login/device/code")
+        self.assertEqual(args[0], "https://github.com/login/device/code")
         self.assertEqual(kwargs["json"]["client_id"], "test-client-id")
         self.assertEqual(kwargs["json"]["scope"], "repo")
 
