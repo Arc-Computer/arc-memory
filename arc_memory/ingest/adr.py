@@ -67,8 +67,8 @@ def parse_adr_date(date_value: Any, adr_file: Path) -> Optional[datetime]:
             # Continue processing with the string version
         except Exception:
             logger.warning(
-                f"Invalid date format in ADR: {adr_file}. "
-                f"Date value '{date_value}' is not a string and cannot be converted. "
+                f"Could not parse date '{date_value}' in ADR: {adr_file}. "
+                f"Date value is not a string and cannot be converted. "
                 f"Use format 'YYYY-MM-DD' in the frontmatter."
             )
             return None
