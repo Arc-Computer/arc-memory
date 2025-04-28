@@ -2,7 +2,7 @@
 
 import logging
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, Dict, List, Optional, Tuple, Union
 
 from arc_memory.errors import GitHubAuthError, IngestError
@@ -73,10 +73,15 @@ class GitHubFetcher:
                 filtered_prs = []
                 for pr in prs:
                     updated_at = datetime.fromisoformat(pr["updatedAt"].replace("Z", "+00:00"))
-                    # Convert to naive datetime for comparison
-                    updated_at_naive = updated_at.replace(tzinfo=None)
-                    since_naive = since.replace(tzinfo=None)
-                    if updated_at_naive >= since_naive:
+
+                    # Ensure both datetimes are timezone-aware for accurate comparison
+                    if since.tzinfo is None:
+                        # If since is naive, make it timezone-aware with UTC
+                        since_aware = since.replace(tzinfo=timezone.utc)
+                    else:
+                        since_aware = since
+
+                    if updated_at >= since_aware:
                         filtered_prs.append(pr)
                 prs = filtered_prs
 
@@ -129,10 +134,15 @@ class GitHubFetcher:
                 filtered_issues = []
                 for issue in issues:
                     updated_at = datetime.fromisoformat(issue["updatedAt"].replace("Z", "+00:00"))
-                    # Convert to naive datetime for comparison
-                    updated_at_naive = updated_at.replace(tzinfo=None)
-                    since_naive = since.replace(tzinfo=None)
-                    if updated_at_naive >= since_naive:
+
+                    # Ensure both datetimes are timezone-aware for accurate comparison
+                    if since.tzinfo is None:
+                        # If since is naive, make it timezone-aware with UTC
+                        since_aware = since.replace(tzinfo=timezone.utc)
+                    else:
+                        since_aware = since
+
+                    if updated_at >= since_aware:
                         filtered_issues.append(issue)
                 issues = filtered_issues
 

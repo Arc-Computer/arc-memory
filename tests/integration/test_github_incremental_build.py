@@ -6,7 +6,7 @@ They test the incremental build functionality with real API calls.
 
 import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
@@ -135,10 +135,12 @@ class TestIncrementalBuild:
         # If we have PRs, check that they were updated after the since timestamp
         for pr in prs:
             updated_at = datetime.fromisoformat(pr["updatedAt"].replace("Z", "+00:00"))
-            # Convert to naive datetime for comparison
-            updated_at_naive = updated_at.replace(tzinfo=None)
-            since_naive = since.replace(tzinfo=None)
-            assert updated_at_naive >= since_naive
+            # Ensure since is timezone-aware for comparison
+            if since.tzinfo is None:
+                since_aware = since.replace(tzinfo=timezone.utc)
+            else:
+                since_aware = since
+            assert updated_at >= since_aware
 
     def test_fetch_updated_issues(self, github_fetcher, test_repo):
         """Test fetching updated issues."""
@@ -158,9 +160,12 @@ class TestIncrementalBuild:
         # If we have issues, check that they were updated after the since timestamp
         for issue in issues:
             updated_at = datetime.fromisoformat(issue["updatedAt"].replace("Z", "+00:00"))
-            # Convert since to UTC for comparison
-            since_utc = since.replace(tzinfo=None)
-            assert updated_at.replace(tzinfo=None) >= since_utc
+            # Ensure since is timezone-aware for comparison
+            if since.tzinfo is None:
+                since_aware = since.replace(tzinfo=timezone.utc)
+            else:
+                since_aware = since
+            assert updated_at >= since_aware
 
     def test_full_incremental_build_cycle(self, github_ingestor, github_token, test_repo):
         """Test a full incremental build cycle."""
