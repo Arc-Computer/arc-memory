@@ -27,23 +27,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Standardized database connection handling across functions
 - Enhanced error messages with actionable guidance
 
-## [0.1.5] - 2024-04-25
+## [0.1.5] - 2025-04-25
 
 ### Fixed
 - Renamed `schema` field to `schema_version` in BuildManifest to avoid conflict with BaseModel.schema
 - Fixed Pydantic warning about field name shadowing
 
-## [0.1.4] - 2024-04-25
+## [0.1.4] - 2025-04-25
 
 ### Fixed
 - Implemented top-level `arc version` command for better developer experience
 
-## [0.1.3] - 2024-04-25
+## [0.1.3] - 2025-04-25
 
 ### Fixed
 - Fixed `arc version` command in CLI to work correctly
 
-## [0.1.2] - 2024-04-25
+## [0.1.2] - 2025-04-25
 
 ### Fixed
 - Fixed version string in `__init__.py` to match package version
