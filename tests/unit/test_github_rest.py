@@ -1,14 +1,15 @@
 """Unit tests for GitHub REST client."""
 
 import json
-from datetime import datetime
+import time
+from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
 
 from arc_memory.errors import GitHubAuthError, IngestError
-from arc_memory.ingest.github_rest import GitHubRESTClient
+from arc_memory.ingest.github_rest import GitHubRESTClient, DEFAULT_RETRY_COUNT, RATE_LIMIT_BUFFER
 
 
 @pytest.fixture
@@ -27,19 +28,36 @@ def mock_response():
 @pytest.fixture
 def rest_client():
     """Create a GitHubRESTClient."""
-    return GitHubRESTClient("test-token")
+    with patch("arc_memory.ingest.github_rest.requests.get") as mock_get:
+        # Mock the rate limit response
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.json.return_value = {
+            "resources": {
+                "core": {
+                    "limit": 5000,
+                    "remaining": 4900,
+                    "reset": int(time.time()) + 3600,
+                }
+            }
+        }
+        mock_get.return_value = mock_response
+
+        client = GitHubRESTClient("test-token")
+        return client
 
 
 class TestGitHubRESTClient:
     """Tests for GitHubRESTClient."""
 
-    def test_init(self):
+    def test_init(self, rest_client):
         """Test initialization."""
-        client = GitHubRESTClient("test-token")
-        assert client.token == "test-token"
-        assert client.headers["Authorization"] == "token test-token"
-        assert client.rate_limit_remaining is None
-        assert client.rate_limit_reset is None
+        assert rest_client.token == "test-token"
+        assert rest_client.headers["Authorization"] == "token test-token"
+        assert rest_client.headers["Accept"] == "application/vnd.github.v3+json"
+        assert rest_client.rate_limit_remaining == 4900
+        assert rest_client.rate_limit_limit == 5000
+        assert isinstance(rest_client.rate_limit_reset, datetime)
 
     def test_request_success(self, rest_client, mock_response):
         """Test successful request."""
@@ -251,3 +269,345 @@ class TestGitHubRESTClient:
 
             # Check get_issue_comments call
             mock_get_issue_comments.assert_called_once_with("test-owner", "test-repo", 123)
+
+    # Enhanced functionality tests
+
+    def test_update_rate_limit_info(self, rest_client):
+        """Test updating rate limit info."""
+        with patch("arc_memory.ingest.github_rest.requests.get") as mock_get:
+            # Mock the rate limit response
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {
+                "resources": {
+                    "core": {
+                        "limit": 5000,
+                        "remaining": 4800,
+                        "reset": int(time.time()) + 3600,
+                    }
+                }
+            }
+            mock_get.return_value = mock_response
+
+            # Update rate limit info
+            rest_client._update_rate_limit_info()
+
+            # Check that the rate limit info was updated
+            assert rest_client.rate_limit_remaining == 4800
+            assert rest_client.rate_limit_limit == 5000
+            assert isinstance(rest_client.rate_limit_reset, datetime)
+
+    def test_should_wait_for_rate_limit(self, rest_client):
+        """Test checking if we should wait for rate limit to reset."""
+        # Set up a low rate limit
+        rest_client.rate_limit_remaining = 50
+        rest_client.rate_limit_reset = datetime.now() + timedelta(minutes=5)
+
+        # Check if we should wait
+        should_wait, wait_seconds = rest_client._should_wait_for_rate_limit()
+
+        # We should wait
+        assert should_wait is True
+        assert wait_seconds > 0
+        assert wait_seconds <= 301  # 5 minutes + 1 second buffer
+
+        # Set up a high rate limit
+        rest_client.rate_limit_remaining = 4900
+
+        # Check if we should wait
+        should_wait, wait_seconds = rest_client._should_wait_for_rate_limit()
+
+        # We should not wait
+        assert should_wait is False
+        assert wait_seconds == 0
+
+    def test_request_with_retry(self, rest_client):
+        """Test making a request with retry logic."""
+        with patch("arc_memory.ingest.github_rest.requests.request") as mock_request:
+            # Mock a successful response
+            mock_response = MagicMock()
+            mock_response.status_code = 200
+            mock_response.json.return_value = {"key": "value"}
+            mock_response.headers = {
+                "X-RateLimit-Remaining": "4899",
+                "X-RateLimit-Reset": str(int(time.time()) + 3600),
+                "X-RateLimit-Limit": "5000",
+            }
+            mock_request.return_value = mock_response
+
+            # Make a request
+            result = rest_client.request("GET", "/test")
+
+            # Check the result
+            assert result == {"key": "value"}
+
+            # Check that the request was made with the correct parameters
+            mock_request.assert_called_once()
+            _, kwargs = mock_request.call_args
+            assert kwargs["method"] == "GET"
+            assert kwargs["url"] == "https://api.github.com/test"
+            assert kwargs["headers"] == rest_client.headers
+            assert kwargs["timeout"] == 30
+
+    def test_request_with_rate_limit_exceeded(self, rest_client):
+        """Test handling rate limit exceeded."""
+        with patch("arc_memory.ingest.github_rest.requests.request") as mock_request, \
+             patch("arc_memory.ingest.github_rest.time.sleep") as mock_sleep:
+            # Mock a rate limit exceeded response followed by a successful response
+            mock_rate_limit_response = MagicMock()
+            mock_rate_limit_response.status_code = 403
+            mock_rate_limit_response.text = "API rate limit exceeded"
+            mock_rate_limit_response.headers = {
+                "X-RateLimit-Remaining": "0",
+                "X-RateLimit-Reset": str(int(time.time()) + 60),
+                "X-RateLimit-Limit": "5000",
+            }
+
+            mock_success_response = MagicMock()
+            mock_success_response.status_code = 200
+            mock_success_response.json.return_value = {"key": "value"}
+            mock_success_response.headers = {
+                "X-RateLimit-Remaining": "4999",
+                "X-RateLimit-Reset": str(int(time.time()) + 3600),
+                "X-RateLimit-Limit": "5000",
+            }
+
+            # Set up the mock to return the rate limit response first, then the success response
+            mock_request.side_effect = [mock_rate_limit_response, mock_success_response]
+
+            # Make a request
+            result = rest_client.request("GET", "/test")
+
+            # Check the result
+            assert result == {"key": "value"}
+
+            # Check that sleep was called
+            mock_sleep.assert_called_once()
+
+            # Check that the request was made twice
+            assert mock_request.call_count == 2
+
+    def test_request_with_server_error(self, rest_client):
+        """Test handling server errors with retry."""
+        with patch("arc_memory.ingest.github_rest.requests.request") as mock_request, \
+             patch("arc_memory.ingest.github_rest.time.sleep") as mock_sleep:
+            # Mock a server error response followed by a successful response
+            mock_server_error_response = MagicMock()
+            mock_server_error_response.status_code = 500
+            mock_server_error_response.raise_for_status.side_effect = requests.exceptions.HTTPError("500 Server Error")
+
+            mock_success_response = MagicMock()
+            mock_success_response.status_code = 200
+            mock_success_response.json.return_value = {"key": "value"}
+            mock_success_response.headers = {
+                "X-RateLimit-Remaining": "4999",
+                "X-RateLimit-Reset": str(int(time.time()) + 3600),
+                "X-RateLimit-Limit": "5000",
+            }
+
+            # Set up the mock to return the server error response first, then the success response
+            mock_request.side_effect = [mock_server_error_response, mock_success_response]
+
+            # Make a request
+            result = rest_client.request("GET", "/test")
+
+            # Check the result
+            assert result == {"key": "value"}
+
+            # Check that sleep was called
+            mock_sleep.assert_called_once()
+
+            # Check that the request was made twice
+            assert mock_request.call_count == 2
+
+    def test_request_with_network_error(self, rest_client):
+        """Test handling network errors with retry."""
+        with patch("arc_memory.ingest.github_rest.requests.request") as mock_request, \
+             patch("arc_memory.ingest.github_rest.time.sleep") as mock_sleep:
+            # Mock a network error followed by a successful response
+            mock_request.side_effect = [
+                requests.exceptions.ConnectionError("Connection error"),
+                MagicMock(
+                    status_code=200,
+                    json=lambda: {"key": "value"},
+                    headers={
+                        "X-RateLimit-Remaining": "4999",
+                        "X-RateLimit-Reset": str(int(time.time()) + 3600),
+                        "X-RateLimit-Limit": "5000",
+                    }
+                )
+            ]
+
+            # Make a request
+            result = rest_client.request("GET", "/test")
+
+            # Check the result
+            assert result == {"key": "value"}
+
+            # Check that sleep was called
+            mock_sleep.assert_called_once()
+
+            # Check that the request was made twice
+            assert mock_request.call_count == 2
+
+    def test_batch_request(self, rest_client):
+        """Test batch requests."""
+        with patch.object(rest_client, "request") as mock_request, \
+             patch("arc_memory.ingest.github_rest.time.sleep") as mock_sleep:
+            # Mock responses for each endpoint
+            mock_request.side_effect = [
+                {"id": 1},
+                {"id": 2},
+                {"id": 3},
+            ]
+
+            # Make a batch request
+            result = rest_client.batch_request("GET", ["/test/1", "/test/2", "/test/3"], batch_size=2)
+
+            # Check the result
+            assert result == [{"id": 1}, {"id": 2}, {"id": 3}]
+
+            # Check that the request was made three times
+            assert mock_request.call_count == 3
+
+            # Check that sleep was called once (between batches)
+            assert mock_sleep.call_count == 1
+
+    def test_get_commits_for_pr(self, rest_client):
+        """Test getting commits for a PR."""
+        with patch.object(rest_client, "paginate") as mock_paginate:
+            # Mock the paginate response
+            mock_paginate.return_value = [
+                {"sha": "abc123", "commit": {"message": "Test commit 1"}},
+                {"sha": "def456", "commit": {"message": "Test commit 2"}},
+            ]
+
+            # Get commits for PR
+            result = rest_client.get_commits_for_pr("owner", "repo", 123)
+
+            # Check the result
+            assert result == [
+                {"sha": "abc123", "commit": {"message": "Test commit 1"}},
+                {"sha": "def456", "commit": {"message": "Test commit 2"}},
+            ]
+
+            # Check that paginate was called with the correct parameters
+            mock_paginate.assert_called_once_with("GET", "/repos/owner/repo/pulls/123/commits")
+
+    def test_get_review_comments(self, rest_client):
+        """Test getting review comments for a PR."""
+        with patch.object(rest_client, "paginate") as mock_paginate:
+            # Mock the paginate response
+            mock_paginate.return_value = [
+                {"id": 1, "user": {"login": "reviewer1"}, "body": "Review comment 1"},
+                {"id": 2, "user": {"login": "reviewer2"}, "body": "Review comment 2"},
+            ]
+
+            # Get review comments
+            result = rest_client.get_review_comments("owner", "repo", 123)
+
+            # Check the result
+            assert result == [
+                {"id": 1, "user": {"login": "reviewer1"}, "body": "Review comment 1"},
+                {"id": 2, "user": {"login": "reviewer2"}, "body": "Review comment 2"},
+            ]
+
+            # Check that paginate was called with the correct parameters
+            mock_paginate.assert_called_once_with("GET", "/repos/owner/repo/pulls/123/comments")
+
+    def test_get_issue_events(self, rest_client):
+        """Test getting events for an issue."""
+        with patch.object(rest_client, "paginate") as mock_paginate:
+            # Mock the paginate response
+            mock_paginate.return_value = [
+                {"event": "labeled", "label": {"name": "bug"}},
+                {"event": "assigned", "assignee": {"login": "test-user"}},
+            ]
+
+            # Get issue events
+            result = rest_client.get_issue_events("owner", "repo", 123)
+
+            # Check the result
+            assert result == [
+                {"event": "labeled", "label": {"name": "bug"}},
+                {"event": "assigned", "assignee": {"login": "test-user"}},
+            ]
+
+            # Check that paginate was called with the correct parameters
+            mock_paginate.assert_called_once_with("GET", "/repos/owner/repo/issues/123/events")
+
+    def test_get_issue_timeline(self, rest_client):
+        """Test getting issue timeline."""
+        with patch.object(rest_client, "paginate") as mock_paginate:
+            # Mock the paginate response
+            mock_paginate.return_value = [
+                {"event": "labeled", "label": {"name": "bug"}},
+                {"event": "assigned", "assignee": {"login": "test-user"}},
+            ]
+
+            # Get issue timeline
+            result = rest_client.get_issue_timeline("owner", "repo", 123)
+
+            # Check the result
+            assert result == [
+                {"event": "labeled", "label": {"name": "bug"}},
+                {"event": "assigned", "assignee": {"login": "test-user"}},
+            ]
+
+            # Check that paginate was called with the correct parameters
+            mock_paginate.assert_called_once_with("GET", "/repos/owner/repo/issues/123/timeline")
+
+            # Check that the Accept header was set correctly and then restored
+            assert rest_client.headers["Accept"] == "application/vnd.github.v3+json"
+
+    def test_get_pr_details_batch(self, rest_client):
+        """Test getting PR details in batch."""
+        with patch.object(rest_client, "batch_request") as mock_batch_request:
+            # Mock the batch_request response
+            mock_batch_request.return_value = [
+                {"number": 1, "title": "PR 1"},
+                {"number": 2, "title": "PR 2"},
+                {"number": 3, "title": "PR 3"},
+            ]
+
+            # Get PR details in batch
+            result = rest_client.get_pr_details_batch("owner", "repo", [1, 2, 3])
+
+            # Check the result
+            assert result == [
+                {"number": 1, "title": "PR 1"},
+                {"number": 2, "title": "PR 2"},
+                {"number": 3, "title": "PR 3"},
+            ]
+
+            # Check that batch_request was called with the correct parameters
+            mock_batch_request.assert_called_once_with(
+                "GET",
+                ["/repos/owner/repo/pulls/1", "/repos/owner/repo/pulls/2", "/repos/owner/repo/pulls/3"]
+            )
+
+    def test_get_issue_details_batch(self, rest_client):
+        """Test getting issue details in batch."""
+        with patch.object(rest_client, "batch_request") as mock_batch_request:
+            # Mock the batch_request response
+            mock_batch_request.return_value = [
+                {"number": 1, "title": "Issue 1"},
+                {"number": 2, "title": "Issue 2"},
+                {"number": 3, "title": "Issue 3"},
+            ]
+
+            # Get issue details in batch
+            result = rest_client.get_issue_details_batch("owner", "repo", [1, 2, 3])
+
+            # Check the result
+            assert result == [
+                {"number": 1, "title": "Issue 1"},
+                {"number": 2, "title": "Issue 2"},
+                {"number": 3, "title": "Issue 3"},
+            ]
+
+            # Check that batch_request was called with the correct parameters
+            mock_batch_request.assert_called_once_with(
+                "GET",
+                ["/repos/owner/repo/issues/1", "/repos/owner/repo/issues/2", "/repos/owner/repo/issues/3"]
+            )
