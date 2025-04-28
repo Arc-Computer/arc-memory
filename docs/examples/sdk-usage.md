@@ -14,15 +14,48 @@ This guide provides examples of how to use the Arc Memory SDK for core operation
 
 ```python
 from arc_memory.sql.db import init_db, get_node_count, get_edge_count
+from pathlib import Path
 
-# Initialize the database
+# Initialize the database (default location)
 conn = init_db()
+
+# Or initialize with a specific path
+db_path = Path("./my-graph.db")
+conn = init_db(db_path)
 
 # Get basic statistics
 node_count = get_node_count(conn)
 edge_count = get_edge_count(conn)
 
 print(f"Knowledge graph contains {node_count} nodes and {edge_count} edges")
+```
+
+### Database Connection Handling
+
+Arc Memory provides flexible connection handling that accepts either connection objects or paths:
+
+```python
+from arc_memory.sql.db import get_connection, ensure_connection, get_node_by_id
+from pathlib import Path
+
+# Method 1: Get a connection and use it
+db_path = Path("./my-graph.db")
+conn = get_connection(db_path)
+node = get_node_by_id(conn, "node:123")
+
+# Method 2: Use ensure_connection (accepts either connection or path)
+# This is the recommended approach for flexible code
+db_path = Path("./my-graph.db")
+node = get_node_by_id(db_path, "node:123")  # Works with path directly
+
+# You can also pass an existing connection
+node = get_node_by_id(conn, "node:123")     # Works with connection
+
+# Method 3: Use a context manager for automatic connection handling
+from contextlib import closing
+with closing(get_connection(db_path)) as conn:
+    node = get_node_by_id(conn, "node:123")
+    # Connection will be automatically closed when exiting the block
 ```
 
 ### Building a Knowledge Graph
