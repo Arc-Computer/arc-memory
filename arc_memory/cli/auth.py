@@ -107,6 +107,21 @@ def github_auth(
                 )
                 sys.exit(1)
             else:
+                # Validate the client ID format
+                from arc_memory.auth.github import validate_client_id
+                if not validate_client_id(client_id):
+                    console.print(
+                        "[yellow]Warning: The default GitHub OAuth Client ID may not be valid.[/yellow]"
+                    )
+                    console.print(
+                        "If authentication fails, you can provide your own Client ID with --client-id,"
+                    )
+                    console.print(
+                        "or set the ARC_GITHUB_CLIENT_ID environment variable."
+                    )
+                    if not typer.confirm("Do you want to continue with the default Client ID?"):
+                        sys.exit(1)
+
                 console.print(
                     "[green]Using Arc Memory's GitHub OAuth app for authentication.[/green]"
                 )
