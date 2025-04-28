@@ -89,12 +89,13 @@ jobs:
 
                 # Create the ingestor and run it
                 ingestor = GitHubIngestor()
-                nodes, edges, metadata = ingestor.ingest(
-                    repo_path="/test/repo",
-                    token="test-token",
-                    owner="test-owner",
-                    repo="test-repo"
-                )
+
+                # Mock the get_repo_info function to return our test owner and repo
+                with patch('arc_memory.ingest.github.get_repo_info', return_value=("test-owner", "test-repo")):
+                    nodes, edges, metadata = ingestor.ingest(
+                        repo_path="/test/repo",
+                        token="test-token"
+                    )
 
                 # Verify the results
                 assert len(nodes) == 2  # 1 PR and 1 Issue
