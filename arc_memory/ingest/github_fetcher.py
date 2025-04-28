@@ -73,7 +73,10 @@ class GitHubFetcher:
                 filtered_prs = []
                 for pr in prs:
                     updated_at = datetime.fromisoformat(pr["updatedAt"].replace("Z", "+00:00"))
-                    if updated_at >= since:
+                    # Convert to naive datetime for comparison
+                    updated_at_naive = updated_at.replace(tzinfo=None)
+                    since_naive = since.replace(tzinfo=None)
+                    if updated_at_naive >= since_naive:
                         filtered_prs.append(pr)
                 prs = filtered_prs
 
@@ -126,7 +129,10 @@ class GitHubFetcher:
                 filtered_issues = []
                 for issue in issues:
                     updated_at = datetime.fromisoformat(issue["updatedAt"].replace("Z", "+00:00"))
-                    if updated_at >= since:
+                    # Convert to naive datetime for comparison
+                    updated_at_naive = updated_at.replace(tzinfo=None)
+                    since_naive = since.replace(tzinfo=None)
+                    if updated_at_naive >= since_naive:
                         filtered_issues.append(issue)
                 issues = filtered_issues
 
