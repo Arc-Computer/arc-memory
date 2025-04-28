@@ -5,6 +5,21 @@ All notable changes to the Arc Memory SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.0] - 2025-04-28
+
+### Added
+- New `ensure_connection()` function to handle both connection objects and paths
+- Comprehensive API documentation for database functions
+- Detailed ADR formatting guide with examples
+- Enhanced troubleshooting guide with common error solutions
+
+### Fixed
+- GitHub authentication issues with Device Flow API endpoints
+- Added fallback mechanism for GitHub authentication
+- Improved ADR date parsing with better error messages
+- Standardized database connection handling across functions
+- Enhanced error messages with actionable guidance
+
 ## [0.1.5] - 2024-04-25
 
 ### Fixed
