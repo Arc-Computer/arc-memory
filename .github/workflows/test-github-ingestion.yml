@@ -51,8 +51,8 @@ jobs:
 
         # Test the core ingestion flow with mocks
         async def test_github_ingestion_core():
-            # Mock the GitHub fetcher
-            with patch('arc_memory.ingest.github.GitHubFetcher') as mock_fetcher_class:
+            # Mock the GitHub fetcher - note that it's imported inside the ingest method
+            with patch('arc_memory.ingest.github_fetcher.GitHubFetcher') as mock_fetcher_class:
                 # Set up the mock fetcher
                 mock_fetcher = MagicMock()
                 mock_fetcher_class.return_value = mock_fetcher
