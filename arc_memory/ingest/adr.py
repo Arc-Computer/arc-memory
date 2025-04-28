@@ -50,14 +50,33 @@ def parse_adr_date(date_value: Any, adr_file: Path) -> Optional[datetime]:
 
     # Convert to string if not already
     if not isinstance(date_value, str):
-        logger.warning(
-            f"Invalid date format in ADR: {adr_file}. "
-            f"Date value '{date_value}' is not a string. "
-            f"Use format 'YYYY-MM-DD' in the frontmatter."
-        )
-        return None
+        # If it's a date-like object (like a YAML date), try to convert it
+        if hasattr(date_value, 'year') and hasattr(date_value, 'month') and hasattr(date_value, 'day'):
+            try:
+                # Convert to datetime
+                return datetime(date_value.year, date_value.month, date_value.day)
+            except (ValueError, AttributeError):
+                pass
 
-    date_str = date_value.strip()
+        # Try to convert to string
+        try:
+            date_str = str(date_value)
+            logger.info(
+                f"Converting non-string date '{date_value}' to string '{date_str}' in ADR: {adr_file}"
+            )
+            # Continue processing with the string version
+        except Exception:
+            logger.warning(
+                f"Could not parse date '{date_value}' in ADR: {adr_file}. "
+                f"Date value is not a string and cannot be converted. "
+                f"Use format 'YYYY-MM-DD' in the frontmatter."
+            )
+            return None
+    else:
+        date_str = date_value
+
+    # Ensure we're working with a trimmed string
+    date_str = date_str.strip()
 
     # Try different date formats
     date_formats = [
