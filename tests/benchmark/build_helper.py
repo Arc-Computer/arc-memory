@@ -13,6 +13,7 @@ from arc_memory.sql.db import (
     init_db,
     load_build_manifest,
     save_build_manifest,
+    get_connection,
 )
 
 
@@ -152,9 +153,41 @@ def build_graph(
                     # Add GitHub-specific metrics
                     github_end_time = time.time()
                     metadata["duration_seconds"] = github_end_time - github_start_time
-                    metadata["pr_count"] = sum(1 for node in nodes if hasattr(node, "type") and node.type == "PR")
-                    metadata["issue_count"] = sum(1 for node in nodes if hasattr(node, "type") and node.type == "Issue")
-                    metadata["mention_edge_count"] = sum(1 for edge in edges if hasattr(edge, "rel") and edge.rel == "MENTIONS")
+
+                    # Count GitHub nodes in the database
+                    try:
+                        db_conn = get_connection(arc_dir / "graph.db")
+                        cursor = db_conn.cursor()
+
+                        # Count PR nodes
+                        cursor.execute("SELECT COUNT(*) FROM nodes WHERE type = 'PR'")
+                        pr_count = cursor.fetchone()[0]
+
+                        # Count Issue nodes
+                        cursor.execute("SELECT COUNT(*) FROM nodes WHERE type = 'Issue'")
+                        issue_count = cursor.fetchone()[0]
+
+                        # Count Mention edges
+                        cursor.execute("SELECT COUNT(*) FROM edges WHERE rel = 'MENTIONS'")
+                        mention_edge_count = cursor.fetchone()[0]
+
+                        # Store the counts in the metadata
+                        metadata["pr_count"] = pr_count
+                        metadata["issue_count"] = issue_count
+                        metadata["mention_edge_count"] = mention_edge_count
+
+                        # Print the counts for debugging
+                        print(f"GitHub Metrics from database:")
+                        print(f"PR Count: {pr_count}")
+                        print(f"Issue Count: {issue_count}")
+                        print(f"Mention Edge Count: {mention_edge_count}")
+
+                        db_conn.close()
+                    except Exception as e:
+                        print(f"Error counting GitHub nodes: {e}")
+                        metadata["pr_count"] = 0
+                        metadata["issue_count"] = 0
+                        metadata["mention_edge_count"] = 0
                 else:
                     print(f"Skipping GitHub plugin for repository {repo_path.name} (no token provided)")
                     nodes, edges, metadata = [], [], {}
