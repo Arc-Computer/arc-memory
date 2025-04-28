@@ -56,6 +56,7 @@ class GitHubGraphQLClient:
             self.transport = AIOHTTPTransport(
                 url=GITHUB_GRAPHQL_URL,
                 headers=self.headers,
+                ssl=True,  # Explicitly verify SSL certificates
             )
             self.client = Client(
                 transport=self.transport,
