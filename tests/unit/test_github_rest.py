@@ -114,10 +114,9 @@ class TestGitHubRESTClient:
             "X-RateLimit-Remaining": "4999",
             "X-RateLimit-Reset": "1619712000",
         }
-        page1_response.json.return_value = [
-            {"id": 1, "name": "item1"},
-            {"id": 2, "name": "item2"},
-        ]
+        # Return 100 items to ensure we don't hit the "len(response_data) < per_page" condition
+        page1_items = [{"id": i, "name": f"item{i}"} for i in range(1, 101)]
+        page1_response.json.return_value = page1_items
 
         page2_response = MagicMock()
         page2_response.status_code = 200
@@ -131,31 +130,24 @@ class TestGitHubRESTClient:
 
         # Mock request to return different responses for different pages
         def mock_request_side_effect(*args, **kwargs):
-            if kwargs.get("params", {}).get("page") == 1:
+            page = kwargs.get("params", {}).get("page")
+            if page == 1:
                 return page1_response
             else:
                 return page2_response
 
         with patch("requests.request", side_effect=mock_request_side_effect) as mock_request:
             # Make paginated request
-            results = rest_client.paginate("GET", "/repos/test-owner/test-repo/issues")
+            results = rest_client.paginate("GET", "/repos/test-owner/test-repo/issues", max_pages=2)
 
             # Check results
-            # We're only getting the first page in our implementation
-            assert len(results) == 2
+            assert len(results) == 101  # 100 from page 1 + 1 from page 2
             assert results[0]["name"] == "item1"
-            assert results[1]["name"] == "item2"
+            assert results[99]["name"] == "item100"  # Last item from page 1
+            assert results[100]["name"] == "item3"  # From page 2
 
-            # Check requests
-            assert mock_request.call_count == 1
-            mock_request.assert_called_once_with(
-                method="GET",
-                url="https://api.github.com/repos/test-owner/test-repo/issues",
-                headers=rest_client.headers,
-                params={"page": 1, "per_page": 100},
-                data=None,
-                json=None,
-            )
+            # Check that we made two requests
+            assert mock_request.call_count == 2
 
     def test_get_pr_files(self, rest_client):
         """Test get_pr_files method."""

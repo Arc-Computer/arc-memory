@@ -170,10 +170,6 @@ class GitHubRESTClient:
             if self.rate_limit_remaining is not None and self.rate_limit_remaining < 100:
                 logger.warning(f"Rate limit low ({self.rate_limit_remaining}), consider slowing down requests")
 
-            # For testing purposes, always fetch at least 2 pages if available
-            if page > 2:
-                break
-
         return all_items
 
     def get_pr_files(self, owner: str, repo: str, pr_number: int) -> List[Dict[str, Any]]:
