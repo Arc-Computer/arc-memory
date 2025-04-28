@@ -24,8 +24,9 @@ class TestGitHubAuth(unittest.TestCase):
         }
         mock_post.return_value = mock_response
 
-        # Call the function
-        device_code, verification_uri, interval = start_device_flow("test-client-id")
+        # Call the function with a valid format client ID
+        valid_test_client_id = "1234567890abcdef1234"  # Valid format that passes our validation
+        device_code, verification_uri, interval = start_device_flow(valid_test_client_id)
 
         # Check the results
         self.assertEqual(device_code, "test-device-code")
@@ -36,7 +37,7 @@ class TestGitHubAuth(unittest.TestCase):
         mock_post.assert_called_once()
         args, kwargs = mock_post.call_args
         self.assertEqual(args[0], "https://github.com/login/device/code")
-        self.assertEqual(kwargs["json"]["client_id"], "test-client-id")
+        self.assertEqual(kwargs["json"]["client_id"], valid_test_client_id)
         self.assertEqual(kwargs["json"]["scope"], "repo")
 
     @patch("arc_memory.auth.github.requests.post")
@@ -47,7 +48,9 @@ class TestGitHubAuth(unittest.TestCase):
 
         # Call the function and check that it raises an error
         with self.assertRaises(GitHubAuthError):
-            start_device_flow("test-client-id")
+            # Use a valid format client ID to ensure we're testing the API error, not validation
+            valid_test_client_id = "1234567890abcdef1234"
+            start_device_flow(valid_test_client_id)
 
     def test_default_client_id(self):
         """Test that the default client ID is set."""
