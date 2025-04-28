@@ -13,7 +13,7 @@ logger = get_logger(__name__)
 
 # Constants
 GITHUB_API_URL = "https://api.github.com"
-USER_AGENT = "Arc-Memory/0.2.1"
+USER_AGENT = "Arc-Memory/0.2.2"
 
 # Rate limit constants
 DEFAULT_RETRY_COUNT = 3

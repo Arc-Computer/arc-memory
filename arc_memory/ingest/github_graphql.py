@@ -33,7 +33,7 @@ logger = get_logger(__name__)
 
 # Constants
 GITHUB_GRAPHQL_URL = "https://api.github.com/graphql"
-USER_AGENT = "Arc-Memory/0.2.1"
+USER_AGENT = "Arc-Memory/0.2.2"
 
 
 class GitHubGraphQLClient:

@@ -5,6 +5,16 @@ All notable changes to the Arc Memory SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.2.2] - 2025-04-29
+
+### Added
+- Implemented GitHub ingestion with GraphQL and REST API clients
+- Added PR and issue fetching with GraphQL for efficient bulk data retrieval
+- Added REST API integration for specific operations (PR files, commits, reviews, comments)
+- Added rate limit handling with backoff strategies
+- Added batch processing capabilities for better performance
+- Added comprehensive unit and integration tests for GitHub ingestion
+
 ## [0.2.1] - 2025-04-29
 
 ### Fixed
