@@ -275,11 +275,17 @@ def validate_client_id(client_id: str) -> bool:
         True if the client ID is valid, False otherwise.
     """
     # GitHub client IDs are typically 20 characters
-    if not client_id or len(client_id) < 10:
+    if not client_id:
         return False
 
-    # Add additional validation if needed
-    return True
+    # Most GitHub client IDs are 20 characters long
+    # Some newer ones start with "Iv1." and are longer
+    if client_id.startswith("Iv1."):
+        return len(client_id) >= 15
+    else:
+        return len(client_id) >= 18
+
+    # Note: This validation is intentionally strict to catch potential errors
 
 
 def start_device_flow(client_id: str) -> Tuple[str, str, int]:
@@ -405,10 +411,6 @@ def poll_device_flow(
         except Exception as e:
             logger.error(f"Failed to poll device flow: {e}")
             raise GitHubAuthError(f"Failed to poll device flow: {e}")
-
-        # This line is unreachable due to the continue/raise/return above,
-        # but we'll keep it for clarity in case the logic changes
-        # time.sleep(interval)
 
     # Timeout
     raise GitHubAuthError("Device flow timed out. Please try again.")
