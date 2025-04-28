@@ -91,6 +91,22 @@ def build_graph(
                 # Enable GitHub integration for all repository sizes if token is provided
                 if token:
                     print(f"Running GitHub plugin for repository: {repo_path.name}")
+                    print(f"GitHub token provided: {token[:4]}...{token[-4:]}")
+
+                    # Debug repository information
+                    try:
+                        from arc_memory.ingest.github import get_repo_info
+                        owner, repo = get_repo_info(repo_path)
+                        print(f"Repository identified as: {owner}/{repo}")
+                    except Exception as e:
+                        print(f"Error identifying repository: {e}")
+
+                    # Run the ingestor with detailed logging
+                    import logging
+                    logging.getLogger("arc_memory.ingest.github").setLevel(logging.DEBUG)
+                    logging.getLogger("arc_memory.ingest.github_fetcher").setLevel(logging.DEBUG)
+                    logging.getLogger("arc_memory.ingest.github_graphql").setLevel(logging.DEBUG)
+
                     nodes, edges, metadata = plugin.ingest(
                         repo_path,
                         token=token,

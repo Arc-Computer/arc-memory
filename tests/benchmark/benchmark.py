@@ -48,7 +48,23 @@ def clone_repo(url: str, target_dir: Path) -> git.Repo:
     if target_dir.exists():
         shutil.rmtree(target_dir)
     target_dir.mkdir(parents=True, exist_ok=True)
-    return Repo.clone_from(url, target_dir)
+
+    # Clone the repository
+    repo = Repo.clone_from(url, target_dir)
+
+    # Ensure the repository has a proper GitHub remote
+    # This is important for the GitHub ingestor to correctly identify the repository
+    remote_url = url
+    if not remote_url.startswith(("http://", "https://", "git@")):
+        remote_url = f"https://github.com/{url.split('/')[-2]}/{url.split('/')[-1].replace('.git', '')}.git"
+
+    # Set the origin remote to the GitHub URL
+    if "origin" in repo.remotes:
+        repo.delete_remote("origin")
+    repo.create_remote("origin", remote_url)
+
+    print(f"Repository cloned with remote: {remote_url}")
+    return repo
 
 
 def benchmark_build(repo_path: Path, incremental: bool = False, github_token: Optional[str] = None) -> Dict:
