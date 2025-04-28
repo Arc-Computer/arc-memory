@@ -99,7 +99,14 @@ class GitHubGraphQLClient:
             # Check for rate limit info in the result
             if "rateLimit" in result:
                 self.rate_limit_remaining = result["rateLimit"]["remaining"]
-                self.rate_limit_reset = datetime.fromtimestamp(result["rateLimit"]["resetAt"])
+                # Handle resetAt which could be a string or a timestamp
+                reset_at = result["rateLimit"]["resetAt"]
+                if isinstance(reset_at, str):
+                    # Parse ISO format string
+                    self.rate_limit_reset = datetime.fromisoformat(reset_at.replace("Z", "+00:00"))
+                else:
+                    # Handle as timestamp
+                    self.rate_limit_reset = datetime.fromtimestamp(reset_at)
                 logger.debug(f"Rate limit: {self.rate_limit_remaining} remaining, resets at {self.rate_limit_reset}")
 
             return result
@@ -369,7 +376,7 @@ query Issues($owner: String!, $repo: String!, $cursor: String) {
 UPDATED_PRS_QUERY = """
 query UpdatedPRs($owner: String!, $repo: String!, $since: DateTime!, $cursor: String) {
   repository(owner: $owner, name: $repo) {
-    pullRequests(first: 100, after: $cursor, orderBy: {field: UPDATED_AT, direction: DESC}, filterBy: {since: $since}) {
+    pullRequests(first: 100, after: $cursor, orderBy: {field: UPDATED_AT, direction: DESC}) {
       pageInfo {
         hasNextPage
         endCursor
@@ -415,7 +422,7 @@ query UpdatedPRs($owner: String!, $repo: String!, $since: DateTime!, $cursor: St
 UPDATED_ISSUES_QUERY = """
 query UpdatedIssues($owner: String!, $repo: String!, $since: DateTime!, $cursor: String) {
   repository(owner: $owner, name: $repo) {
-    issues(first: 100, after: $cursor, orderBy: {field: UPDATED_AT, direction: DESC}, filterBy: {since: $since}) {
+    issues(first: 100, after: $cursor, orderBy: {field: UPDATED_AT, direction: DESC}) {
       pageInfo {
         hasNextPage
         endCursor

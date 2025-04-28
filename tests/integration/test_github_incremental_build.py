@@ -58,18 +58,18 @@ class TestIncrementalBuild:
         last_processed = {
             "timestamp": (datetime.now() - timedelta(days=7)).isoformat(),
         }
-        
+
         # Perform an incremental build
         nodes, edges, metadata = github_ingestor.ingest(
             repo_path=test_repo["path"],
             token=github_token,
             last_processed=last_processed,
         )
-        
+
         # Check that we got some data
         assert "timestamp" in metadata
         assert datetime.fromisoformat(metadata["timestamp"]) >= datetime.fromisoformat(last_processed["timestamp"])
-        
+
         # The test is successful if we don't get any errors
         assert "error" not in metadata
 
@@ -79,18 +79,18 @@ class TestIncrementalBuild:
         last_processed = {
             "timestamp": (datetime.now() - timedelta(minutes=1)).isoformat(),
         }
-        
+
         # Perform an incremental build
         nodes, edges, metadata = github_ingestor.ingest(
             repo_path=test_repo["path"],
             token=github_token,
             last_processed=last_processed,
         )
-        
+
         # Check that we got some data
         assert "timestamp" in metadata
         assert datetime.fromisoformat(metadata["timestamp"]) >= datetime.fromisoformat(last_processed["timestamp"])
-        
+
         # The test is successful if we don't get any errors
         assert "error" not in metadata
 
@@ -100,20 +100,20 @@ class TestIncrementalBuild:
         last_processed = {
             "timestamp": (datetime.now() + timedelta(days=1)).isoformat(),
         }
-        
+
         # Perform an incremental build
         nodes, edges, metadata = github_ingestor.ingest(
             repo_path=test_repo["path"],
             token=github_token,
             last_processed=last_processed,
         )
-        
+
         # Check that we got some data
         assert "timestamp" in metadata
-        
+
         # We should still get a valid timestamp even if the input was in the future
         assert datetime.fromisoformat(metadata["timestamp"]) >= datetime.now() - timedelta(minutes=5)
-        
+
         # The test is successful if we don't get any errors
         assert "error" not in metadata
 
@@ -121,17 +121,17 @@ class TestIncrementalBuild:
         """Test fetching updated PRs."""
         # Set up a timestamp 7 days ago
         since = datetime.now() - timedelta(days=7)
-        
+
         # Fetch updated PRs
         prs = github_fetcher.fetch_pull_requests_sync(
             test_repo["owner"],
             test_repo["repo"],
             since,
         )
-        
+
         # Check the results
         assert isinstance(prs, list)
-        
+
         # If we have PRs, check that they were updated after the since timestamp
         for pr in prs:
             updated_at = datetime.fromisoformat(pr["updatedAt"].replace("Z", "+00:00"))
@@ -141,21 +141,23 @@ class TestIncrementalBuild:
         """Test fetching updated issues."""
         # Set up a timestamp 7 days ago
         since = datetime.now() - timedelta(days=7)
-        
+
         # Fetch updated issues
         issues = github_fetcher.fetch_issues_sync(
             test_repo["owner"],
             test_repo["repo"],
             since,
         )
-        
+
         # Check the results
         assert isinstance(issues, list)
-        
+
         # If we have issues, check that they were updated after the since timestamp
         for issue in issues:
             updated_at = datetime.fromisoformat(issue["updatedAt"].replace("Z", "+00:00"))
-            assert updated_at >= since
+            # Convert since to UTC for comparison
+            since_utc = since.replace(tzinfo=None)
+            assert updated_at.replace(tzinfo=None) >= since_utc
 
     def test_full_incremental_build_cycle(self, github_ingestor, github_token, test_repo):
         """Test a full incremental build cycle."""
@@ -165,27 +167,27 @@ class TestIncrementalBuild:
             token=github_token,
             last_processed=None,
         )
-        
+
         # Check that we got some data
         assert "timestamp" in metadata1
         assert len(nodes1) >= 0
         assert len(edges1) >= 0
-        
+
         # Now, do an incremental build using the metadata from the first build
         nodes2, edges2, metadata2 = github_ingestor.ingest(
             repo_path=test_repo["path"],
             token=github_token,
             last_processed=metadata1,
         )
-        
+
         # Check that we got some data
         assert "timestamp" in metadata2
         assert datetime.fromisoformat(metadata2["timestamp"]) >= datetime.fromisoformat(metadata1["timestamp"])
-        
+
         # The second build should have fewer nodes and edges (or the same number)
         # since we're only fetching updates
         assert len(nodes2) <= len(nodes1)
         assert len(edges2) <= len(edges1)
-        
+
         # The test is successful if we don't get any errors
         assert "error" not in metadata2

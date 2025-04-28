@@ -68,6 +68,15 @@ class GitHubFetcher:
                 query, variables, ["repository", "pullRequests"]
             )
 
+            # If we have a since parameter, filter the results manually
+            if since:
+                filtered_prs = []
+                for pr in prs:
+                    updated_at = datetime.fromisoformat(pr["updatedAt"].replace("Z", "+00:00"))
+                    if updated_at >= since:
+                        filtered_prs.append(pr)
+                prs = filtered_prs
+
             logger.info(f"Fetched {len(prs)} pull requests")
             return prs
         except GitHubAuthError:
@@ -111,6 +120,15 @@ class GitHubFetcher:
             issues = await self.graphql_client.paginate_query(
                 query, variables, ["repository", "issues"]
             )
+
+            # If we have a since parameter, filter the results manually
+            if since:
+                filtered_issues = []
+                for issue in issues:
+                    updated_at = datetime.fromisoformat(issue["updatedAt"].replace("Z", "+00:00"))
+                    if updated_at >= since:
+                        filtered_issues.append(issue)
+                issues = filtered_issues
 
             logger.info(f"Fetched {len(issues)} issues")
             return issues
