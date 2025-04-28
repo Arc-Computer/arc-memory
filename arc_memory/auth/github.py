@@ -21,8 +21,9 @@ KEYRING_SERVICE = "arc-memory"
 KEYRING_USERNAME = "github-token"
 KEYRING_APP_USERNAME = "github-app"
 GITHUB_API_URL = "https://api.github.com"
-DEVICE_CODE_URL = f"{GITHUB_API_URL}/login/device/code"
-DEVICE_TOKEN_URL = f"{GITHUB_API_URL}/login/oauth/access_token"
+GITHUB_URL = "https://github.com"
+DEVICE_CODE_URL = f"{GITHUB_URL}/login/device/code"
+DEVICE_TOKEN_URL = f"{GITHUB_URL}/login/oauth/access_token"
 USER_AGENT = "Arc-Memory/0.1.9"
 
 # Environment variable names
