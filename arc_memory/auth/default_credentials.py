@@ -15,4 +15,4 @@ Device Flow authentication used by CLI applications.
 # This client ID is for the Arc Memory GitHub OAuth App, which is configured
 # for the Device Flow authentication method used by CLI applications.
 # The Client Secret is not required for Device Flow and is not stored here.
-DEFAULT_GITHUB_CLIENT_ID ="Iv23liNmVnxkNuRfG8tr"
+DEFAULT_GITHUB_CLIENT_ID = "Iv23liNmVnxkNuRfG8tr"
