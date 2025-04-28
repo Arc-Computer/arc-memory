@@ -60,7 +60,7 @@ class TestGitHubFetcher:
 
         # Check that the function was called with the correct arguments
         mock_graphql_client.paginate_query.assert_called_once_with(
-            PULL_REQUESTS_QUERY if not hasattr(self, "since") else UPDATED_PRS_QUERY,
+            PULL_REQUESTS_QUERY,  # Since parameter is None, we should use the regular query
             {"owner": "test-owner", "repo": "test-repo"},
             ["repository", "pullRequests"]
         )
