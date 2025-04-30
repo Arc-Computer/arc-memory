@@ -11,10 +11,11 @@ class MockTransportQueryError(Exception):
     """Mock for gql.transport.exceptions.TransportQueryError."""
     pass
 
-# Patch the import
+# Patch the import and GQL_AVAILABLE
 with patch("arc_memory.ingest.github_graphql.TransportQueryError", MockTransportQueryError):
-    from arc_memory.errors import GitHubAuthError, IngestError
-    from arc_memory.ingest.github_graphql import GitHubGraphQLClient, REPO_INFO_QUERY
+    with patch("arc_memory.ingest.github_graphql.GQL_AVAILABLE", True):
+        from arc_memory.errors import GitHubAuthError, IngestError
+        from arc_memory.ingest.github_graphql import GitHubGraphQLClient, REPO_INFO_QUERY
 
 
 @pytest.fixture
@@ -29,7 +30,9 @@ def mock_client():
 @pytest.fixture
 def graphql_client(mock_client):
     """Create a GitHubGraphQLClient with a mock Client."""
-    return GitHubGraphQLClient("test-token")
+    with patch("arc_memory.ingest.github_graphql.GQL_AVAILABLE", True):
+        client = GitHubGraphQLClient("test-token")
+        return client
 
 
 class TestGitHubGraphQLClient:
@@ -59,10 +62,11 @@ class TestGitHubGraphQLClient:
             },
         }
 
-        # Execute query
-        result = await graphql_client.execute_query(
-            REPO_INFO_QUERY, {"owner": "test-owner", "repo": "test-repo"}
-        )
+        # Execute query with GQL_AVAILABLE patched to True
+        with patch("arc_memory.ingest.github_graphql.GQL_AVAILABLE", True):
+            result = await graphql_client.execute_query(
+                REPO_INFO_QUERY, {"owner": "test-owner", "repo": "test-repo"}
+            )
 
         # Check result
         assert result["repository"]["name"] == "test-repo"
@@ -76,10 +80,11 @@ class TestGitHubGraphQLClient:
         mock_client.execute_async.side_effect = error
 
         # Execute query and check for error
-        with pytest.raises(GitHubAuthError):
-            await graphql_client.execute_query(
-                REPO_INFO_QUERY, {"owner": "test-owner", "repo": "test-repo"}
-            )
+        with patch("arc_memory.ingest.github_graphql.GQL_AVAILABLE", True):
+            with pytest.raises(GitHubAuthError):
+                await graphql_client.execute_query(
+                    REPO_INFO_QUERY, {"owner": "test-owner", "repo": "test-repo"}
+                )
 
     @pytest.mark.asyncio
     async def test_execute_query_rate_limit_error(self, graphql_client, mock_client):
@@ -89,11 +94,12 @@ class TestGitHubGraphQLClient:
         mock_client.execute_async.side_effect = error
 
         # Execute query and check for error
-        with pytest.raises(IngestError) as excinfo:
-            await graphql_client.execute_query(
-                REPO_INFO_QUERY, {"owner": "test-owner", "repo": "test-repo"}
-            )
-        assert "rate limit" in str(excinfo.value).lower()
+        with patch("arc_memory.ingest.github_graphql.GQL_AVAILABLE", True):
+            with pytest.raises(IngestError) as excinfo:
+                await graphql_client.execute_query(
+                    REPO_INFO_QUERY, {"owner": "test-owner", "repo": "test-repo"}
+                )
+            assert "rate limit" in str(excinfo.value).lower()
 
     @pytest.mark.asyncio
     async def test_execute_query_other_error(self, graphql_client, mock_client):
@@ -103,11 +109,12 @@ class TestGitHubGraphQLClient:
         mock_client.execute_async.side_effect = error
 
         # Execute query and check for error
-        with pytest.raises(IngestError) as excinfo:
-            await graphql_client.execute_query(
-                REPO_INFO_QUERY, {"owner": "test-owner", "repo": "test-repo"}
-            )
-        assert "GraphQL query error" in str(excinfo.value)
+        with patch("arc_memory.ingest.github_graphql.GQL_AVAILABLE", True):
+            with pytest.raises(IngestError) as excinfo:
+                await graphql_client.execute_query(
+                    REPO_INFO_QUERY, {"owner": "test-owner", "repo": "test-repo"}
+                )
+            assert "GraphQL query error" in str(excinfo.value)
 
     @pytest.mark.asyncio
     async def test_paginate_query(self, graphql_client):
