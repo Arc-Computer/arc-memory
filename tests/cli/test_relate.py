@@ -113,3 +113,40 @@ class TestRelateCommand(unittest.TestCase):
         self.assertEqual(result.exit_code, 1)  # Error is not handled gracefully in relate command
         self.assertIn("Error", result.stdout)
         self.assertIn("Failed to connect to database", result.stdout)
+
+    @patch("arc_memory.cli.relate.get_related_nodes")
+    @patch("arc_memory.sql.db.get_connection")
+    @patch("arc_memory.sql.db.ensure_arc_dir")
+    @patch("pathlib.Path.exists")
+    def test_relate_node_with_relationship_filter(self, mock_exists, mock_ensure_arc_dir, mock_get_connection, mock_get_related_nodes):
+        """Test the relate node command with relationship type filter."""
+        # Setup mocks
+        mock_exists.return_value = True
+        mock_ensure_arc_dir.return_value = MagicMock()
+        mock_get_connection.return_value = MagicMock()
+        mock_get_related_nodes.return_value = [
+            {
+                "type": "pr",
+                "id": "pr:42",
+                "title": "Add login feature",
+                "timestamp": "2023-01-01T12:00:00",
+                "number": 42,
+                "state": "merged",
+                "url": "https://github.com/org/repo/pull/42"
+            }
+        ]
+
+        # Run command with relationship filter
+        result = runner.invoke(app, ["relate", "node", "commit:abc123", "--rel", "MERGES"])
+
+        # Check result
+        self.assertEqual(result.exit_code, 0)
+        self.assertIn("Add login feature", result.stdout)
+
+        # Verify that the relationship type was passed to get_related_nodes
+        mock_get_related_nodes.assert_called_once_with(
+            mock_get_connection.return_value,
+            "commit:abc123",
+            10,  # default max_results
+            "MERGES"  # relationship_type
+        )
