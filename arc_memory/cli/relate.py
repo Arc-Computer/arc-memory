@@ -54,17 +54,23 @@ def get_related_nodes(
             return []
 
         # Get connected nodes
-        connected_ids = get_connected_nodes(conn, entity_id)
-        
+        connected_nodes = get_connected_nodes(conn, entity_id)
+
         # Filter by relationship type if specified
         if relationship_type:
-            # This would require additional filtering logic
-            # For now, we'll just return all connected nodes
-            pass
+            # Query the edges table to get nodes with the specified relationship type
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT dst FROM edges WHERE src = ? AND rel = ? UNION SELECT src FROM edges WHERE dst = ? AND rel = ?",
+                (entity_id, relationship_type, entity_id, relationship_type)
+            )
+            filtered_ids = set(row[0] for row in cursor.fetchall())
+            # Only keep nodes that have the specified relationship type
+            connected_nodes = [node_id for node_id in connected_nodes if node_id in filtered_ids]
 
         # Get the node details for each connected ID
         related_nodes = []
-        for node_id in connected_ids[:max_results]:
+        for node_id in connected_nodes[:max_results]:
             node = get_node_by_id(conn, node_id)
             if node:
                 related_nodes.append(node)
@@ -212,7 +218,7 @@ def node(
         else:
             # For text format, use rich console
             console.print(f"[red]{error_msg}[/red]")
-        
+
         # Track error
         track_command_usage("relate_node", success=False, error=e, context=context)
         sys.exit(1)

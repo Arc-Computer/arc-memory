@@ -97,6 +97,7 @@ Arc Memory includes optional, privacy-respecting telemetry to help us improve th
 - **Transparent**: All collected data is documented and visible
 - **Focused**: Only collects command usage and session metrics for MTTR measurement
 
+Telemetry is disabled by default. To enable it: `arc config telemetry on`
 To disable telemetry: `arc config telemetry off`
 
 ## Documentation

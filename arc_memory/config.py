@@ -17,7 +17,7 @@ logger = get_logger(__name__)
 # Default configuration
 DEFAULT_CONFIG = {
     "telemetry": {
-        "enabled": True,  # Opt-in by default
+        "enabled": False,  # Opt-in by default (disabled until explicitly enabled)
         "installation_id": str(uuid.uuid4()),  # Anonymous installation ID
         "current_session_id": None,  # Current investigation session ID
     },
