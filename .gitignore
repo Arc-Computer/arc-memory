@@ -51,6 +51,10 @@ build.json
 test_repo/
 .arc/
 
+# Telemetry logs
+*.jsonl
+telemetry_*.jsonl
+
 # OS specific
 .DS_Store
 Thumbs.db

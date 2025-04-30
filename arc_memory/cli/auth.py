@@ -21,6 +21,7 @@ from arc_memory.auth.github import (
 )
 from arc_memory.errors import GitHubAuthError
 from arc_memory.logging_conf import configure_logging, get_logger, is_debug_mode
+from arc_memory.telemetry import track_cli_command
 
 app = typer.Typer(help="Authentication commands")
 console = Console()
@@ -51,6 +52,9 @@ def github_auth(
     It will display a code and URL for you to visit in your browser to complete authentication.
     """
     configure_logging(debug=debug)
+
+    # Track command usage (don't include client_id in telemetry)
+    track_cli_command("auth", subcommand="gh", args={"timeout": timeout, "debug": debug})
 
     # Check if we already have a token
     env_token = get_token_from_env()
@@ -147,6 +151,8 @@ def github_auth(
             console.print(
                 "[green]Authentication successful! Token stored in system keyring.[/green]"
             )
+            # Track successful authentication
+            track_cli_command("auth", subcommand="gh", success=True)
         else:
             console.print(
                 "[yellow]Authentication successful, but failed to store token in system keyring.[/yellow]"
@@ -157,12 +163,19 @@ def github_auth(
             console.print(
                 "You can set this as an environment variable: export GITHUB_TOKEN=<token>"
             )
+            # Track partial success
+            track_cli_command("auth", subcommand="gh",
+                             args={"keyring_error": True}, success=True)
     except GitHubAuthError as e:
         console.print(f"[red]Authentication failed: {e}[/red]")
+        # Track authentication failure
+        track_cli_command("auth", subcommand="gh", success=False, error=e)
         sys.exit(1)
     except Exception as e:
         logger.exception("Unexpected error during authentication")
         console.print(f"[red]Unexpected error: {e}[/red]")
+        # Track unexpected error
+        track_cli_command("auth", subcommand="gh", success=False, error=e)
         sys.exit(1)
 
 
@@ -191,6 +204,9 @@ def github_app_auth(
     where the GitHub App is installed.
     """
     configure_logging(debug=debug)
+
+    # Track command usage (don't include any credentials in telemetry)
+    track_cli_command("auth", subcommand="gh-app", args={"debug": debug})
 
     # Check if we already have GitHub App config from environment
     env_config = get_github_app_config_from_env()
@@ -256,13 +272,20 @@ def github_app_auth(
             console.print(
                 "[green]You can now use GitHub App installation tokens for repositories where the app is installed.[/green]"
             )
+            # Track successful configuration
+            track_cli_command("auth", subcommand="gh-app", success=True)
         else:
             console.print(
                 "[red]Failed to store GitHub App configuration in system keyring.[/red]"
             )
+            # Track failure
+            track_cli_command("auth", subcommand="gh-app",
+                             success=False, error=RuntimeError("Failed to store in keyring"))
             sys.exit(1)
     except Exception as e:
         console.print(f"[red]Failed to create GitHub App configuration: {e}[/red]")
+        # Track error
+        track_cli_command("auth", subcommand="gh-app", success=False, error=e)
         sys.exit(1)
 
 

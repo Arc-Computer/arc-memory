@@ -1,0 +1,78 @@
+name: Test CLI Commands
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'arc_memory/cli/**'
+      - 'tests/cli/**'
+      - 'arc_memory/config.py'
+      - 'arc_memory/telemetry.py'
+  pull_request:
+    branches: [ main ]
+    paths:
+      - 'arc_memory/cli/**'
+      - 'tests/cli/**'
+      - 'arc_memory/config.py'
+      - 'arc_memory/telemetry.py'
+  workflow_dispatch:
+
+jobs:
+  test-cli-commands:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ['3.10', '3.11', '3.12']
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+        pip install pytest pytest-mock typer rich
+
+    - name: Run CLI command tests
+      run: |
+        python -m pytest tests/cli/ -v
+
+    - name: Test config defaults
+      run: |
+        python -m pytest tests/unit/test_config_defaults.py -v
+
+    - name: Test relate filtering
+      run: |
+        python -m pytest tests/unit/test_relate_filtering.py -v
+
+    - name: Verify CLI help text
+      run: |
+        # Verify that the CLI help text is correct
+        python -m arc_memory --help
+        python -m arc_memory relate --help
+        python -m arc_memory why --help
+        python -m arc_memory build --help
+        python -m arc_memory auth --help
+        python -m arc_memory serve --help
+
+    - name: Verify telemetry documentation consistency
+      run: |
+        # Check that the README mentions telemetry is disabled by default
+        if grep -q "Telemetry is disabled by default" README.md; then
+          echo "README correctly states that telemetry is disabled by default"
+        else
+          echo "README does not state that telemetry is disabled by default"
+          exit 1
+        fi
+
+        # Check that the code has telemetry disabled by default
+        python -c "
+        from arc_memory.config import DEFAULT_CONFIG
+        assert DEFAULT_CONFIG['telemetry']['enabled'] is False, 'Telemetry should be disabled by default'
+        print('Telemetry default setting verification passed!')
+        "

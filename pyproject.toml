@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "arc-memory"
-version = "0.2.2"
+version = "0.3.0"
 description = "Arc Memory - Local bi-temporal knowledge graph for code repositories"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -89,6 +89,11 @@ docs = [
     "mkdocs>=1.4.0",
     "mkdocs-material>=9.0.0",
     "mkdocstrings>=0.20.0",
+]
+
+# Telemetry dependencies
+telemetry = [
+    "posthog>=3.0.1",  # Analytics and telemetry
 ]
 
 [project.urls]
