@@ -1,4 +1,4 @@
-# Arc Memory SDK
+# Arc Memory CLI
 
 <p align="center">
   <img src="public/arc_logo.png" alt="Arc Logo" width="200"/>
@@ -17,11 +17,11 @@ At Arc, we're building the foundational memory layer for modern software enginee
 
 ## Overview
 
-Arc Memory is our foundational SDK that embeds a local, bi-temporal knowledge graph (TKG) in every developer's workspace. It surfaces verifiable decision trails during code-review and exposes the same provenance to any LLM-powered agent through VS Code's Agent Mode.
+Arc Memory is a comprehensive CLI tool that embeds a local, bi-temporal knowledge graph (TKG) in every developer's workspace. It surfaces verifiable decision trails during code-review and exposes the same provenance to any LLM-powered agent through VS Code's Agent Mode.
 
 ## Arc Memory Ecosystem
 
-The Arc Memory SDK is part of a broader ecosystem that connects your team's collective history to AI assistants:
+The Arc Memory CLI is part of a broader ecosystem that connects your team's collective history to AI assistants:
 
 <div align="center">
   <img src="public/arc-vision-diagram.png" alt="Arc Memory Ecosystem Diagram" width="1200"/>
@@ -29,7 +29,7 @@ The Arc Memory SDK is part of a broader ecosystem that connects your team's coll
 
 ### How It Works
 
-- **Data Sources** (G-Suite, Slack, Notion, GitHub, Jira) seamlessly feed into the **Arc Memory SDK**, which captures organizational decisions in a local-first Temporal Knowledge Graph (TKG).
+- **Data Sources** (G-Suite, Slack, Notion, GitHub, Jira) seamlessly feed into the **Arc Memory CLI**, which captures organizational decisions in a local-first Temporal Knowledge Graph (TKG).
 
 - The **Arc MCP Server** provides persistent, cross-repository decision context, enabling memory-aware multi-step reasoning for integrated tooling.
 
@@ -39,14 +39,14 @@ Together, these components form the foundation for **organizational intelligence
 
 ## Arc Memory Features
 
-- **Extensible Plugin Architecture** - Easily add new data sources beyond Git, GitHub, and ADRs
 - **Comprehensive Knowledge Graph** - Build a local graph from Git commits, GitHub PRs, issues, and ADRs
-- **Trace History Algorithm** - Fast BFS algorithm to trace history from file+line to related entities
-- **High Performance** - Trace history queries complete in under 200ms (typically ~100μs)
+- **Decision Trail Visualization** - Understand the "why" behind code with `arc why` command
+- **Relationship Exploration** - Discover connections between entities with `arc relate` command
+- **High Performance** - Queries complete in under 200ms (typically ~100μs)
 - **Incremental Builds** - Efficiently update the graph with only new data
-- **Rich CLI** - Command-line interface for building graphs and tracing history
 - **MCP Integration** - Connect to AI assistants via Anthropic's Model Context Protocol
 - **Privacy-First** - All data stays on your machine; no code or IP leaves your repo
+- **Extensible Plugin Architecture** - Easily add new data sources beyond Git, GitHub, and ADRs
 - **CI Integration** - Team-wide graph updates through CI workflows
 
 ## Installation
@@ -86,21 +86,35 @@ arc relate node commit:abc123
 
 # Serve the knowledge graph via MCP
 arc serve start
-
-# Legacy trace command is still available
-arc trace file path/to/file.py 42
 ```
+
+## Telemetry
+
+Arc Memory includes optional, privacy-respecting telemetry to help us improve the product:
+
+- **Anonymous**: No personally identifiable information is collected
+- **Opt-in**: Disabled by default, enable with `arc config telemetry on`
+- **Transparent**: All collected data is documented and visible
+- **Focused**: Only collects command usage and session metrics for MTTR measurement
+
+To disable telemetry: `arc config telemetry off`
 
 ## Documentation
 
 ### CLI Commands
-- [Authentication](./docs/cli/auth.md) - GitHub authentication commands
-- [Build](./docs/cli/build.md) - Building the knowledge graph
-- [Why](./docs/cli/why.md) - Show decision trail for a file line
-- [Relate](./docs/cli/relate.md) - Show related nodes for an entity
-- [Serve](./docs/cli/serve.md) - Serve the knowledge graph via MCP
-- [Trace](./docs/cli/trace.md) - Legacy tracing history for files and lines
-- [Doctor](./docs/cli/doctor.md) - Checking graph status and diagnostics
+
+#### Building & Setup
+- [Authentication](./docs/cli/auth.md) - GitHub authentication commands (`arc auth`)
+- [Build](./docs/cli/build.md) - Building the knowledge graph (`arc build`)
+- [Doctor](./docs/cli/doctor.md) - Checking graph status and diagnostics (`arc doctor`)
+
+#### Querying & Exploration
+- [Why](./docs/cli/why.md) - Show decision trail for a file line (`arc why`)
+- [Relate](./docs/cli/relate.md) - Show related nodes for an entity (`arc relate`)
+- [Trace](./docs/cli/trace.md) - Legacy tracing history for files and lines (`arc trace`)
+
+#### Integration & Serving
+- [Serve](./docs/cli/serve.md) - Serve the knowledge graph via MCP (`arc serve`)
 
 ### Usage Examples
 - [Building Graphs](./docs/examples/building-graphs.md) - Examples of building knowledge graphs
@@ -119,19 +133,22 @@ For additional documentation, visit [arc.computer](https://www.arc.computer).
 
 Arc Memory consists of three components:
 
-1. **arc-memory** (this SDK) - Python SDK and CLI for graph building and querying
+1. **arc-memory** (this CLI) - Command-line interface and underlying SDK for graph building and querying
+   - **CLI Commands** - User-friendly interface for building graphs and exploring history
+   - **Local SQLite Database** - Stores the knowledge graph with direct access for CLI commands
    - **Plugin Architecture** - Extensible system for adding new data sources
    - **Trace History Algorithm** - BFS-based algorithm for traversing the knowledge graph
-   - **CLI Commands** - Interface for building graphs and tracing history
 
-2. **arc-memory-mcp** - MCP server exposing the knowledge graph to AI assistants
+2. **arc-mcp-server** - MCP server exposing the knowledge graph to AI assistants
    - Available at [github.com/Arc-Computer/arc-mcp-server](https://github.com/Arc-Computer/arc-mcp-server)
    - Implements Anthropic's Model Context Protocol (MCP) for standardized AI tool access
    - Provides tools like `arc_trace_history`, `arc_get_entity_details`, and more
+   - Can be started directly from the CLI with `arc serve start`
 
 3. **vscode-arc-hover** - VS Code extension for displaying decision trails (in development)
    - Will integrate with the MCP server to display trace history
    - Will provide hover cards with decision trails
+   - Will be available as a separate extension
 
 See our [Architecture Decision Records](./docs/adr/) for more details on design decisions, including:
 - [ADR-001: Knowledge Graph Schema](./docs/adr/001-knowledge-graph-schema.md)
@@ -165,14 +182,32 @@ pre-commit install
 
 ```bash
 # Run unit tests
-python -m unittest discover
+python -m pytest
 
 # Run integration tests
-python -m unittest discover tests/integration
+python -m pytest tests/integration
 
 # Run performance benchmarks
 python tests/benchmark/benchmark.py --repo-size small
 ```
+
+### CLI Development
+
+The Arc Memory CLI is built using [Typer](https://typer.tiangolo.com/), a modern library for building command-line interfaces in Python. The CLI commands are organized in the `arc_memory/cli/` directory:
+
+```
+arc_memory/cli/
+├── __init__.py     # Main CLI entry point
+├── auth.py         # Authentication commands
+├── build.py        # Build commands
+├── doctor.py       # Diagnostic commands
+├── relate.py       # Relationship exploration commands
+├── serve.py        # MCP server commands
+├── trace.py        # Legacy trace commands
+└── why.py          # Decision trail commands
+```
+
+To add a new command, create a new file in the `arc_memory/cli/` directory and register it in `__init__.py`.
 
 ### Creating a Plugin
 
@@ -181,11 +216,6 @@ Arc Memory uses a plugin architecture to support additional data sources. To cre
 1. Create a class that implements the `IngestorPlugin` protocol
 2. Register your plugin using entry points
 3. Package and distribute your plugin
-
-For detailed instructions and examples, see:
-- [Custom Plugins Guide](./docs/examples/custom-plugins.md) - Step-by-step guide with examples
-- [Plugin Architecture](./docs/api/plugins.md) - Technical details of the plugin system
-- [Plugins API](./docs/api/plugins.md) - API reference for plugin development
 
 Basic example:
 
@@ -213,6 +243,11 @@ Register in `pyproject.toml`:
 [project.entry-points."arc_memory.plugins"]
 my-custom-source = "my_package.my_module:MyCustomPlugin"
 ```
+
+For detailed instructions and examples, see:
+- [Custom Plugins Guide](./docs/examples/custom-plugins.md) - Step-by-step guide with examples
+- [Plugin Architecture](./docs/api/plugins.md) - Technical details of the plugin system
+- [Plugins API](./docs/api/plugins.md) - API reference for plugin development
 
 ### Performance
 

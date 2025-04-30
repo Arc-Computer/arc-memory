@@ -1,6 +1,6 @@
-# Arc Memory SDK Documentation
+# Arc Memory CLI Documentation
 
-Welcome to the Arc Memory SDK documentation. This guide will help you get started with Arc Memory, a comprehensive Software Development Kit (SDK) that provides a local bi-temporal knowledge graph for software engineering.
+Welcome to the Arc Memory CLI documentation. This guide will help you get started with Arc Memory, a comprehensive command-line tool that provides a local bi-temporal knowledge graph for software engineering.
 
 ## Getting Started
 
@@ -35,8 +35,14 @@ arc build --incremental
 # Check the graph status
 arc doctor
 
-# Trace history for a specific file and line
-arc trace file path/to/file.py 42
+# Show decision trail for a specific file and line
+arc why file path/to/file.py 42
+
+# Show related nodes for a specific entity
+arc relate node commit:abc123
+
+# Serve the knowledge graph via MCP
+arc serve start
 ```
 
 ## Documentation Overview
@@ -49,6 +55,7 @@ arc trace file path/to/file.py 42
 
 ### CLI Commands
 
+#### Building & Setup
 - [Authentication](./cli/auth.md) - GitHub authentication commands
   - `arc auth gh` - Authenticate with GitHub
   - `arc auth gh-app` - Authenticate with a GitHub App
@@ -56,11 +63,23 @@ arc trace file path/to/file.py 42
 - [Build](./cli/build.md) - Building the knowledge graph
   - `arc build` - Build the knowledge graph from Git, GitHub, and ADRs
 
-- [Trace](./cli/trace.md) - Tracing history for files and lines
-  - `arc trace file` - Trace the history of a specific line in a file
-
 - [Doctor](./cli/doctor.md) - Checking graph status and diagnostics
   - `arc doctor` - Check the status of the Arc Memory database
+
+#### Querying & Exploration
+- [Why](./cli/why.md) - Show decision trail for a file line
+  - `arc why file` - Show the decision trail for a specific line in a file
+
+- [Relate](./cli/relate.md) - Show related nodes for an entity
+  - `arc relate node` - Show nodes related to a specific entity
+
+- [Trace](./cli/trace.md) - Legacy tracing history for files and lines
+  - `arc trace file` - Trace the history of a specific line in a file
+
+#### Integration & Serving
+- [Serve](./cli/serve.md) - Serve the knowledge graph via MCP
+  - `arc serve start` - Start the MCP server
+  - `arc serve status` - Check the status of the MCP server
 
 ### Usage Examples
 
@@ -139,12 +158,22 @@ arc build
 
 For more details, see [Building Graphs](./examples/building-graphs.md).
 
-### Tracing History
+### Understanding Decision Trails
 
-To trace the history of a specific line in a file:
+To show the decision trail for a specific line in a file:
 
 ```bash
-arc trace file path/to/file.py 42
+arc why file path/to/file.py 42
+```
+
+For more details, see [Tracing History](./examples/tracing-history.md).
+
+### Exploring Relationships
+
+To show nodes related to a specific entity:
+
+```bash
+arc relate node commit:abc123
 ```
 
 For more details, see [Tracing History](./examples/tracing-history.md).
