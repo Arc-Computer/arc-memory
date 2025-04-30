@@ -2,6 +2,10 @@
 
 This module provides functions for tracking usage and measuring MTTR improvements
 using PostHog for analytics.
+
+Note: This telemetry implementation is designed to be privacy-respecting and does not
+collect any personally identifiable information (PII) or sensitive data. All data is
+anonymous and opt-in by default.
 """
 
 import atexit
@@ -308,6 +312,46 @@ def _get_version() -> str:
         return __version__
     except (ImportError, AttributeError):
         return "unknown"
+
+
+def track_cli_command(
+    command_name: str,
+    subcommand: Optional[str] = None,
+    args: Optional[Dict[str, Any]] = None,
+    success: bool = True,
+    error: Optional[Exception] = None,
+) -> None:
+    """Track CLI command usage.
+
+    This is a convenience function for tracking CLI command usage.
+
+    Args:
+        command_name: The name of the command (e.g., 'build', 'auth', 'why').
+        subcommand: The name of the subcommand, if any.
+        args: The arguments passed to the command.
+        success: Whether the command succeeded.
+        error: The exception that occurred, if any.
+    """
+    # Prepare the full command name
+    full_command = command_name
+    if subcommand:
+        full_command = f"{command_name}_{subcommand}"
+
+    # Prepare the context
+    context = {}
+    if args:
+        # Filter out any sensitive information
+        safe_args = {}
+        for key, value in args.items():
+            # Skip sensitive arguments
+            if key.lower() in ("token", "password", "secret", "key", "auth"):
+                continue
+            # Include safe arguments
+            safe_args[key] = value
+        context.update(safe_args)
+
+    # Track the command usage
+    track_command_usage(full_command, success=success, error=error, context=context)
 
 
 # Register atexit handler to flush telemetry queue

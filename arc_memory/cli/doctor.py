@@ -14,6 +14,7 @@ from arc_memory.sql.db import (
     init_db,
     load_build_manifest,
 )
+from arc_memory.telemetry import track_cli_command
 
 app = typer.Typer(help="Check the health of the knowledge graph")
 console = Console()
@@ -60,6 +61,19 @@ def check_health(
 ) -> None:
     """Check the health of the knowledge graph."""
     configure_logging(debug=debug)
+
+    # Track command usage
+    args = {
+        "debug": debug,
+    }
+    if db_path:
+        args["db_path"] = str(db_path)
+    if compressed_path:
+        args["compressed_path"] = str(compressed_path)
+    if manifest_path:
+        args["manifest_path"] = str(manifest_path)
+
+    track_cli_command("doctor", args=args)
 
     # Use default paths if not provided
     arc_dir = Path.home() / ".arc"
@@ -158,10 +172,15 @@ def check_health(
     # Overall status
     if db_exists or compressed_exists:
         console.print("[green]Arc Memory is ready to use.[/green]")
+        # Track successful health check
+        track_cli_command("doctor", args=args, success=True)
     else:
         console.print(
             "[red]Arc Memory is not set up. Run 'arc build' to build the knowledge graph.[/red]"
         )
+        # Track failed health check
+        track_cli_command("doctor", args=args, success=False,
+                         error=FileNotFoundError("Database files not found"))
 
 
 # Keep the original command for backward compatibility

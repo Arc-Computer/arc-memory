@@ -20,6 +20,7 @@ from arc_memory.sql.db import (
     load_build_manifest,
     save_build_manifest,
 )
+from arc_memory.telemetry import track_cli_command
 
 app = typer.Typer(help="Build the knowledge graph from Git, GitHub, and ADRs")
 console = Console()
@@ -91,6 +92,18 @@ def build_graph(
     """Build the knowledge graph from Git, GitHub, and ADRs."""
     configure_logging(debug=debug)
 
+    # Track command usage
+    args = {
+        "repo_path": str(repo_path),
+        "max_commits": max_commits,
+        "days": days,
+        "incremental": incremental,
+        "pull": pull,
+        "debug": debug,
+    }
+    # Note: We don't include token in telemetry for security reasons
+    track_cli_command("build", args=args)
+
     # Ensure output directory exists
     arc_dir = ensure_arc_dir()
     if output_path is None:
@@ -98,16 +111,18 @@ def build_graph(
 
     # Check if repo_path is a Git repository
     if not (repo_path / ".git").exists():
-        console.print(
-            f"[red]Error: {repo_path} is not a Git repository.[/red]"
-        )
+        error_msg = f"Error: {repo_path} is not a Git repository."
+        console.print(f"[red]{error_msg}[/red]")
+        track_cli_command("build", args=args, success=False,
+                         error=ValueError(error_msg))
         sys.exit(1)
 
     # Handle --pull option
     if pull:
-        console.print(
-            "[yellow]Pulling latest CI-built graph is not implemented yet.[/yellow]"
-        )
+        error_msg = "Pulling latest CI-built graph is not implemented yet."
+        console.print(f"[yellow]{error_msg}[/yellow]")
+        track_cli_command("build", args=args, success=False,
+                         error=NotImplementedError(error_msg))
         sys.exit(1)
 
     # Load existing manifest for incremental builds
@@ -223,14 +238,18 @@ def build_graph(
             console.print(
                 f"[green]Database saved to {output_path} and compressed to {compressed_path}[/green]"
             )
+            # Track successful completion
+            track_cli_command("build", args=args, success=True)
         except GraphBuildError as e:
             progress.stop()
             console.print(f"[red]Build failed: {e}[/red]")
+            track_cli_command("build", args=args, success=False, error=e)
             sys.exit(1)
         except Exception as e:
             progress.stop()
             logger.exception("Unexpected error during build")
             console.print(f"[red]Unexpected error: {e}[/red]")
+            track_cli_command("build", args=args, success=False, error=e)
             sys.exit(1)
 
 
