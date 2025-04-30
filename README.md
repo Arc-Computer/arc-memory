@@ -78,11 +78,17 @@ arc build --incremental
 # Check the graph status
 arc doctor
 
-# Trace history for a specific file and line
-arc trace file path/to/file.py 42
+# Show decision trail for a specific file and line
+arc why file path/to/file.py 42
 
-# Trace with more hops in the graph
-arc trace file path/to/file.py 42 --max-hops 3
+# Show related nodes for a specific entity
+arc relate node commit:abc123
+
+# Serve the knowledge graph via MCP
+arc serve start
+
+# Legacy trace command is still available
+arc trace file path/to/file.py 42
 ```
 
 ## Documentation
@@ -90,7 +96,10 @@ arc trace file path/to/file.py 42 --max-hops 3
 ### CLI Commands
 - [Authentication](./docs/cli/auth.md) - GitHub authentication commands
 - [Build](./docs/cli/build.md) - Building the knowledge graph
-- [Trace](./docs/cli/trace.md) - Tracing history for files and lines
+- [Why](./docs/cli/why.md) - Show decision trail for a file line
+- [Relate](./docs/cli/relate.md) - Show related nodes for an entity
+- [Serve](./docs/cli/serve.md) - Serve the knowledge graph via MCP
+- [Trace](./docs/cli/trace.md) - Legacy tracing history for files and lines
 - [Doctor](./docs/cli/doctor.md) - Checking graph status and diagnostics
 
 ### Usage Examples
