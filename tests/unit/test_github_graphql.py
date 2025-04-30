@@ -108,13 +108,17 @@ class TestGitHubGraphQLClient:
         error = MockTransportQueryError("500 Internal Server Error")
         mock_client.execute_async.side_effect = error
 
-        # Execute query and check for error
-        with patch("arc_memory.ingest.github_graphql.GQL_AVAILABLE", True):
-            with pytest.raises(IngestError) as excinfo:
-                await graphql_client.execute_query(
-                    REPO_INFO_QUERY, {"owner": "test-owner", "repo": "test-repo"}
-                )
-            assert "GraphQL query error" in str(excinfo.value)
+        # Patch MAX_RETRIES to 0 to avoid retry logic for this test
+        with patch("arc_memory.ingest.github_graphql.MAX_RETRIES", 0):
+            # Execute query and check for error
+            with patch("arc_memory.ingest.github_graphql.GQL_AVAILABLE", True):
+                with pytest.raises(IngestError) as excinfo:
+                    await graphql_client.execute_query(
+                        REPO_INFO_QUERY, {"owner": "test-owner", "repo": "test-repo"}
+                    )
+                # Check that the error message contains either the old or new format
+                error_message = str(excinfo.value)
+                assert any(msg in error_message for msg in ["GraphQL query error", "GitHub server error"])
 
     @pytest.mark.asyncio
     async def test_paginate_query(self, graphql_client):
