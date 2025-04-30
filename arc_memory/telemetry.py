@@ -1,15 +1,18 @@
 """Telemetry functionality for Arc Memory.
 
-This module provides functions for tracking usage and measuring MTTR improvements.
+This module provides functions for tracking usage and measuring MTTR improvements
+using PostHog for analytics.
 """
 
+import atexit
 import json
+import os
 import threading
 import time
 import uuid
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from arc_memory.config import get_config, update_config
 from arc_memory.logging_conf import get_logger
@@ -17,9 +20,53 @@ from arc_memory.sql.db import ensure_arc_dir
 
 logger = get_logger(__name__)
 
-# Queue for telemetry events
+# PostHog API key for Arc Memory
+# This is a public API key that can be included in the source code
+POSTHOG_API_KEY = "phc_kyA8Z4j3H01yqDZly5J3XShAbSrseDtoVS6AxWe8wp9"
+POSTHOG_HOST = "https://us.i.posthog.com"  # PostHog Cloud instance
+
+# Queue for telemetry events when PostHog is not available
 _telemetry_queue: List[Dict[str, Any]] = []
 _telemetry_lock = threading.Lock()
+_posthog_client = None
+
+
+def _get_posthog_client():
+    """Get or initialize the PostHog client.
+
+    Returns:
+        The PostHog client if available, None otherwise.
+    """
+    global _posthog_client
+
+    if _posthog_client is not None:
+        return _posthog_client
+
+    try:
+        # Try to import PostHog
+        try:
+            import posthog
+            from posthog import Posthog
+        except ImportError:
+            logger.debug("PostHog not installed, using local telemetry queue")
+            return None
+
+        # Initialize PostHog client
+        _posthog_client = Posthog(
+            api_key=POSTHOG_API_KEY,
+            host=POSTHOG_HOST,
+            disable_geoip=True,  # Don't track server IP location
+            debug=False,  # Set to True for debugging
+        )
+
+        # Register flush on exit
+        atexit.register(_posthog_client.flush)
+
+        return _posthog_client
+
+    except Exception as e:
+        logger.error(f"Error initializing PostHog client: {e}")
+        return None
 
 
 def track_command_usage(
@@ -65,15 +112,26 @@ def track_command_usage(
             "success": success,
             "error_type": error.__class__.__name__ if error else None,
             "timestamp": datetime.now().isoformat(),
-            "session_id": session_id
+            "session_id": session_id,
+            "$lib": "arc-memory-python",
+            "$lib_version": _get_version(),
         }
 
         # Add context if provided (file path, line number, etc.)
         if context:
             properties.update(context)
 
-        # Add to telemetry queue
-        _add_to_telemetry_queue(installation_id, f"command_{command_name}", properties)
+        # Try to send to PostHog
+        posthog_client = _get_posthog_client()
+        if posthog_client:
+            posthog_client.capture(
+                distinct_id=installation_id,
+                event=f"command_{command_name}",
+                properties=properties
+            )
+        else:
+            # Fall back to local queue
+            _add_to_telemetry_queue(installation_id, f"command_{command_name}", properties)
 
     except Exception as e:
         # Never let telemetry errors affect the user
@@ -96,11 +154,22 @@ def track_session_event(event_type: str, session_id: str) -> None:
 
         properties = {
             "session_id": session_id,
-            "timestamp": datetime.now().isoformat()
+            "timestamp": datetime.now().isoformat(),
+            "$lib": "arc-memory-python",
+            "$lib_version": _get_version(),
         }
 
-        # Add to telemetry queue
-        _add_to_telemetry_queue(installation_id, event_type, properties)
+        # Try to send to PostHog
+        posthog_client = _get_posthog_client()
+        if posthog_client:
+            posthog_client.capture(
+                distinct_id=installation_id,
+                event=event_type,
+                properties=properties
+            )
+        else:
+            # Fall back to local queue
+            _add_to_telemetry_queue(installation_id, event_type, properties)
 
     except Exception as e:
         logger.error(f"Error in track_session_event: {e}")
@@ -174,6 +243,9 @@ def flush_telemetry_queue() -> None:
             # Clear the queue
             _telemetry_queue.clear()
 
+            # Try to send the events to PostHog
+            send_telemetry_to_posthog()
+
     except Exception as e:
         logger.error(f"Error in flush_telemetry_queue: {e}")
 
@@ -181,13 +253,6 @@ def flush_telemetry_queue() -> None:
 def send_telemetry_to_posthog() -> None:
     """Send telemetry to PostHog if available."""
     try:
-        # Check if PostHog is installed
-        try:
-            import posthog
-        except ImportError:
-            logger.debug("PostHog not installed, skipping telemetry upload")
-            return
-
         # Check if telemetry is enabled
         config = get_config()
         if not config.get("telemetry", {}).get("enabled", False):
@@ -201,10 +266,10 @@ def send_telemetry_to_posthog() -> None:
         if not log_path.exists():
             return
 
-        # Initialize PostHog client
-        posthog.api_key = "phc_YOUR_PROJECT_KEY"  # Replace with actual key in production
-        posthog.host = "https://app.posthog.com"  # Or your self-hosted instance
-        posthog.disable_geoip = True  # Don't track server IP location
+        # Try to get PostHog client
+        posthog_client = _get_posthog_client()
+        if not posthog_client:
+            return
 
         # Read events from the log file
         events = []
@@ -215,14 +280,14 @@ def send_telemetry_to_posthog() -> None:
 
         # Send events to PostHog
         for event in events:
-            posthog.capture(
+            posthog_client.capture(
                 distinct_id=event["distinct_id"],
                 event=event["event"],
                 properties=event["properties"]
             )
 
         # Ensure events are sent
-        posthog.flush()
+        posthog_client.flush()
 
         # Rename the processed log file
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
@@ -232,6 +297,18 @@ def send_telemetry_to_posthog() -> None:
         logger.error(f"Error in send_telemetry_to_posthog: {e}")
 
 
+def _get_version() -> str:
+    """Get the version of the arc-memory package.
+
+    Returns:
+        The version string.
+    """
+    try:
+        from arc_memory import __version__
+        return __version__
+    except (ImportError, AttributeError):
+        return "unknown"
+
+
 # Register atexit handler to flush telemetry queue
-import atexit
 atexit.register(flush_telemetry_queue)
