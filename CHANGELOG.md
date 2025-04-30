@@ -5,6 +5,33 @@ All notable changes to the Arc Memory SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2025-04-30
+
+### Added
+- Complete CLI implementation with a comprehensive set of commands
+- New `arc why` command to understand why a file or commit exists
+- New `arc relate` command to find relationships between entities in the graph
+- New `arc serve` command to start the MCP server for IDE integration
+- New `arc auth` command for GitHub authentication
+- New `arc doctor` command to diagnose and fix issues
+- New telemetry system with opt-in privacy controls (disabled by default)
+- Improved GitHub GraphQL client with better rate limit handling
+- Enhanced error handling and logging throughout the codebase
+- Comprehensive test coverage for all CLI commands
+- Added CI workflow for testing CLI commands across Python versions
+
+### Changed
+- Shifted to a CLI-first approach for better user experience
+- Improved documentation with detailed command references
+- Renamed from 'arc-memory SDK' to 'arc CLI' to better reflect its focus
+- Updated GitHub GraphQL client to follow latest standards and best practices
+
+### Fixed
+- Fixed relationship type filtering in the `relate` command
+- Fixed GitHub GraphQL tests to properly mock dependencies
+- Improved error handling in authentication flows
+- Enhanced rate limit handling with exponential backoff
+
 ## [0.2.2] - 2025-04-29
 
 ### Added
