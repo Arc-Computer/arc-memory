@@ -416,12 +416,13 @@ def create_simulation_environment(api_key: Optional[str] = None) -> SimulationEn
     return SimulationEnvironment(api_key=api_key)
 
 
-def run_simulation(manifest_path: str, duration_seconds: int = 300) -> Dict[str, Any]:
+def run_simulation(manifest_path: str, duration_seconds: int = 300, metrics_interval: int = 30) -> Dict[str, Any]:
     """Run a simulation using the provided manifest.
 
     Args:
         manifest_path: Path to the Chaos Mesh manifest file
         duration_seconds: Duration of the simulation in seconds (default: 300)
+        metrics_interval: Interval between metrics collection in seconds (default: 30)
 
     Returns:
         A dictionary of simulation results
@@ -468,31 +469,20 @@ def run_simulation(manifest_path: str, duration_seconds: int = 300) -> Dict[str,
         # Deploy Chaos Mesh
         env.deploy_chaos_mesh()
 
-        # Collect initial metrics
-        initial_metrics = env.collect_metrics()
+        # Import the fault driver here to avoid circular imports
+        from arc_memory.simulate.fault_driver import run_fault_injection
 
-        # Apply chaos experiment
-        experiment_name = env.apply_chaos_experiment(manifest_path)
+        # Run the fault injection experiment
+        results = run_fault_injection(
+            manifest_path=manifest_path,
+            simulation_env=env,
+            duration_seconds=duration_seconds,
+            metrics_interval=metrics_interval
+        )
 
-        # Wait for the specified duration
-        logger.info(f"Simulation running for {duration_seconds} seconds")
-        time.sleep(duration_seconds)
-
-        # Collect final metrics
-        final_metrics = env.collect_metrics()
-
-        # Delete chaos experiment
-        env.delete_chaos_experiment(experiment_name)
-
-        # Calculate results
-        results = {
-            "experiment_name": experiment_name,
-            "duration_seconds": duration_seconds,
-            "initial_metrics": initial_metrics,
-            "final_metrics": final_metrics,
-            "timestamp": time.time(),
-            "is_mock": False
-        }
+        # Add timestamp and mock flag
+        results["timestamp"] = time.time()
+        results["is_mock"] = False
 
         logger.info(f"Simulation completed successfully")
         return results
