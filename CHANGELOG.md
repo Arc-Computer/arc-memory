@@ -5,6 +5,26 @@ All notable changes to the Arc Memory SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.1] - 2025-05-15
+
+### Added
+- New `arc sim` command for simulation-based impact prediction
+- Implemented diff analysis to identify affected services from code changes
+- Added causal graph derivation from the knowledge graph
+- Integrated E2B for isolated sandbox environments
+- Implemented fault injection with Chaos Mesh (network latency, CPU stress, memory stress)
+- Created LangGraph workflow for orchestrating the simulation process
+- Added risk assessment with metrics collection and analysis
+- Implemented attestation generation with cryptographic verification
+- Added comprehensive documentation for the `arc sim` command
+- Created detailed examples for different simulation scenarios
+- Added unit and integration tests for all simulation components
+
+### Changed
+- Refactored README to position simulation as the core differentiator
+- Enhanced developer experience with clearer prerequisites and troubleshooting guidance
+- Improved test isolation with proper mock resetting and fixture cleanup
+
 ## [0.3.0] - 2025-04-30
 
 ### Added
