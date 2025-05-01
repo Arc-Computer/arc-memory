@@ -22,8 +22,15 @@ from arc_memory.simulate.causal import derive_causal
 from arc_memory.simulate.manifest import generate_simulation_manifest
 from arc_memory.simulate.code_interpreter import run_simulation as run_sandbox_simulation
 from arc_memory.simulate.code_interpreter import HAS_E2B
-from arc_memory.simulate.explanation import analyze_simulation_results, process_metrics, calculate_risk_score, generate_explanation
-from arc_memory.attestation.write_attest import generate_and_save_attestation
+from arc_memory.simulate.explanation import (
+    analyze_simulation_results,
+    process_metrics,
+    calculate_risk_score,
+    generate_explanation
+)
+from arc_memory.attestation.write_attest import (
+    generate_and_save_attestation
+)
 from arc_memory.sql.db import ensure_arc_dir
 
 logger = get_logger(__name__)
@@ -59,6 +66,38 @@ class SimulationState(TypedDict):
     attestation: Optional[Dict[str, Any]]
     error: Optional[str]
     status: Literal["in_progress", "completed", "failed"]
+
+
+def process_and_calculate_risk(
+    state: SimulationState,
+    raw_metrics: Dict[str, Any]
+) -> SimulationState:
+    """Process metrics, calculate risk score, and update state.
+
+    Args:
+        state: The current workflow state
+        raw_metrics: Raw metrics from simulation
+
+    Returns:
+        Updated workflow state
+    """
+    # Process metrics
+    processed_metrics = process_metrics(raw_metrics)
+
+    # Calculate risk score
+    risk_score, risk_factors = calculate_risk_score(
+        processed_metrics,
+        state["severity"],
+        state.get("affected_services", [])
+    )
+
+    # Update state
+    state["metrics"] = raw_metrics
+    state["processed_metrics"] = processed_metrics
+    state["risk_factors"] = risk_factors
+    state["risk_score"] = risk_score
+
+    return state
 
 
 def get_llm():
@@ -287,19 +326,8 @@ def run_simulation(state: SimulationState) -> SimulationState:
                 "service_count": 3
             }
 
-            # Process metrics and calculate risk score
-            processed_metrics = process_metrics(raw_metrics)
-            risk_score, risk_factors = calculate_risk_score(
-                processed_metrics,
-                state["severity"],
-                state.get("affected_services", [])
-            )
-
-            # Update state
-            state["metrics"] = raw_metrics
-            state["processed_metrics"] = processed_metrics
-            state["risk_factors"] = risk_factors
-            state["risk_score"] = risk_score
+            # Process metrics, calculate risk score, and update state
+            state = process_and_calculate_risk(state, raw_metrics)
 
             return state
 
@@ -342,18 +370,8 @@ def run_simulation(state: SimulationState) -> SimulationState:
         # Update the state with raw metrics
         state["metrics"] = metrics
 
-        # Process metrics and calculate risk score
-        processed_metrics = process_metrics(metrics)
-        risk_score, risk_factors = calculate_risk_score(
-            processed_metrics,
-            state["severity"],
-            state.get("affected_services", [])
-        )
-
-        # Update state with processed metrics and risk assessment
-        state["processed_metrics"] = processed_metrics
-        state["risk_factors"] = risk_factors
-        state["risk_score"] = risk_score
+        # Process metrics, calculate risk score, and update state
+        state = process_and_calculate_risk(state, metrics)
 
         logger.info("Successfully ran simulation")
         return state
@@ -369,19 +387,8 @@ def run_simulation(state: SimulationState) -> SimulationState:
             "error_rate": round(state["severity"] / 1000, 3),
         }
 
-        # Process metrics and calculate risk score
-        processed_metrics = process_metrics(raw_metrics)
-        risk_score, risk_factors = calculate_risk_score(
-            processed_metrics,
-            state["severity"],
-            state.get("affected_services", [])
-        )
-
-        # Update state
-        state["metrics"] = raw_metrics
-        state["processed_metrics"] = processed_metrics
-        state["risk_factors"] = risk_factors
-        state["risk_score"] = risk_score
+        # Process metrics, calculate risk score, and update state
+        state = process_and_calculate_risk(state, raw_metrics)
 
         return state
 

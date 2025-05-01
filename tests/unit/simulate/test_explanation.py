@@ -20,12 +20,12 @@ class TestExplanation:
             "error_rate": 0.05
         }
         processed = process_metrics(metrics)
-        
+
         assert "normalized_latency" in processed
         assert "normalized_error_rate" in processed
         assert processed["normalized_latency"] == 0.25  # 500/2000
         assert processed["normalized_error_rate"] == 0.05
-        
+
         # Test with resource usage metrics
         metrics = {
             "latency_ms": 500,
@@ -40,20 +40,20 @@ class TestExplanation:
             }
         }
         processed = process_metrics(metrics)
-        
+
         assert "avg_cpu_usage" in processed
         assert "max_cpu_usage" in processed
         assert "normalized_cpu_usage" in processed
         assert processed["avg_cpu_usage"] == 0.6
         assert processed["max_cpu_usage"] == 0.7
         assert processed["normalized_cpu_usage"] == 0.7
-        
+
         assert "avg_memory_usage" in processed
         assert "max_memory_usage" in processed
         assert "normalized_memory_usage" in processed
         assert processed["avg_memory_usage"] == 250
         assert processed["max_memory_usage"] == 300
-        assert processed["normalized_memory_usage"] == 300/1024
+        assert processed["normalized_memory_usage"] == pytest.approx(300/1024)
 
     def test_calculate_risk_score(self):
         """Test calculating risk score."""
@@ -64,20 +64,20 @@ class TestExplanation:
         }
         severity = 50
         affected_services = ["service1", "service2"]
-        
+
         risk_score, risk_factors = calculate_risk_score(
             processed_metrics,
             severity,
             affected_services
         )
-        
+
         assert isinstance(risk_score, int)
         assert 0 <= risk_score <= 100
         assert "severity" in risk_factors
         assert "service_count" in risk_factors
         assert "normalized_latency" in risk_factors
         assert "normalized_error_rate" in risk_factors
-        
+
         # Test with more metrics
         processed_metrics = {
             "normalized_latency": 0.25,
@@ -85,13 +85,13 @@ class TestExplanation:
             "normalized_cpu_usage": 0.7,
             "normalized_memory_usage": 0.3
         }
-        
+
         risk_score, risk_factors = calculate_risk_score(
             processed_metrics,
             severity,
             affected_services
         )
-        
+
         assert isinstance(risk_score, int)
         assert 0 <= risk_score <= 100
         assert "normalized_cpu_usage" in risk_factors
@@ -116,7 +116,7 @@ class TestExplanation:
             "normalized_latency": 0.25,
             "normalized_error_rate": 0.05
         }
-        
+
         explanation = generate_explanation(
             scenario,
             severity,
@@ -125,7 +125,7 @@ class TestExplanation:
             risk_score,
             risk_factors
         )
-        
+
         assert isinstance(explanation, str)
         assert len(explanation) > 0
         assert "Simulation Results Summary" in explanation
@@ -147,14 +147,14 @@ class TestExplanation:
             "latency_ms": 500,
             "error_rate": 0.05
         }
-        
+
         results = analyze_simulation_results(
             scenario,
             severity,
             affected_services,
             metrics
         )
-        
+
         assert "processed_metrics" in results
         assert "risk_score" in results
         assert "risk_factors" in results
