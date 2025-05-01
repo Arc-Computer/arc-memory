@@ -2,7 +2,7 @@
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -15,6 +15,8 @@ class NodeType(str, Enum):
     PR = "pr"
     ISSUE = "issue"
     ADR = "adr"
+    SIMULATION = "simulation"  # A simulation run
+    METRIC = "metric"  # A metric collected during simulation
 
 
 class EdgeRel(str, Enum):
@@ -24,6 +26,10 @@ class EdgeRel(str, Enum):
     MERGES = "MERGES"      # PR merges a commit
     MENTIONS = "MENTIONS"  # PR/Issue mentions another entity
     DECIDES = "DECIDES"    # ADR decides on a file/commit
+    SIMULATES = "SIMULATES"  # Simulation simulates a commit/PR
+    AFFECTS = "AFFECTS"    # Simulation affects a service
+    MEASURES = "MEASURES"  # Simulation measures a metric
+    PREDICTS = "PREDICTS"  # Simulation predicts an impact
 
 
 class Node(BaseModel):
@@ -85,6 +91,32 @@ class ADRNode(Node):
     status: str
     decision_makers: List[str] = Field(default_factory=list)
     path: str
+
+
+class SimulationNode(Node):
+    """A simulation run node."""
+
+    type: NodeType = NodeType.SIMULATION
+    sim_id: str  # Unique identifier for the simulation
+    rev_range: str  # Git rev-range used for the simulation
+    scenario: str  # The fault scenario that was simulated
+    severity: int  # The severity level of the simulation (0-100)
+    risk_score: int  # Calculated risk score (0-100)
+    manifest_hash: str  # Hash of the simulation manifest
+    commit_target: str  # Target commit hash
+    diff_hash: str  # Hash of the diff
+    affected_services: List[str] = Field(default_factory=list)  # List of services affected by the changes
+
+
+class MetricNode(Node):
+    """A metric collected during simulation."""
+
+    type: NodeType = NodeType.METRIC
+    name: str  # Name of the metric
+    value: float  # Value of the metric
+    unit: Optional[str] = None  # Unit of the metric
+    timestamp: datetime  # When the metric was collected
+    service: Optional[str] = None  # Service the metric is associated with
 
 
 class Edge(BaseModel):
