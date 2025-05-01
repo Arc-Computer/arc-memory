@@ -480,21 +480,36 @@ class TestLangGraphFlow:
                 "pod_count": 5,
                 "service_count": 3
             },
+            "processed_metrics": {
+                "latency_ms": 500,
+                "error_rate": 0.05,
+                "normalized_latency": 0.25,
+                "normalized_error_rate": 0.05
+            },
+            "risk_factors": {
+                "severity": 0.5,
+                "service_count": 0.2,
+                "normalized_latency": 0.25,
+                "normalized_error_rate": 0.05
+            },
             "status": "in_progress"
         }
 
-        # Mock get_llm
+        # Mock get_llm and the explanation generator
         with mock.patch("arc_memory.simulate.langgraph_flow.get_llm") as mock_get_llm:
             mock_get_llm.return_value = None
 
-            # Execute
-            result = generate_explanation(state)
+            # Mock the explanation generator
+            with mock.patch("arc_memory.simulate.explanation.generate_explanation", return_value="Mocked explanation") as mock_generate:
+                # Execute
+                result = generate_explanation(state)
 
-            # Verify
-            assert result["explanation"] is not None
-            assert "Simulation for 2 services based on 2 changed files" in result["explanation"]
-            assert result["status"] == "in_progress"
-            mock_get_llm.assert_called_once()
+                # Verify
+                assert result["explanation"] is not None
+                assert result["explanation"] == "Mocked explanation"
+                assert result["status"] == "in_progress"
+                mock_get_llm.assert_called_once()
+                mock_generate.assert_called_once()
 
     def test_generate_attestation_success(self):
         """Test generating attestation successfully."""
@@ -525,30 +540,34 @@ class TestLangGraphFlow:
             "risk_score": 25,
             "explanation": "This is a test explanation.",
             "rev_range": "HEAD~1..HEAD",
+            "scenario": "network_latency",
+            "severity": 50,
+            "affected_services": ["service1", "service2"],
             "status": "in_progress"
         }
 
-        # Mock ensure_arc_dir, Path.mkdir, and open
-        with mock.patch("arc_memory.simulate.langgraph_flow.ensure_arc_dir") as mock_ensure_arc_dir:
-            mock_ensure_arc_dir.return_value = Path("/path/to/.arc")
+        # Mock the attestation generator
+        mock_attestation = {
+            "sim_id": "sim_HEAD~1_HEAD",
+            "manifest_hash": "def456",
+            "commit_target": "abc123",
+            "risk_score": 25,
+            "explanation": "This is a test explanation."
+        }
 
-            # Mock Path.mkdir to avoid directory creation error
-            with mock.patch("pathlib.Path.mkdir") as mock_mkdir:
-                with mock.patch("builtins.open", mock.mock_open()) as mock_file:
-                    # Execute
-                    result = generate_attestation(state)
+        with mock.patch("arc_memory.simulate.langgraph_flow.generate_and_save_attestation", return_value=mock_attestation) as mock_generate:
+            # Execute
+            result = generate_attestation(state)
 
-                    # Verify
-                    assert result["attestation"] is not None
-                    assert result["attestation"]["sim_id"] == "sim_HEAD~1_HEAD"
-                    assert result["attestation"]["manifest_hash"] == "def456"
-                    assert result["attestation"]["commit_target"] == "abc123"
-                    assert result["attestation"]["risk_score"] == 25
-                    assert result["attestation"]["explanation"] == "This is a test explanation."
-                    assert result["status"] == "completed"
-                    mock_ensure_arc_dir.assert_called_once()
-                    mock_mkdir.assert_called_once_with(exist_ok=True)
-                    mock_file.assert_called_once()
+            # Verify
+            assert result["attestation"] is not None
+            assert result["attestation"]["sim_id"] == "sim_HEAD~1_HEAD"
+            assert result["attestation"]["manifest_hash"] == "def456"
+            assert result["attestation"]["commit_target"] == "abc123"
+            assert result["attestation"]["risk_score"] == 25
+            assert result["attestation"]["explanation"] == "This is a test explanation."
+            assert result["status"] == "completed"
+            mock_generate.assert_called_once()
 
     def test_generate_attestation_missing_data(self):
         """Test generating attestation with missing data."""
