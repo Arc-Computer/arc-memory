@@ -36,6 +36,7 @@ class TestMemoryFlywheel(unittest.TestCase):
     def setUpClass(cls):
         """Set up the test environment."""
         # Skip if no OpenAI API key is available
+        print(f"OPENAI_API_KEY present: {bool(os.environ.get('OPENAI_API_KEY'))}")
         if not os.environ.get("OPENAI_API_KEY"):
             pytest.skip("OPENAI_API_KEY not available")
 
