@@ -18,16 +18,16 @@ from arc_memory.logging_conf import get_logger
 logger = get_logger(__name__)
 
 
-def serialize_diff(range: str, repo_path: Optional[Path] = None) -> Dict[str, Any]:
+def serialize_diff(rev_range: str, repo_path: Optional[Path] = None) -> Dict[str, Any]:
     """Extract diff from Git using the provided rev-range.
-    
+
     Args:
-        range: Git rev-range (e.g., "HEAD~1..HEAD")
+        rev_range: Git rev-range (e.g., "HEAD~1..HEAD")
         repo_path: Path to the Git repository (defaults to current directory)
-        
+
     Returns:
         A dictionary containing the serialized diff information
-        
+
     Raises:
         GitError: If there's an error accessing the Git repository
     """
@@ -35,13 +35,13 @@ def serialize_diff(range: str, repo_path: Optional[Path] = None) -> Dict[str, An
         # Use current directory if repo_path is not provided
         if repo_path is None:
             repo_path = Path.cwd()
-            
+
         # Open the repository
         repo = Repo(repo_path)
-        
+
         # Parse the rev-range
-        start_rev, end_rev = parse_rev_range(range)
-        
+        start_rev, end_rev = parse_rev_range(rev_range)
+
         # Get the commits in the range
         if start_rev and end_rev:
             commit_range = f"{start_rev}..{end_rev}"
@@ -49,17 +49,17 @@ def serialize_diff(range: str, repo_path: Optional[Path] = None) -> Dict[str, An
         else:
             # Default to HEAD if range parsing fails
             commits = [repo.head.commit]
-        
+
         if not commits:
-            logger.warning(f"No commits found in range: {range}")
-            return {"files": [], "commit_count": 0, "range": range}
-        
+            logger.warning(f"No commits found in range: {rev_range}")
+            return {"files": [], "commit_count": 0, "range": rev_range}
+
         # Get the diff for each commit
         files_changed = set()
         insertions_total = 0
         deletions_total = 0
         file_stats = {}
-        
+
         for commit in commits:
             # Get the parent commit (or None if this is the first commit)
             parents = commit.parents
@@ -69,7 +69,7 @@ def serialize_diff(range: str, repo_path: Optional[Path] = None) -> Dict[str, An
             else:
                 # Normal commit - compare with first parent
                 diff_index = commit.diff(parents[0])
-            
+
             # Process each changed file
             for diff in diff_index:
                 if diff.a_path:
@@ -78,9 +78,9 @@ def serialize_diff(range: str, repo_path: Optional[Path] = None) -> Dict[str, An
                     path = diff.b_path
                 else:
                     continue
-                
+
                 files_changed.add(path)
-                
+
                 # Get stats for this file
                 if path not in file_stats:
                     file_stats[path] = {
@@ -88,7 +88,7 @@ def serialize_diff(range: str, repo_path: Optional[Path] = None) -> Dict[str, An
                         "deletions": 0,
                         "status": "modified"
                     }
-                
+
                 # Update status based on diff type
                 if diff.new_file:
                     file_stats[path]["status"] = "added"
@@ -96,7 +96,7 @@ def serialize_diff(range: str, repo_path: Optional[Path] = None) -> Dict[str, An
                     file_stats[path]["status"] = "deleted"
                 elif diff.renamed:
                     file_stats[path]["status"] = "renamed"
-                
+
                 # Get insertions and deletions if available
                 if path in commit.stats.files:
                     stats = commit.stats.files[path]
@@ -104,7 +104,7 @@ def serialize_diff(range: str, repo_path: Optional[Path] = None) -> Dict[str, An
                     file_stats[path]["deletions"] += stats.get("deletions", 0)
                     insertions_total += stats.get("insertions", 0)
                     deletions_total += stats.get("deletions", 0)
-        
+
         # Create the result dictionary
         result = {
             "files": [
@@ -117,7 +117,7 @@ def serialize_diff(range: str, repo_path: Optional[Path] = None) -> Dict[str, An
                 for path, stats in file_stats.items()
             ],
             "commit_count": len(commits),
-            "range": range,
+            "range": rev_range,
             "start_commit": commits[-1].hexsha if commits else None,
             "end_commit": commits[0].hexsha if commits else None,
             "stats": {
@@ -126,9 +126,9 @@ def serialize_diff(range: str, repo_path: Optional[Path] = None) -> Dict[str, An
                 "deletions": deletions_total
             }
         }
-        
+
         return result
-    
+
     except git.exc.GitCommandError as e:
         logger.error(f"Git command error: {e}")
         raise GitError(f"Git command error: {e}")
@@ -140,33 +140,33 @@ def serialize_diff(range: str, repo_path: Optional[Path] = None) -> Dict[str, An
         raise GitError(f"Failed to serialize diff: {e}")
 
 
-def parse_rev_range(range: str) -> tuple[Optional[str], Optional[str]]:
+def parse_rev_range(rev_range: str) -> tuple[Optional[str], Optional[str]]:
     """Parse a Git revision range.
-    
+
     Args:
-        range: Git rev-range (e.g., "HEAD~1..HEAD")
-        
+        rev_range: Git rev-range (e.g., "HEAD~1..HEAD")
+
     Returns:
         A tuple of (start_rev, end_rev)
     """
-    if ".." in range:
-        parts = range.split("..")
+    if ".." in rev_range:
+        parts = rev_range.split("..")
         if len(parts) == 2:
             return parts[0], parts[1]
-    
+
     # If the range doesn't contain "..", assume it's a single commit
-    return None, range
+    return None, rev_range
 
 
 def load_diff_from_file(diff_path: Path) -> Dict[str, Any]:
     """Load a pre-serialized diff from a JSON file.
-    
+
     Args:
         diff_path: Path to the diff JSON file
-        
+
     Returns:
         A dictionary containing the serialized diff information
-        
+
     Raises:
         FileNotFoundError: If the diff file doesn't exist
         JSONDecodeError: If the diff file contains invalid JSON
@@ -174,13 +174,13 @@ def load_diff_from_file(diff_path: Path) -> Dict[str, Any]:
     try:
         with open(diff_path, 'r') as f:
             diff_data = json.load(f)
-        
+
         # Validate the diff data
         if not isinstance(diff_data, dict) or "files" not in diff_data:
             raise ValueError("Invalid diff format: missing 'files' key")
-        
+
         return diff_data
-    
+
     except FileNotFoundError:
         logger.error(f"Diff file not found: {diff_path}")
         raise
@@ -194,42 +194,42 @@ def load_diff_from_file(diff_path: Path) -> Dict[str, Any]:
 
 def analyze_diff(diff: Dict[str, Any], causal_db: str) -> List[str]:
     """Identify affected files and services from a diff.
-    
+
     Args:
         diff: Serialized diff information
         causal_db: Path to the causal graph database
-        
+
     Returns:
         A list of affected service names
     """
     # Extract the list of changed files
     changed_files = [file["path"] for file in diff.get("files", [])]
-    
+
     # For now, we'll return a simple mapping of file extensions to mock services
     # In a real implementation, this would use the causal graph to map files to services
     services = map_files_to_services(changed_files)
-    
+
     return list(services)
 
 
 def map_files_to_services(files: List[str]) -> Set[str]:
     """Map files to services based on file extensions and paths.
-    
+
     This is a simple implementation that will be replaced with causal graph analysis.
-    
+
     Args:
         files: List of file paths
-        
+
     Returns:
         A set of service names
     """
     services = set()
-    
+
     for file in files:
         # Extract file extension
         _, ext = os.path.splitext(file)
         ext = ext.lower()
-        
+
         # Map based on file path patterns
         if "api" in file.lower() or "rest" in file.lower():
             services.add("api-service")
@@ -241,7 +241,7 @@ def map_files_to_services(files: List[str]) -> Set[str]:
             services.add("user-service")
         elif "payment" in file.lower() or "billing" in file.lower():
             services.add("payment-service")
-        
+
         # Map based on file extensions
         if ext in [".py", ".ipynb"]:
             services.add("python-service")
@@ -263,11 +263,11 @@ def map_files_to_services(files: List[str]) -> Set[str]:
             services.add("config-service")
         elif ext in [".md", ".txt", ".rst"]:
             services.add("docs-service")
-    
+
     # If no specific service was identified, use a generic service
     if not services:
         services.add("unknown-service")
-    
+
     return services
 
 

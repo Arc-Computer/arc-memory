@@ -28,7 +28,7 @@ logger = get_logger(__name__)
 @app.callback(invoke_without_command=True)
 def callback(
     ctx: typer.Context,
-    range: str = typer.Option(
+    rev_range: str = typer.Option(
         "HEAD~1..HEAD", help="Git rev-range to analyze"
     ),
     diff: Optional[Path] = typer.Option(
@@ -63,7 +63,7 @@ def callback(
 
     Examples:
         arc sim
-        arc sim --range HEAD~3..HEAD
+        arc sim --rev-range HEAD~3..HEAD
         arc sim --scenario cpu_stress --severity 75
         arc sim --output ./simulation-results.json
         arc sim --verbose --open-ui
@@ -76,7 +76,7 @@ def callback(
 
     # Track command usage
     args = {
-        "range": range,
+        "rev_range": rev_range,
         "scenario": scenario,
         "severity": severity,
         "timeout": timeout,
@@ -88,7 +88,7 @@ def callback(
 
     # Call the main simulation function
     run_simulation(
-        range=range,
+        rev_range=rev_range,
         diff_path=diff,
         scenario=scenario,
         severity=severity,
@@ -101,7 +101,7 @@ def callback(
 
 
 def run_simulation(
-    range: str,
+    rev_range: str,
     diff_path: Optional[Path] = None,
     scenario: str = "network_latency",
     severity: int = 50,
@@ -114,7 +114,7 @@ def run_simulation(
     """Run a simulation to predict the impact of code changes.
 
     Args:
-        range: Git rev-range to analyze
+        rev_range: Git rev-range to analyze
         diff_path: Path to pre-serialized diff JSON
         scenario: Fault scenario ID
         severity: CI fail threshold 0-100
@@ -139,9 +139,9 @@ def run_simulation(
                 console.print(f"[red]Error loading diff file: {e}[/red]")
                 sys.exit(3)  # Invalid Input
         else:
-            logger.info(f"Extracting diff for range: {range}")
+            logger.info(f"Extracting diff for range: {rev_range}")
             try:
-                diff_data = serialize_diff(range)
+                diff_data = serialize_diff(rev_range)
             except GitError as e:
                 console.print(f"[red]Git error: {e}[/red]")
                 sys.exit(3)  # Invalid Input
@@ -167,7 +167,7 @@ def run_simulation(
 
         # Create a simple result for now
         result = {
-            "sim_id": f"sim_{range.replace('..', '_').replace('/', '_')}",
+            "sim_id": f"sim_{rev_range.replace('..', '_').replace('/', '_')}",
             "risk_score": 25,  # Placeholder score
             "services": affected_services,
             "metrics": {
