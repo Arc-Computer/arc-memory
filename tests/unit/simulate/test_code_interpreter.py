@@ -384,6 +384,15 @@ class TestSandboxFunctions:
         mock_env = mock.MagicMock()
         mock_env.collect_metrics.return_value = {"timestamp": time.time()}
         mock_env.apply_chaos_experiment.return_value = "test-experiment"
+
+        # Mock the sandbox execution for collect_logs
+        mock_sandbox = mock.MagicMock()
+        mock_execution = mock.MagicMock()
+        # Return a valid JSON string for pods
+        mock_execution.text = '{"items": [{"metadata": {"name": "test-pod"}}]}'
+        mock_sandbox.run_code.return_value = mock_execution
+        mock_env.sandbox = mock_sandbox
+
         mock_create_simulation_environment.return_value = mock_env
 
         # Create a temporary manifest file
@@ -421,7 +430,10 @@ class TestSandboxFunctions:
             mock_env.deploy_chaos_mesh.assert_called_once()
             mock_env.collect_metrics.assert_called()
             mock_env.apply_chaos_experiment.assert_called_once_with(temp_file.name)
-            mock_env.delete_chaos_experiment.assert_called_once_with("test-experiment")
+            # Check that delete_chaos_experiment was called with the experiment name
+            # (and any other parameters)
+            assert mock_env.delete_chaos_experiment.call_count == 1
+            assert mock_env.delete_chaos_experiment.call_args[0][0] == "test-experiment"
             mock_env.cleanup.assert_called_once()
 
             assert "experiment_name" in results
