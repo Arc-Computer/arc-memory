@@ -32,6 +32,11 @@ from arc_memory.attestation.write_attest import (
     generate_and_save_attestation
 )
 from arc_memory.sql.db import ensure_arc_dir
+from arc_memory.memory.integration import (
+    store_simulation_in_memory,
+    retrieve_relevant_simulations,
+    enhance_explanation_with_memory
+)
 
 logger = get_logger(__name__)
 
@@ -45,6 +50,7 @@ class SimulationState(TypedDict):
     timeout: int
     repo_path: str
     db_path: str
+    use_memory: bool  # Whether to use memory integration
 
     # Intermediate state
     diff_data: Optional[Dict[str, Any]]
@@ -60,6 +66,10 @@ class SimulationState(TypedDict):
 
     # Context retrieval state
     context_documents: Optional[List[Document]]
+
+    # Memory integration state
+    relevant_simulations: Optional[List[Dict[str, Any]]]  # Similar past simulations
+    simulation_node: Optional[Dict[str, Any]]  # Stored simulation node
 
     # Output state
     explanation: Optional[str]
@@ -655,8 +665,26 @@ Based on this information, provide a concise explanation (3-5 paragraphs) of the
         chain = prompt | llm
         explanation = chain.invoke({}).content
 
-        # Update the state
+        # Update the state with the initial explanation
         state["explanation"] = explanation
+
+        # Enhance the explanation with historical context if memory integration is enabled
+        if state.get("use_memory", False) and state.get("relevant_simulations"):
+            logger.info("Enhancing explanation with historical context")
+            try:
+                enhanced_explanation = enhance_explanation_with_memory(
+                    db_path=state["db_path"],
+                    explanation=explanation,
+                    affected_services=state.get("affected_services", []),
+                    scenario=state["scenario"],
+                    severity=state["severity"],
+                    risk_score=state.get("risk_score", 0)
+                )
+                state["explanation"] = enhanced_explanation
+                logger.info("Successfully enhanced explanation with historical context")
+            except Exception as e:
+                logger.error(f"Error enhancing explanation with memory: {e}")
+                # Keep the original explanation if enhancement fails
 
         logger.info("Successfully generated explanation")
         return state
@@ -753,6 +781,108 @@ def generate_attestation(state: SimulationState) -> SimulationState:
         return state
 
 
+def retrieve_memory(state: SimulationState) -> SimulationState:
+    """Retrieve relevant past simulations from memory.
+
+    Args:
+        state: The current workflow state
+
+    Returns:
+        Updated workflow state with relevant simulations
+    """
+    logger.info("Retrieving relevant simulations from memory")
+
+    # Skip if memory integration is disabled
+    if not state.get("use_memory", False):
+        logger.info("Memory integration is disabled, skipping retrieval")
+        return state
+
+    try:
+        # Check if we have the necessary data
+        if not state.get("affected_services"):
+            logger.warning("No affected services identified, skipping memory retrieval")
+            return state
+
+        # Retrieve relevant simulations
+        relevant_sims = retrieve_relevant_simulations(
+            db_path=state["db_path"],
+            affected_services=state["affected_services"],
+            scenario=state["scenario"],
+            severity=state["severity"],
+            limit=5  # Retrieve up to 5 similar simulations
+        )
+
+        # Update the state
+        state["relevant_simulations"] = relevant_sims
+
+        logger.info(f"Retrieved {len(relevant_sims)} relevant simulations from memory")
+        return state
+    except Exception as e:
+        logger.error(f"Error retrieving from memory: {e}")
+        # Don't fail the workflow if memory retrieval fails
+        state["relevant_simulations"] = []
+        return state
+
+
+def store_in_memory(state: SimulationState) -> SimulationState:
+    """Store simulation results in memory.
+
+    Args:
+        state: The current workflow state
+
+    Returns:
+        Updated workflow state
+    """
+    logger.info("Storing simulation results in memory")
+
+    # Skip if memory integration is disabled
+    if not state.get("use_memory", False):
+        logger.info("Memory integration is disabled, skipping storage")
+        return state
+
+    try:
+        # Check if we have the necessary data
+        if not state.get("attestation"):
+            logger.warning("No attestation available, skipping memory storage")
+            return state
+
+        if not state.get("metrics"):
+            logger.warning("No metrics available, skipping memory storage")
+            return state
+
+        if not state.get("affected_services"):
+            logger.warning("No affected services identified, skipping memory storage")
+            return state
+
+        # Store the simulation in memory
+        sim_node = store_simulation_in_memory(
+            db_path=state["db_path"],
+            attestation=state["attestation"],
+            metrics=state["metrics"],
+            affected_services=state["affected_services"],
+            diff_data=state.get("diff_data")
+        )
+
+        # Update the state
+        if sim_node:
+            state["simulation_node"] = {
+                "id": sim_node.id,
+                "sim_id": sim_node.sim_id,
+                "risk_score": sim_node.risk_score,
+                "scenario": sim_node.scenario,
+                "severity": sim_node.severity,
+            }
+            logger.info(f"Successfully stored simulation in memory: {sim_node.sim_id}")
+        else:
+            logger.warning("Failed to store simulation in memory")
+
+        return state
+    except Exception as e:
+        logger.error(f"Error storing in memory: {e}")
+        # Don't fail the workflow if memory storage fails
+        return state
+
+
 def should_continue(state: SimulationState) -> Literal["continue", "end"]:
     """Determine if the workflow should continue or end.
 
@@ -783,8 +913,10 @@ def create_workflow() -> StateGraph:
     workflow.add_node("generate_manifest", generate_manifest)
     workflow.add_node("run_simulation", run_simulation)
     workflow.add_node("create_embeddings", create_embeddings_from_diff)
+    workflow.add_node("retrieve_memory", retrieve_memory)  # New node for memory retrieval
     workflow.add_node("generate_explanation", generate_explanation)
     workflow.add_node("generate_attestation", generate_attestation)
+    workflow.add_node("store_in_memory", store_in_memory)  # New node for memory storage
 
     # Define the edges
     workflow.add_edge("extract_diff", "analyze_changes")
@@ -792,8 +924,13 @@ def create_workflow() -> StateGraph:
     workflow.add_edge("build_causal_graph", "generate_manifest")
     workflow.add_edge("generate_manifest", "run_simulation")
     workflow.add_edge("run_simulation", "create_embeddings")
+
+    # Add memory integration edges
+    workflow.add_edge("analyze_changes", "retrieve_memory")  # Retrieve after identifying affected services
+    workflow.add_edge("retrieve_memory", "create_embeddings")  # Continue with embeddings after retrieval
     workflow.add_edge("create_embeddings", "generate_explanation")
     workflow.add_edge("generate_explanation", "generate_attestation")
+    workflow.add_edge("generate_attestation", "store_in_memory")  # Store after generating attestation
 
     # Set the entry point
     workflow.set_entry_point("extract_diff")
@@ -810,6 +947,15 @@ def create_workflow() -> StateGraph:
 
     workflow.add_conditional_edges(
         "analyze_changes",
+        should_continue,
+        {
+            "continue": "retrieve_memory" if True else "build_causal_graph",  # Always go through memory retrieval
+            "end": END
+        }
+    )
+
+    workflow.add_conditional_edges(
+        "retrieve_memory",
         should_continue,
         {
             "continue": "build_causal_graph",
@@ -853,6 +999,19 @@ def create_workflow() -> StateGraph:
         }
     )
 
+    # Add conditional edge for store_in_memory
+    workflow.add_conditional_edges(
+        "generate_attestation",
+        should_continue,
+        {
+            "continue": "store_in_memory",
+            "end": END
+        }
+    )
+
+    # Set the end node for store_in_memory
+    workflow.add_edge("store_in_memory", END)
+
     # Compile the workflow
     return workflow.compile()
 
@@ -864,7 +1023,8 @@ def run_sim(
     timeout: int = 600,
     repo_path: Optional[str] = None,
     db_path: Optional[str] = None,
-    diff_data: Optional[Dict[str, Any]] = None
+    diff_data: Optional[Dict[str, Any]] = None,
+    use_memory: bool = False
 ) -> Dict[str, Any]:
     """Run a simulation workflow.
 
@@ -876,6 +1036,7 @@ def run_sim(
         repo_path: Path to the Git repository (default: current directory)
         db_path: Path to the knowledge graph database (default: .arc/graph.db)
         diff_data: Pre-loaded diff data (optional)
+        use_memory: Whether to use memory integration (default: False)
 
     Returns:
         The simulation results
@@ -898,6 +1059,7 @@ def run_sim(
         "timeout": timeout,
         "repo_path": repo_path,
         "db_path": db_path,
+        "use_memory": use_memory,  # Whether to use memory integration
         "diff_data": diff_data,  # Use pre-loaded diff data if provided
         "affected_services": None,
         "causal_graph": None,
@@ -909,6 +1071,8 @@ def run_sim(
         "risk_factors": None,
         "risk_score": None,
         "context_documents": None,
+        "relevant_simulations": None,  # Similar past simulations
+        "simulation_node": None,  # Stored simulation node
         "explanation": None,
         "attestation": None,
         "error": None,
@@ -932,7 +1096,7 @@ def run_sim(
             }
 
         # Return the results
-        return {
+        result = {
             "status": "completed",
             "attestation": final_state.get("attestation"),
             "explanation": final_state.get("explanation"),
@@ -941,6 +1105,17 @@ def run_sim(
             "affected_services": final_state.get("affected_services"),
             "rev_range": rev_range
         }
+
+        # Include memory-related information if memory integration was used
+        if final_state.get("use_memory", False):
+            memory_info = {
+                "memory_used": True,
+                "similar_simulations_count": len(final_state.get("relevant_simulations", [])),
+                "simulation_stored": final_state.get("simulation_node") is not None
+            }
+            result["memory"] = memory_info
+
+        return result
     except Exception as e:
         logger.exception(f"Error running simulation workflow: {e}")
         return {
