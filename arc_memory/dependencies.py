@@ -23,6 +23,10 @@ OPTIONAL_DEPENDENCIES = {
     "cli": ["typer", "rich", "tqdm"],
     "git": ["gitpython"],
     "adr": ["pyyaml", "markdown_it_py"],
+    # Note: Package names use underscores here but hyphens in pyproject.toml
+    # e.g., 'e2b_code_interpreter' here corresponds to 'e2b-code-interpreter' in pyproject.toml
+    # This is because Python imports use underscores while package names often use hyphens
+    "sim": ["e2b_code_interpreter", "langgraph", "kubernetes_asyncio"],
 }
 
 

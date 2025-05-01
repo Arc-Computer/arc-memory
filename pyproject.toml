@@ -96,6 +96,13 @@ telemetry = [
     "posthog>=3.0.1",  # Analytics and telemetry
 ]
 
+# Simulation dependencies
+sim = [
+    "e2b-code-interpreter>=0.5.0",  # For sandbox environments
+    "langgraph>=0.0.15",            # For workflow orchestration
+    "kubernetes_asyncio>=32.3.2",   # For Kubernetes integration
+]
+
 [project.urls]
 "Homepage" = "https://www.arc.computer"
 "Repository" = "https://github.com/Arc-Computer/arc-memory"
