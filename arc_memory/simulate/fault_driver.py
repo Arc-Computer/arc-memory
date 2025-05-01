@@ -343,10 +343,27 @@ class FaultDriver:
         finally:
             # Clean up the experiment
             if experiment_name:
-                try:
-                    self.delete_fault(experiment_name)
-                except Exception as e:
-                    logger.error(f"Failed to clean up experiment {experiment_name}: {e}")
+                # Implement retry mechanism for cleanup
+                max_retries = 3
+                retry_delay = 2  # seconds
+
+                for retry in range(max_retries):
+                    try:
+                        logger.info(f"Cleaning up experiment {experiment_name} (attempt {retry + 1}/{max_retries})")
+                        self.delete_fault(experiment_name)
+                        logger.info(f"Successfully cleaned up experiment {experiment_name}")
+                        break
+                    except Exception as e:
+                        logger.error(f"Failed to clean up experiment {experiment_name} (attempt {retry + 1}/{max_retries}): {e}")
+                        if retry < max_retries - 1:
+                            logger.info(f"Retrying cleanup in {retry_delay} seconds...")
+                            time.sleep(retry_delay)
+                            # Increase delay for next retry (exponential backoff)
+                            retry_delay *= 2
+                        else:
+                            logger.error(f"All cleanup attempts failed for experiment {experiment_name}. Manual cleanup may be required.")
+                            # Add experiment to a list of failed cleanups for potential future handling
+                            self.active_experiments[experiment_name]['cleanup_failed'] = True
 
 
 def run_fault_injection(manifest_path: Union[str, Path],

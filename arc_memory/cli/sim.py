@@ -79,12 +79,15 @@ def run_simulation_and_extract_metrics(
             # Add actual metrics from simulation if available
             if "final_metrics" in simulation_results:
                 final_metrics = simulation_results.get("final_metrics", {})
-                # Add basic metrics
-                metrics["node_count"] = final_metrics.get("node_count", 0)
-                metrics["pod_count"] = final_metrics.get("pod_count", 0)
-                metrics["service_count"] = final_metrics.get("service_count", 0)
 
-                # Add CPU and memory metrics if available
+                # Extract basic metrics
+                basic_metrics = extract_metrics(
+                    final_metrics,
+                    ["node_count", "pod_count", "service_count"]
+                )
+                metrics.update(basic_metrics)
+
+                # Extract resource usage metrics
                 if "cpu_usage" in final_metrics:
                     metrics["cpu_usage"] = final_metrics.get("cpu_usage", {})
                 if "memory_usage" in final_metrics:
@@ -117,6 +120,20 @@ def run_simulation_and_extract_metrics(
         metrics, risk_score = get_static_analysis_metrics(severity)
 
     return metrics, risk_score
+
+
+def extract_metrics(metrics_data: Dict[str, Any], metric_keys: List[str], default_value: Any = 0) -> Dict[str, Any]:
+    """Extract specific metrics from metrics data.
+
+    Args:
+        metrics_data: The metrics data to extract from
+        metric_keys: List of metric keys to extract
+        default_value: Default value to use if a metric is not found
+
+    Returns:
+        A dictionary of extracted metrics
+    """
+    return {key: metrics_data.get(key, default_value) for key in metric_keys}
 
 
 def get_static_analysis_metrics(severity: int) -> Tuple[Dict[str, Any], int]:
