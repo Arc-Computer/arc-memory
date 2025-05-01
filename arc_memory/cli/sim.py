@@ -47,8 +47,14 @@ except ImportError:
     logger.warning("E2B Code Interpreter not found. Sandbox simulation will not be available.")
     HAS_SANDBOX = False
     run_sandbox_simulation = None
-from arc_memory.sql.db import ensure_arc_dir
+from arc_memory.sql.db import ensure_arc_dir, get_connection
 from arc_memory.telemetry import track_cli_command
+from arc_memory.memory.query import (
+    get_simulations_by_service,
+    get_simulations_by_file,
+    get_simulation_by_id,
+    get_simulation_metrics,
+)
 
 
 def run_simulation_and_extract_metrics(
@@ -216,6 +222,9 @@ def callback(
     output: Optional[Path]=typer.Option(
         None, help="Write result JSON to file (default: stdout)"
     ),
+    memory: bool=typer.Option(
+        False, "--memory/--no-memory", help="Enable memory integration to learn from past simulations"
+    ),
     open_ui: bool=typer.Option(
         False, "--open-ui/--no-ui", help="Open VS Code webview if available"
     ),
@@ -236,6 +245,7 @@ def callback(
         arc sim --rev-range HEAD~3..HEAD
         arc sim --scenario cpu_stress --severity 75
         arc sim --output ./simulation-results.json
+        arc sim --memory  # Enable memory integration to learn from past simulations
         arc sim --verbose --open-ui
     """
     configure_logging(debug=debug or is_debug_mode() or verbose)
@@ -252,6 +262,7 @@ def callback(
         "timeout": timeout,
         "verbose": verbose,
         "open_ui": open_ui,
+        "memory": memory,
         # Don't include sensitive data
     }
     track_cli_command("sim", args=args)
@@ -264,6 +275,7 @@ def callback(
         severity=severity,
         timeout=timeout,
         output_path=output,
+        memory=memory,
         open_ui=open_ui,
         verbose=verbose,
         debug=debug,
@@ -277,6 +289,7 @@ def run_simulation(
     severity: int=50,
     timeout: int=600,
     output_path: Optional[Path]=None,
+    memory: bool=False,
     open_ui: bool=False,
     verbose: bool=False,
     debug: bool=False,
@@ -290,6 +303,7 @@ def run_simulation(
         severity: CI fail threshold 0-100
         timeout: Max runtime in seconds
         output_path: Path to write result JSON
+        memory: Whether to enable memory integration to learn from past simulations
         open_ui: Whether to open VS Code webview
         verbose: Whether to enable verbose output
         debug: Whether to enable debug logging
@@ -323,7 +337,8 @@ def run_simulation(
                 timeout=timeout,
                 repo_path=os.getcwd(),
                 db_path=str(db_path),
-                diff_data=diff_data  # Pass the pre-loaded diff data if available
+                diff_data=diff_data,  # Pass the pre-loaded diff data if available
+                use_memory=memory  # Enable/disable memory integration
             )
 
             # Check if the workflow completed successfully
@@ -483,3 +498,137 @@ def list_scenarios() -> None:
     console.print("[bold]Available Fault Scenarios:[/bold]")
     for scenario in scenarios:
         console.print(f"  • {scenario['id']} - {scenario['description']}")
+
+
+@app.command()
+def history(
+    service: Optional[str] = typer.Option(None, help="Filter by service"),
+    file: Optional[str] = typer.Option(None, help="Filter by file"),
+    limit: int = typer.Option(10, help="Maximum number of results"),
+    output: Optional[Path] = typer.Option(None, help="Write result JSON to file"),
+):
+    """View past simulation results.
+
+    This command retrieves and displays past simulation results from the memory,
+    allowing you to see the history of simulations and their outcomes.
+
+    Examples:
+        arc sim history
+        arc sim history --service api-service
+        arc sim history --file src/api.py
+        arc sim history --limit 5
+        arc sim history --output ./simulation-history.json
+    """
+    # Track command usage
+    args = {
+        "service": service,
+        "file": file,
+        "limit": limit,
+    }
+    track_cli_command("sim history", args=args)
+
+    try:
+        # Get the database path
+        arc_dir = ensure_arc_dir()
+        db_path = arc_dir / "graph.db"
+
+        # Connect to the database
+        conn = get_connection(str(db_path))
+
+        # Get simulations based on filters
+        simulations = []
+        if service:
+            console.print(f"[bold]Retrieving simulations for service:[/bold] {service}")
+            simulations = get_simulations_by_service(conn, service, limit=limit)
+        elif file:
+            console.print(f"[bold]Retrieving simulations for file:[/bold] {file}")
+            simulations = get_simulations_by_file(conn, file, limit=limit)
+        else:
+            # Get all simulations (limited)
+            console.print(f"[bold]Retrieving recent simulations[/bold] (limit: {limit})")
+            # Execute a query to get all simulation nodes, ordered by timestamp
+            cursor = conn.execute(
+                """
+                SELECT id, type, title, body, extra
+                FROM nodes
+                WHERE type = 'simulation'
+                ORDER BY json_extract(extra, '$.ts') DESC
+                LIMIT ?
+                """,
+                (limit,)
+            )
+
+            # Convert to SimulationNode objects
+            for row in cursor:
+                node_data = {
+                    "id": row[0],
+                    "type": row[1],
+                    "title": row[2],
+                    "body": row[3],
+                    "extra": json.loads(row[4]) if row[4] else {},
+                }
+
+                # Create a SimulationNode
+                from arc_memory.memory.query import _node_to_simulation
+                sim_node = _node_to_simulation(node_data)
+                if sim_node:
+                    simulations.append(sim_node)
+
+        # Check if we found any simulations
+        if not simulations:
+            console.print("[yellow]No simulations found matching the criteria[/yellow]")
+            return
+
+        # Create a table to display the simulations
+        table = Table(title="Simulation History")
+        table.add_column("ID", style="cyan")
+        table.add_column("Date", style="green")
+        table.add_column("Scenario", style="blue")
+        table.add_column("Risk Score", style="red")
+        table.add_column("Services", style="magenta")
+
+        # Prepare the results for output
+        results = []
+        for sim in simulations:
+            # Format the timestamp
+            timestamp = sim.ts.strftime("%Y-%m-%d %H:%M") if sim.ts else "Unknown"
+
+            # Format the services
+            services = ", ".join(sim.affected_services[:3])
+            if len(sim.affected_services) > 3:
+                services += f" +{len(sim.affected_services) - 3} more"
+
+            # Add to the table
+            table.add_row(
+                sim.sim_id,
+                timestamp,
+                sim.scenario,
+                str(sim.risk_score),
+                services
+            )
+
+            # Add to the results
+            results.append({
+                "sim_id": sim.sim_id,
+                "timestamp": sim.ts.isoformat() if sim.ts else None,
+                "scenario": sim.scenario,
+                "severity": sim.severity,
+                "risk_score": sim.risk_score,
+                "affected_services": sim.affected_services,
+                "rev_range": sim.rev_range,
+                "explanation": sim.body,
+            })
+
+        # Display the table
+        console.print(table)
+
+        # Write to output file if specified
+        if output:
+            with open(output, 'w') as f:
+                json.dump(results, f, indent=2)
+            console.print(f"[green]Results written to: {output}[/green]")
+
+    except Exception as e:
+        logger.exception("Error retrieving simulation history")
+        console.print(f"[red]Error: {e}[/red]")
+        sys.exit(2)  # Error

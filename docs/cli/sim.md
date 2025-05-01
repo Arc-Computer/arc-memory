@@ -30,6 +30,7 @@ arc sim [OPTIONS]
 - `--severity INT` - CI fail threshold 0-100 (default: 50)
 - `--timeout INT` - Max runtime in seconds (default: 600)
 - `--output PATH` - Write result JSON to file (default: stdout)
+- `--memory / --no-memory` - Enable memory integration to learn from past simulations (default: no-memory)
 - `--open-ui / --no-ui` - Open VS Code webview if available (default: no-ui)
 - `-v, --verbose` - Enable verbose output
 - `--debug` - Enable debug logging
@@ -42,6 +43,40 @@ List available fault scenarios.
 
 ```bash
 arc sim list-scenarios
+```
+
+### `history`
+
+View past simulation results.
+
+```bash
+arc sim history [OPTIONS]
+```
+
+#### Options
+
+- `--service TEXT` - Filter by service
+- `--file TEXT` - Filter by file
+- `--limit INT` - Maximum number of results (default: 10)
+- `--output PATH` - Write result JSON to file
+
+#### Examples
+
+```bash
+# View all recent simulations
+arc sim history
+
+# View simulations for a specific service
+arc sim history --service api-service
+
+# View simulations for a specific file
+arc sim history --file src/api.py
+
+# Limit the number of results
+arc sim history --limit 5
+
+# Save results to a file
+arc sim history --output ./simulation-history.json
 ```
 
 ## Exit Codes
@@ -85,6 +120,14 @@ arc sim --output ./simulation-results.json
 
 This will save the simulation results to a file instead of printing them to stdout.
 
+### Enable Memory Integration
+
+```bash
+arc sim --memory
+```
+
+This will enable memory integration, allowing the simulation to learn from past simulations and provide more accurate predictions.
+
 ### Enable Verbose Output
 
 ```bash
@@ -121,7 +164,12 @@ The command outputs a JSON object with the following structure:
   "manifest_hash": "string",
   "commit_target": "string",
   "timestamp": "ISO-8601 timestamp",
-  "diff_hash": "string"
+  "diff_hash": "string",
+  "memory": {
+    "memory_used": true,
+    "similar_simulations_count": 2,
+    "simulation_stored": true
+  }
 }
 ```
 
@@ -136,6 +184,10 @@ The command outputs a JSON object with the following structure:
 - `commit_target`: The target commit SHA
 - `timestamp`: The time the simulation was run
 - `diff_hash`: A hash of the diff that was analyzed
+- `memory`: Memory integration information (only present if `--memory` flag is used)
+  - `memory_used`: Whether memory integration was used
+  - `similar_simulations_count`: Number of similar simulations found
+  - `simulation_stored`: Whether the simulation was stored in memory
 
 ## Environment Variables
 
@@ -181,6 +233,10 @@ A risk score is calculated based on the collected metrics, the severity of the f
 ### 8. Explanation and Attestation
 
 An explanation is generated to help you understand the simulation results. An attestation is also generated to provide a cryptographically verifiable record of the simulation.
+
+### 9. Memory Integration (Optional)
+
+When the `--memory` flag is enabled, the simulation results are stored in the knowledge graph, creating a reinforcing flywheel where simulation results feed back into the knowledge graph, making future simulations more accurate and providing richer context for decision-making. The system also retrieves relevant past simulations to enhance the explanation with historical context.
 
 ## Integration with CI/CD
 
