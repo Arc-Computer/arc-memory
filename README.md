@@ -1,4 +1,4 @@
-# Arc Memory CLI
+# Arc: The What-If Engine for Software
 
 <p align="center">
   <img src="public/arc_logo.png" alt="Arc Logo" width="200"/>
@@ -13,15 +13,32 @@
   <a href="https://docs.arc.computer"><img src="https://img.shields.io/badge/docs-mintlify-teal" alt="Documentation"/></a>
 </p>
 
-At Arc, we're building the foundational memory layer for modern software engineering. Our mission is simple but powerful: ensure engineering teams never lose the critical "why" behind their code. We bridge the gap between human decisions and machine understanding, becoming the temporal source-of-truth for every engineering team and their AI agents.
+*Arc is the local-first "what-if" engine for software: it captures the **why** behind every line of code, then simulates how new changes will ripple through your system **before** you hit Merge.*
 
-## Overview
+## What Arc Actually Does
 
-Arc Memory is a comprehensive CLI tool that embeds a local, bi-temporal knowledge graph (TKG) in every developer's workspace. It surfaces verifiable decision trails during code-review and exposes the same provenance to any LLM-powered agent through VS Code's Agent Mode.
+1. **Record the why.**
+   Arc's Temporal Knowledge Graph ingests commits, PRs, issues, and ADRs to preserve architectural intent and decision history—entirely on your machine.
 
-## Arc Memory Ecosystem
+2. **Model the system.**
+   From that history Arc derives a **causal graph** of services, data flows, and constraints—a lightweight world-model that stays in sync with the codebase.
 
-The Arc Memory CLI is part of a broader ecosystem that connects your team's collective history to AI assistants:
+3. **Predict the blast-radius.**
+   A one-line CLI (`arc sim`) spins up an isolated sandbox, injects targeted chaos (network latency, CPU stress, etc.), and returns a risk score plus human-readable explanation for the current diff.
+
+4. **Prove it.**
+   Every simulation writes a signed attestation that links input code, fault manifest, and metrics—auditable evidence that the change was tested under realistic failure modes.
+
+## Why It Matters
+
+* **Catch outages before they exist.** Shift chaos left from staging to the developer's laptop; trim MTTR and stop bad PRs at the gate.
+* **Trust AI suggestions.** Arc doesn't just comment on code—it *proves* why a suggestion is safe (or isn't) with sandbox data and a verifiable chain of custody.
+* **Local-first, privacy-first.** All graphs and simulations run inside a disposable E2B sandbox; no proprietary code leaves your environment.
+* **Built to extend.** The same graph and attestation layer will power live-telemetry world-models and multi-agent change control as teams grow.
+
+**Arc = memory + simulation + proof—your safety net for the era of autonomous code.**
+
+## Arc Ecosystem
 
 <div align="center">
   <img src="public/arc-vision-diagram.png" alt="Arc Memory Ecosystem Diagram" width="1200"/>
@@ -29,29 +46,44 @@ The Arc Memory CLI is part of a broader ecosystem that connects your team's coll
 
 ### How It Works
 
-- **Data Sources** (G-Suite, Slack, Notion, GitHub, Jira) seamlessly feed into the **Arc Memory CLI**, which captures organizational decisions in a local-first Temporal Knowledge Graph (TKG).
+- **Data Sources** (GitHub, Git, ADRs) feed into the **Arc CLI**, which builds a local-first Temporal Knowledge Graph capturing the why behind your code.
 
-- The **Arc MCP Server** provides persistent, cross-repository decision context, enabling memory-aware multi-step reasoning for integrated tooling.
+- The **Simulation Engine** uses this graph to predict the impact of changes, running fault injection experiments in isolated sandboxes.
 
-- Through the **VS Code Extension**, developers interact directly with decision trails embedded into code reviews, and leverage verifiable citations and team-wide search across organizational decisions.
+- The **Arc MCP Server** provides your knowledge graph to AI assistants, enabling them to understand your codebase's history and architecture.
 
-Together, these components form the foundation for **organizational intelligence**, empowering sophisticated reasoning and enabling AI agents to build robust world models from your team's collective history.
+- Through the **VS Code Extension**, you interact with decision trails and simulation results directly in your development environment.
 
-## Arc Memory Features
+## Getting Started
 
-- **Comprehensive Knowledge Graph** - Build a local graph from Git commits, GitHub PRs, issues, and ADRs
-- **Decision Trail Visualization** - Understand the "why" behind code with `arc why` command
-- **Relationship Exploration** - Discover connections between entities with `arc relate` command
-- **High Performance** - Queries complete in under 200ms (typically ~100μs)
-- **Incremental Builds** - Efficiently update the graph with only new data
-- **MCP Integration** - Connect to AI assistants via Anthropic's Model Context Protocol
-- **Privacy-First** - All data stays on your machine; no code or IP leaves your repo
-- **Extensible Plugin Architecture** - Easily add new data sources beyond Git, GitHub, and ADRs
-- **CI Integration** - Team-wide graph updates through CI workflows
+### Prerequisites
 
-## Installation
+Before you begin, ensure you have:
 
-Arc Memory requires Python 3.10 or higher and is compatible with Python 3.10, 3.11, and 3.12.
+- Python 3.10 or higher
+- Git repository with commit history
+- E2B API key (for simulation features)
+- OpenAI API key (for explanation generation)
+
+Note: GitHub authentication is built into the CLI with the `arc auth gh` command. You don't need to provide your own GitHub token unless you're contributing to this project.
+
+### Environment Setup
+
+Arc uses the following environment variables:
+
+```bash
+# Create a .env file in your repository root
+E2B_API_KEY=your_e2b_api_key           # Required for simulations
+OPENAI_API_KEY=your_openai_api_key     # Required for explanations
+```
+
+You can obtain these keys from:
+- E2B API key: [e2b.dev](https://e2b.dev)
+- OpenAI API key: [platform.openai.com](https://platform.openai.com)
+
+### Installation
+
+Arc requires Python 3.10 or higher and is compatible with Python 3.10, 3.11, and 3.12.
 
 ```bash
 pip install arc-memory
@@ -63,34 +95,179 @@ Or using UV:
 uv pip install arc-memory
 ```
 
-## Quick Start
+### Quick Start Workflow
+
+1. **Authenticate with GitHub**
+
+   ```bash
+   arc auth gh
+   ```
+
+   This will guide you through authenticating with GitHub. You'll see a success message when complete.
+
+2. **Build your knowledge graph**
+
+   ```bash
+   arc build
+   ```
+
+   This will analyze your repository and build a local knowledge graph. You'll see progress indicators and a summary of ingested entities when complete.
+
+3. **Understand the why behind your code**
+
+   ```bash
+   arc why file path/to/file.py 42
+   ```
+
+   This will show you the decision trail for line 42 in file.py, including related commits, PRs, and issues that explain why this code exists.
+
+4. **Simulate the impact of your changes**
+
+   ```bash
+   arc sim
+   ```
+
+   This will analyze your latest commit, run a simulation in an isolated sandbox, and output a risk assessment with metrics and explanation.
+
+5. **Serve your knowledge graph to LLMs**
+
+   ```bash
+   arc serve start
+   ```
+
+   This will start the MCP server, allowing AI assistants to access your knowledge graph. You'll see a URL that you can use to connect your LLM.
+
+## Core Features
+
+### Simulation (`arc sim`)
+
+Predict the impact of code changes before merging:
 
 ```bash
-# Authenticate with GitHub
-arc auth gh
+# Run a simulation on your latest commit
+arc sim
 
-# Build the full knowledge graph
-arc build
+# Analyze specific commits
+arc sim --rev-range HEAD~3..HEAD
 
-# Or update incrementally
-arc build --incremental
+# Use a different fault scenario
+arc sim --scenario cpu_stress --severity 75
+```
 
-# Check the graph status
-arc doctor
+[Learn more about simulation →](./docs/cli/sim.md)
 
+### Decision Trails (`arc why`)
+
+Understand the reasoning behind code:
+
+```bash
 # Show decision trail for a specific file and line
 arc why file path/to/file.py 42
 
-# Show related nodes for a specific entity
-arc relate node commit:abc123
+# Show decision trail for a specific commit
+arc why commit abc123
+```
 
-# Serve the knowledge graph via MCP
+[Learn more about decision trails →](./docs/cli/why.md)
+
+### Knowledge Graph (`arc build`)
+
+Build a comprehensive temporal knowledge graph:
+
+```bash
+# Build the full knowledge graph
+arc build
+
+# Update incrementally
+arc build --incremental
+```
+
+[Learn more about building graphs →](./docs/cli/build.md)
+
+### LLM Integration (`arc serve`)
+
+Connect your knowledge graph to AI assistants:
+
+```bash
+# Start the MCP server
 arc serve start
 ```
 
+[Learn more about LLM integration →](./docs/cli/serve.md)
+
+### Example Scenario: Assessing a Code Change
+
+Let's walk through a complete example of using Arc to assess a code change:
+
+1. After making changes to your API service:
+   ```bash
+   git add api/routes.py
+   git commit -m "Add rate limiting to /users endpoint"
+   ```
+
+2. Run a simulation to assess the impact:
+   ```bash
+   arc sim
+   ```
+
+   Output:
+   ```json
+   {
+     "sim_id": "sim_HEAD_1_HEAD",
+     "risk_score": 35,
+     "services": ["api-service", "auth-service"],
+     "metrics": { "latency_ms": 250, "error_rate": 0.02 },
+     "explanation": "The rate limiting changes add minimal overhead...",
+     "manifest_hash": "abc123",
+     "commit_target": "def456",
+     "timestamp": "2023-01-01T00:00:00Z"
+   }
+   ```
+
+3. Understand why this endpoint was implemented:
+   ```bash
+   arc why file api/routes.py 42
+   ```
+
+   This will show you the decision trail leading to this code, including related issues, PRs, and commits.
+
+4. If you want to share this context with AI assistants:
+   ```bash
+   arc serve start
+   ```
+
+   Now your AI assistant can access the knowledge graph and provide context-aware suggestions.
+
+### The Flywheel Effect
+
+As you use Arc in your daily workflow:
+
+1. Your knowledge graph becomes more valuable with each commit, PR, and issue
+2. Simulations become more accurate as the causal graph evolves
+3. AI assistants gain deeper context about your codebase
+4. Decision trails become richer and more insightful
+
+This creates a reinforcing flywheel where each component makes the others more powerful.
+
+## Troubleshooting
+
+Here are solutions to common issues you might encounter:
+
+- **GitHub Authentication Issues**: If you encounter GitHub authentication problems, try running `arc auth gh` again to refresh your authentication.
+
+- **Empty Knowledge Graph**: If `arc build` completes but doesn't find any entities, check that your repository has commit history and that you're in the correct directory.
+
+- **Simulation Errors**: If simulations fail, ensure you have set the required API keys in your environment or .env file.
+
+- **Performance Issues**: For large repositories, try using `arc build --incremental` for faster updates.
+
+- **Missing Dependencies**: If you see import errors, ensure you've installed Arc with all required dependencies: `pip install arc-memory[all]`.
+
+For more help, run `arc doctor` to diagnose common issues or check the [documentation](https://docs.arc.computer).
+
 ## Telemetry
 
-Arc Memory includes optional, privacy-respecting telemetry to help us improve the product:
+Arc includes optional, privacy-respecting telemetry to help us improve the product:
 
 - **Anonymous**: No personally identifiable information is collected
 - **Opt-in**: Disabled by default, enable with `arc config telemetry on`
@@ -104,20 +281,19 @@ To disable telemetry: `arc config telemetry off`
 
 ### CLI Commands
 
-#### Building & Setup
-- [Authentication](./docs/cli/auth.md) - GitHub authentication commands (`arc auth`)
-- [Build](./docs/cli/build.md) - Building the knowledge graph (`arc build`)
-- [Doctor](./docs/cli/doctor.md) - Checking graph status and diagnostics (`arc doctor`)
-
-#### Querying & Exploration
+#### Core Workflow
+- [Simulation](./docs/cli/sim.md) - Predict the impact of changes (`arc sim`)
 - [Why](./docs/cli/why.md) - Show decision trail for a file line (`arc why`)
-- [Relate](./docs/cli/relate.md) - Show related nodes for an entity (`arc relate`)
-- [Trace](./docs/cli/trace.md) - Legacy tracing history for files and lines (`arc trace`)
-
-#### Integration & Serving
+- [Build](./docs/cli/build.md) - Building the knowledge graph (`arc build`)
 - [Serve](./docs/cli/serve.md) - Serve the knowledge graph via MCP (`arc serve`)
 
+#### Additional Commands
+- [Authentication](./docs/cli/auth.md) - GitHub authentication commands (`arc auth`)
+- [Doctor](./docs/cli/doctor.md) - Checking graph status and diagnostics (`arc doctor`)
+- [Relate](./docs/cli/relate.md) - Show related nodes for an entity (`arc relate`)
+
 ### Usage Examples
+- [Simulation Examples](./docs/examples/simulation.md) - Examples of running simulations
 - [Building Graphs](./docs/examples/building-graphs.md) - Examples of building knowledge graphs
 - [Tracing History](./docs/examples/tracing-history.md) - Examples of tracing history
 - [Custom Plugins](./docs/examples/custom-plugins.md) - Creating custom data source plugins
@@ -132,29 +308,25 @@ For additional documentation, visit [arc.computer](https://www.arc.computer).
 
 ## Architecture
 
-Arc Memory consists of three components:
+Arc consists of three main components:
 
-1. **arc-memory** (this CLI) - Command-line interface and underlying SDK for graph building and querying
-   - **CLI Commands** - User-friendly interface for building graphs and exploring history
+1. **arc-memory** (this CLI) - Command-line interface and underlying SDK for graph building, simulation, and querying
+   - **Temporal Knowledge Graph** - Captures the why behind code
+   - **Simulation Engine** - Predicts the impact of changes
+   - **Attestation System** - Provides verifiable proof of simulations
    - **Local SQLite Database** - Stores the knowledge graph with direct access for CLI commands
    - **Plugin Architecture** - Extensible system for adding new data sources
-   - **Trace History Algorithm** - BFS-based algorithm for traversing the knowledge graph
 
 2. **arc-mcp-server** - MCP server exposing the knowledge graph to AI assistants
    - Available at [github.com/Arc-Computer/arc-mcp-server](https://github.com/Arc-Computer/arc-mcp-server)
    - Implements Anthropic's Model Context Protocol (MCP) for standardized AI tool access
-   - Provides tools like `arc_trace_history`, `arc_get_entity_details`, and more
    - Can be started directly from the CLI with `arc serve start`
 
 3. **vscode-arc-hover** - VS Code extension for displaying decision trails (in development)
    - Will integrate with the MCP server to display trace history
    - Will provide hover cards with decision trails
-   - Will be available as a separate extension
 
-See our [Architecture Decision Records](./docs/adr/) for more details on design decisions, including:
-- [ADR-001: Knowledge Graph Schema](./docs/adr/001-knowledge-graph-schema.md)
-- [ADR-002: Data Model Refinements](./docs/adr/002-data-model-refinements.md)
-- [ADR-003: Plugin Architecture](./docs/adr/003-plugin-architecture.md)
+See our [Architecture Decision Records](./docs/adr/) for more details on design decisions.
 
 ## Development
 
@@ -188,71 +360,11 @@ python -m pytest
 # Run integration tests
 python -m pytest tests/integration
 
-# Run performance benchmarks
-python tests/benchmark/benchmark.py --repo-size small
+# Run simulation tests
+python -m pytest tests/unit/simulate
 ```
 
-### CLI Development
-
-The Arc Memory CLI is built using [Typer](https://typer.tiangolo.com/), a modern library for building command-line interfaces in Python. The CLI commands are organized in the `arc_memory/cli/` directory:
-
-```
-arc_memory/cli/
-├── __init__.py     # Main CLI entry point
-├── auth.py         # Authentication commands
-├── build.py        # Build commands
-├── doctor.py       # Diagnostic commands
-├── relate.py       # Relationship exploration commands
-├── serve.py        # MCP server commands
-├── trace.py        # Legacy trace commands
-└── why.py          # Decision trail commands
-```
-
-To add a new command, create a new file in the `arc_memory/cli/` directory and register it in `__init__.py`.
-
-### Creating a Plugin
-
-Arc Memory uses a plugin architecture to support additional data sources. To create a new plugin:
-
-1. Create a class that implements the `IngestorPlugin` protocol
-2. Register your plugin using entry points
-3. Package and distribute your plugin
-
-Basic example:
-
-```python
-from arc_memory.plugins import IngestorPlugin
-from arc_memory.schema.models import Node, Edge, NodeType, EdgeRel
-
-class MyCustomPlugin(IngestorPlugin):
-    def get_name(self) -> str:
-        return "my-custom-source"
-
-    def get_node_types(self) -> List[str]:
-        return ["custom_node"]
-
-    def get_edge_types(self) -> List[str]:
-        return [EdgeRel.MENTIONS]
-
-    def ingest(self, last_processed=None):
-        # Your implementation here
-        return nodes, edges, metadata
-```
-
-Register in `pyproject.toml`:
-```toml
-[project.entry-points."arc_memory.plugins"]
-my-custom-source = "my_package.my_module:MyCustomPlugin"
-```
-
-For detailed instructions and examples, see:
-- [Custom Plugins Guide](./docs/examples/custom-plugins.md) - Step-by-step guide with examples
-- [Plugin Architecture](./docs/api/plugins.md) - Technical details of the plugin system
-- [Plugins API](./docs/api/plugins.md) - API reference for plugin development
-
-### Performance
-
-Arc Memory is designed for high performance, with trace history queries completing in under 200ms (typically ~100μs). See our [performance benchmarks](./docs/performance-benchmarks.md) for more details.
+For more development information, see our [contributing guide](./CONTRIBUTING.md).
 
 ## License
 
