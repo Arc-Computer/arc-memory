@@ -231,6 +231,7 @@ def map_files_to_services(conn: sqlite3.Connection, causal_graph: CausalGraph) -
         if not file_nodes:
             cursor = conn.execute("SELECT id, title FROM nodes WHERE type = 'file'")
             file_nodes = {row[0]: row[1] for row in cursor.fetchall()}
+            logger.debug(f"Fallback to title field used. Found {len(file_nodes)} file nodes.")
 
         # Get all commit nodes
         cursor = conn.execute("SELECT id FROM nodes WHERE type = 'commit'")
