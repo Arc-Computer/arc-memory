@@ -354,9 +354,9 @@ class TestSimulationEnvironment:
 class TestSandboxFunctions:
     """Tests for the sandbox management functions."""
 
-    @mock.patch("arc_memory.simulate.code_interpreter.SimulationEnvironment")
     @mock.patch("arc_memory.simulate.code_interpreter.HAS_E2B", True)
-    def test_create_simulation_environment(self, mock_has_e2b, mock_simulation_environment_class):
+    @mock.patch("arc_memory.simulate.code_interpreter.SimulationEnvironment")
+    def test_create_simulation_environment(self, mock_simulation_environment_class):
         """Test creating a simulation environment."""
         # Setup
         mock_env = mock.MagicMock()
@@ -370,15 +370,15 @@ class TestSandboxFunctions:
         assert env == mock_env
 
     @mock.patch("arc_memory.simulate.code_interpreter.HAS_E2B", False)
-    def test_create_simulation_environment_no_e2b(self, mock_has_e2b):
+    def test_create_simulation_environment_no_e2b(self):
         """Test creating a simulation environment when E2B is not available."""
         # Execute and verify
         with pytest.raises(CodeInterpreterError):
             create_simulation_environment(api_key="test-api-key")
 
-    @mock.patch("arc_memory.simulate.code_interpreter.create_simulation_environment")
     @mock.patch("arc_memory.simulate.code_interpreter.HAS_E2B", True)
-    def test_run_simulation_success(self, mock_has_e2b, mock_create_simulation_environment):
+    @mock.patch("arc_memory.simulate.code_interpreter.create_simulation_environment")
+    def test_run_simulation_success(self, mock_create_simulation_environment):
         """Test running a simulation successfully."""
         # Setup
         mock_env = mock.MagicMock()
@@ -432,7 +432,7 @@ class TestSandboxFunctions:
             assert not results.get("is_mock", False)
 
     @mock.patch("arc_memory.simulate.code_interpreter.HAS_E2B", False)
-    def test_run_simulation_no_e2b(self, mock_has_e2b):
+    def test_run_simulation_no_e2b(self):
         """Test running a simulation when E2B is not available."""
         # Create a temporary manifest file
         manifest_content = """
@@ -470,9 +470,9 @@ class TestSandboxFunctions:
             assert "timestamp" in results
             assert results.get("is_mock", False)
 
-    @mock.patch("arc_memory.simulate.code_interpreter.create_simulation_environment")
     @mock.patch("arc_memory.simulate.code_interpreter.HAS_E2B", True)
-    def test_run_simulation_failure(self, mock_has_e2b, mock_create_simulation_environment):
+    @mock.patch("arc_memory.simulate.code_interpreter.create_simulation_environment")
+    def test_run_simulation_failure(self, mock_create_simulation_environment):
         """Test running a simulation when it fails."""
         # Setup
         mock_env = mock.MagicMock()
