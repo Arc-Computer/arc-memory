@@ -56,6 +56,32 @@
 
 ## Getting Started
 
+### Prerequisites
+
+Before you begin, ensure you have:
+
+- Python 3.10 or higher
+- Git repository with commit history
+- GitHub access token (for GitHub integration)
+- E2B API key (for simulation features)
+- OpenAI API key (for explanation generation)
+
+### Environment Setup
+
+Arc uses the following environment variables:
+
+```bash
+# Create a .env file in your repository root
+E2B_API_KEY=your_e2b_api_key           # Required for simulations
+OPENAI_API_KEY=your_openai_api_key     # Required for explanations
+GITHUB_TOKEN=your_github_token         # Required for GitHub integration
+```
+
+You can obtain these keys from:
+- E2B API key: [e2b.dev](https://e2b.dev)
+- OpenAI API key: [platform.openai.com](https://platform.openai.com)
+- GitHub token: [github.com/settings/tokens](https://github.com/settings/tokens)
+
 ### Installation
 
 Arc requires Python 3.10 or higher and is compatible with Python 3.10, 3.11, and 3.12.
@@ -78,11 +104,15 @@ uv pip install arc-memory
    arc auth gh
    ```
 
+   This will guide you through authenticating with GitHub. You'll see a success message when complete.
+
 2. **Build your knowledge graph**
 
    ```bash
    arc build
    ```
+
+   This will analyze your repository and build a local knowledge graph. You'll see progress indicators and a summary of ingested entities when complete.
 
 3. **Understand the why behind your code**
 
@@ -90,17 +120,23 @@ uv pip install arc-memory
    arc why file path/to/file.py 42
    ```
 
+   This will show you the decision trail for line 42 in file.py, including related commits, PRs, and issues that explain why this code exists.
+
 4. **Simulate the impact of your changes**
 
    ```bash
    arc sim
    ```
 
+   This will analyze your latest commit, run a simulation in an isolated sandbox, and output a risk assessment with metrics and explanation.
+
 5. **Serve your knowledge graph to LLMs**
 
    ```bash
    arc serve start
    ```
+
+   This will start the MCP server, allowing AI assistants to access your knowledge graph. You'll see a URL that you can use to connect your LLM.
 
 ## Core Features
 
@@ -160,6 +196,49 @@ arc serve start
 
 [Learn more about LLM integration →](./docs/cli/serve.md)
 
+### Example Scenario: Assessing a Code Change
+
+Let's walk through a complete example of using Arc to assess a code change:
+
+1. After making changes to your API service:
+   ```bash
+   git add api/routes.py
+   git commit -m "Add rate limiting to /users endpoint"
+   ```
+
+2. Run a simulation to assess the impact:
+   ```bash
+   arc sim
+   ```
+
+   Output:
+   ```json
+   {
+     "sim_id": "sim_HEAD_1_HEAD",
+     "risk_score": 35,
+     "services": ["api-service", "auth-service"],
+     "metrics": { "latency_ms": 250, "error_rate": 0.02 },
+     "explanation": "The rate limiting changes add minimal overhead...",
+     "manifest_hash": "abc123",
+     "commit_target": "def456",
+     "timestamp": "2023-01-01T00:00:00Z"
+   }
+   ```
+
+3. Understand why this endpoint was implemented:
+   ```bash
+   arc why file api/routes.py 42
+   ```
+
+   This will show you the decision trail leading to this code, including related issues, PRs, and commits.
+
+4. If you want to share this context with AI assistants:
+   ```bash
+   arc serve start
+   ```
+
+   Now your AI assistant can access the knowledge graph and provide context-aware suggestions.
+
 ### The Flywheel Effect
 
 As you use Arc in your daily workflow:
@@ -170,6 +249,22 @@ As you use Arc in your daily workflow:
 4. Decision trails become richer and more insightful
 
 This creates a reinforcing flywheel where each component makes the others more powerful.
+
+## Troubleshooting
+
+Here are solutions to common issues you might encounter:
+
+- **GitHub Authentication Issues**: If you encounter GitHub authentication problems, ensure your token has the correct permissions (repo, read:user).
+
+- **Empty Knowledge Graph**: If `arc build` completes but doesn't find any entities, check that your repository has commit history and that you're in the correct directory.
+
+- **Simulation Errors**: If simulations fail, ensure you have set the required API keys in your environment or .env file.
+
+- **Performance Issues**: For large repositories, try using `arc build --incremental` for faster updates.
+
+- **Missing Dependencies**: If you see import errors, ensure you've installed Arc with all required dependencies: `pip install arc-memory[all]`.
+
+For more help, run `arc doctor` to diagnose common issues or check the [documentation](https://docs.arc.computer).
 
 ## Telemetry
 
