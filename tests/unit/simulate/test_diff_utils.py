@@ -118,7 +118,8 @@ def test_load_diff_from_file():
         os.unlink(temp_path)
 
 
-def test_analyze_diff():
+@mock.patch("arc_memory.simulate.causal.derive_causal")
+def test_analyze_diff(mock_derive_causal):
     """Test analyzing a diff to identify affected services."""
     # Create a simple diff
     diff_data = {
@@ -139,6 +140,10 @@ def test_analyze_diff():
         "commit_count": 1,
         "range": "HEAD~1..HEAD"
     }
+
+    # Mock the causal graph derivation to raise an exception
+    # This will force the function to fall back to the simple mapping
+    mock_derive_causal.side_effect = Exception("Test exception")
 
     # Test analyzing the diff
     services = analyze_diff(diff_data, "dummy_db_path")

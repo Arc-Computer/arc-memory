@@ -157,7 +157,31 @@ def run_simulation(
         logger.info("Analyzing diff to identify affected services")
         affected_services = analyze_diff(diff_data, db_path)
 
-        console.print(f"[bold]Affected Services:[/bold] {', '.join(affected_services)}")
+        # Create a table to display affected services
+        table = Table(title="Affected Services")
+        table.add_column("Service", style="cyan")
+        table.add_column("Files", style="green")
+
+        # Get the files for each service
+        service_files = {}
+        for file_data in diff_data.get("files", []):
+            file_path = file_data["path"]
+            for service in affected_services:
+                if service not in service_files:
+                    service_files[service] = []
+                # Simple heuristic to associate files with services
+                if service.split("-")[0] in file_path.lower():
+                    service_files[service].append(file_path)
+
+        # Add rows to the table
+        for service in affected_services:
+            files = service_files.get(service, [])
+            file_list = "\n".join(files[:3])
+            if len(files) > 3:
+                file_list += f"\n... and {len(files) - 3} more"
+            table.add_row(service, file_list if files else "Inferred from dependencies")
+
+        console.print(table)
 
         # Step 3: Generate a simulation manifest (placeholder)
         logger.info(f"Generating simulation manifest for scenario: {scenario}")
