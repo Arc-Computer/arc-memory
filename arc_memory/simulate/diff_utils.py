@@ -7,6 +7,7 @@ and services for simulation.
 import json
 import os
 import subprocess
+import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Set, Any
 
@@ -52,7 +53,12 @@ def serialize_diff(rev_range: str, repo_path: Optional[Path] = None) -> Dict[str
 
         if not commits:
             logger.warning(f"No commits found in range: {rev_range}")
-            return {"files": [], "commit_count": 0, "range": rev_range}
+            return {
+                "files": [],
+                "commit_count": 0,
+                "range": rev_range,
+                "timestamp": datetime.datetime.now().isoformat()
+            }
 
         # Get the diff for each commit
         files_changed = set()
@@ -120,6 +126,7 @@ def serialize_diff(rev_range: str, repo_path: Optional[Path] = None) -> Dict[str
             "range": rev_range,
             "start_commit": commits[-1].hexsha if commits else None,
             "end_commit": commits[0].hexsha if commits else None,
+            "timestamp": datetime.datetime.now().isoformat(),
             "stats": {
                 "files_changed": len(files_changed),
                 "insertions": insertions_total,
