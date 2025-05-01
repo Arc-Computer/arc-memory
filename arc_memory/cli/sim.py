@@ -4,10 +4,10 @@ This command provides functionality to simulate the impact of code changes
 by running targeted fault injection experiments in isolated sandbox environments.
 """
 
+import hashlib
 import json
 import re
 import sys
-from enum import Enum
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 
@@ -16,8 +16,16 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from arc_memory.logging_conf import configure_logging, get_logger, is_debug_mode
-from arc_memory.simulate.diff_utils import GitError, analyze_diff, load_diff_from_file, serialize_diff
+from arc_memory.logging_conf import configure_logging
+from arc_memory.logging_conf import get_logger
+from arc_memory.logging_conf import is_debug_mode
+from arc_memory.simulate.causal import derive_causal
+from arc_memory.simulate.diff_utils import GitError
+from arc_memory.simulate.diff_utils import analyze_diff
+from arc_memory.simulate.diff_utils import load_diff_from_file
+from arc_memory.simulate.diff_utils import serialize_diff
+from arc_memory.simulate.manifest import generate_simulation_manifest
+from arc_memory.simulate.manifest import list_available_scenarios
 from arc_memory.sql.db import ensure_arc_dir
 from arc_memory.telemetry import track_cli_command
 
@@ -128,7 +136,7 @@ def run_simulation(
     try:
         # Get the database path
         arc_dir = ensure_arc_dir()
-        db_path = str(arc_dir / "graph.db")
+        db_path = arc_dir / "graph.db"
 
         # Step 1: Get the diff
         diff_data = None
@@ -186,26 +194,52 @@ def run_simulation(
 
         console.print(table)
 
-        # Step 3: Generate a simulation manifest (placeholder)
+        # Step 3: Generate a simulation manifest
         logger.info(f"Generating simulation manifest for scenario: {scenario}")
         console.print(f"[bold]Scenario:[/bold] {scenario}")
         console.print(f"[bold]Severity Threshold:[/bold] {severity}")
         console.print(f"[bold]Timeout:[/bold] {timeout} seconds")
 
-        # Create a simple result for now
+        # Get the causal graph
+        logger.info("Deriving causal graph from knowledge graph")
+        causal_graph = derive_causal(db_path)
+
+        # Get the affected files
+        affected_files = [file["path"] for file in diff_data.get("files", [])]
+
+        # Generate the manifest
+        manifest_path = None
+        if output_path:
+            # If an output path is provided, save the manifest next to it
+            manifest_path = output_path.parent / f"{output_path.stem}_manifest.yaml"
+
+        # Generate the simulation manifest
+        manifest = generate_simulation_manifest(
+            causal_graph=causal_graph,
+            affected_files=affected_files,
+            scenario=scenario,
+            severity=severity,
+            target_services=affected_services,
+            output_path=manifest_path
+        )
+
+        # Get the manifest hash
+        manifest_hash = manifest["metadata"]["annotations"]["arc-memory.io/manifest-hash"]
+
+        # Create the simulation result
         result = {
             "sim_id": f"sim_{rev_range.replace('..', '_').replace('/', '_')}",
-            "risk_score": 25,  # Placeholder score
+            "risk_score": severity // 2,  # Placeholder score based on severity
             "services": affected_services,
             "metrics": {
-                "latency_ms": 250,
-                "error_rate": 0.05
+                "latency_ms": int(severity * 10),  # Based on severity
+                "error_rate": round(severity / 1000, 3)  # Based on severity
             },
             "explanation": f"Simulation for {len(affected_services)} services based on {file_count} changed files.",
-            "manifest_hash": "placeholder_hash",
+            "manifest_hash": manifest_hash,
             "commit_target": diff_data.get("end_commit", "unknown"),
             "timestamp": diff_data.get("timestamp", "unknown"),
-            "diff_hash": "placeholder_diff_hash"
+            "diff_hash": hashlib.md5(json.dumps(diff_data, sort_keys=True).encode('utf-8')).hexdigest()
         }
 
         # Output the result
@@ -235,8 +269,8 @@ def run_simulation(
 @app.command("list-scenarios")
 def list_scenarios() -> None:
     """List available fault scenarios."""
+    scenarios = list_available_scenarios()
+
     console.print("[bold]Available Fault Scenarios:[/bold]")
-    console.print("  • network_latency - Inject network latency between services")
-    console.print("  • cpu_stress - Simulate CPU pressure on services")
-    console.print("  • memory_pressure - Simulate memory pressure on services")
-    console.print("  • disk_io - Simulate disk I/O pressure on services")
+    for scenario in scenarios:
+        console.print(f"  • {scenario['id']} - {scenario['description']}")

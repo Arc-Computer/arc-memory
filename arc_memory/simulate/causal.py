@@ -173,6 +173,12 @@ def derive_causal(db_path: str) -> CausalGraph:
     logger.info(f"Deriving causal graph from {db_path}")
 
     try:
+        # Check if the database file exists
+        db_file = Path(db_path)
+        if not db_file.exists():
+            logger.warning(f"Database file not found: {db_path}")
+            return CausalGraph(nx.DiGraph())
+
         # Connect to the database
         conn = get_connection(db_path)
 
