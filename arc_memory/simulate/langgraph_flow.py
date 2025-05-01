@@ -22,6 +22,8 @@ from arc_memory.simulate.causal import derive_causal
 from arc_memory.simulate.manifest import generate_simulation_manifest
 from arc_memory.simulate.code_interpreter import run_simulation as run_sandbox_simulation
 from arc_memory.simulate.code_interpreter import HAS_E2B
+from arc_memory.simulate.explanation import analyze_simulation_results, process_metrics, calculate_risk_score, generate_explanation
+from arc_memory.attestation.write_attest import generate_and_save_attestation
 from arc_memory.sql.db import ensure_arc_dir
 
 logger = get_logger(__name__)
@@ -45,6 +47,8 @@ class SimulationState(TypedDict):
     manifest_path: Optional[str]
     simulation_results: Optional[Dict[str, Any]]
     metrics: Optional[Dict[str, Any]]
+    processed_metrics: Optional[Dict[str, Any]]
+    risk_factors: Optional[Dict[str, float]]
     risk_score: Optional[int]
 
     # Context retrieval state
@@ -275,7 +279,7 @@ def run_simulation(state: SimulationState) -> SimulationState:
             }
 
             # Extract basic metrics
-            state["metrics"] = {
+            raw_metrics = {
                 "latency_ms": int(state["severity"] * 10),
                 "error_rate": round(state["severity"] / 1000, 3),
                 "node_count": 1,
@@ -283,8 +287,19 @@ def run_simulation(state: SimulationState) -> SimulationState:
                 "service_count": 3
             }
 
-            # Calculate a simple risk score
-            state["risk_score"] = state["severity"] // 2
+            # Process metrics and calculate risk score
+            processed_metrics = process_metrics(raw_metrics)
+            risk_score, risk_factors = calculate_risk_score(
+                processed_metrics,
+                state["severity"],
+                state.get("affected_services", [])
+            )
+
+            # Update state
+            state["metrics"] = raw_metrics
+            state["processed_metrics"] = processed_metrics
+            state["risk_factors"] = risk_factors
+            state["risk_score"] = risk_score
 
             return state
 
@@ -324,12 +339,21 @@ def run_simulation(state: SimulationState) -> SimulationState:
         if "experiment_name" in simulation_results:
             metrics["experiment_name"] = simulation_results.get("experiment_name")
 
-        # Update the state with metrics
+        # Update the state with raw metrics
         state["metrics"] = metrics
 
-        # Calculate risk score based on simulation results
-        # For now, use a simple formula based on severity
-        state["risk_score"] = state["severity"] // 2
+        # Process metrics and calculate risk score
+        processed_metrics = process_metrics(metrics)
+        risk_score, risk_factors = calculate_risk_score(
+            processed_metrics,
+            state["severity"],
+            state.get("affected_services", [])
+        )
+
+        # Update state with processed metrics and risk assessment
+        state["processed_metrics"] = processed_metrics
+        state["risk_factors"] = risk_factors
+        state["risk_score"] = risk_score
 
         logger.info("Successfully ran simulation")
         return state
@@ -340,13 +364,24 @@ def run_simulation(state: SimulationState) -> SimulationState:
         logger.info("Falling back to static analysis")
 
         # Extract basic metrics
-        state["metrics"] = {
+        raw_metrics = {
             "latency_ms": int(state["severity"] * 10),
             "error_rate": round(state["severity"] / 1000, 3),
         }
 
-        # Calculate a simple risk score
-        state["risk_score"] = state["severity"] // 2
+        # Process metrics and calculate risk score
+        processed_metrics = process_metrics(raw_metrics)
+        risk_score, risk_factors = calculate_risk_score(
+            processed_metrics,
+            state["severity"],
+            state.get("affected_services", [])
+        )
+
+        # Update state
+        state["metrics"] = raw_metrics
+        state["processed_metrics"] = processed_metrics
+        state["risk_factors"] = risk_factors
+        state["risk_score"] = risk_score
 
         return state
 
@@ -449,15 +484,19 @@ def generate_explanation(state: SimulationState) -> SimulationState:
     # Check if we have an LLM available
     llm = get_llm()
     if not llm:
-        logger.warning("No LLM available, generating simple explanation")
+        logger.warning("No LLM available, generating explanation with our built-in generator")
 
-        # Generate a simple explanation
-        file_count = len(state.get("diff_data", {}).get("files", []))
-        service_count = len(state.get("affected_services", []))
+        # Use our built-in explanation generator from the explanation module
+        from arc_memory.simulate.explanation import generate_explanation as generate_explanation_from_module
 
-        explanation = (
-            f"Simulation for {service_count} services based on {file_count} changed files. "
-            f"Risk score: {state.get('risk_score', 0)} out of 100."
+        explanation = generate_explanation_from_module(
+            scenario=state.get("scenario", "unknown"),
+            severity=state.get("severity", 50),
+            affected_services=state.get("affected_services", []),
+            processed_metrics=state.get("processed_metrics", {}),
+            risk_score=state.get("risk_score", 0),
+            risk_factors=state.get("risk_factors", {}),
+            simulation_results=state.get("simulation_results")
         )
 
         state["explanation"] = explanation
@@ -485,7 +524,7 @@ Focus on actionable insights rather than generic warnings.
 - Rev Range: {rev_range}
 - Scenario: {scenario}
 - Severity Threshold: {severity}
-- Risk Score: {risk_score}
+- Risk Score: {risk_score}/100
 
 # Changed Files
 {file_summary}
@@ -495,6 +534,9 @@ Focus on actionable insights rather than generic warnings.
 
 # Metrics
 {metrics_summary}
+
+# Risk Factors
+{risk_factors_summary}
 
 # Relevant Code Context
 {code_context}
@@ -515,6 +557,13 @@ Based on this information, provide a concise explanation (3-5 paragraphs) of the
         # Prepare the metrics summary
         metrics = state.get("metrics", {})
         metrics_summary = "\n".join([f"- {key}: {value}" for key, value in metrics.items() if not isinstance(value, dict)])
+
+        # Prepare risk factors summary
+        risk_factors = state.get("risk_factors", {})
+        risk_factors_summary = "\n".join([
+            f"- {key.replace('normalized_', '').replace('_', ' ').title()}: {value * 100:.2f}%"
+            for key, value in risk_factors.items()
+        ])
 
         # Prepare code context from documents
         code_context = ""
@@ -585,6 +634,7 @@ Based on this information, provide a concise explanation (3-5 paragraphs) of the
             file_summary=file_summary,
             service_summary=service_summary,
             metrics_summary=metrics_summary,
+            risk_factors_summary=risk_factors_summary,
             code_context=code_context
         )
 
@@ -606,14 +656,28 @@ Based on this information, provide a concise explanation (3-5 paragraphs) of the
     except Exception as e:
         logger.error(f"Error generating explanation: {e}")
 
-        # Generate a simple explanation as fallback
-        file_count = len(state.get("diff_data", {}).get("files", []))
-        service_count = len(state.get("affected_services", []))
+        # Use our built-in explanation generator as fallback
+        try:
+            from arc_memory.simulate.explanation import generate_explanation as generate_explanation_from_module
 
-        explanation = (
-            f"Simulation for {service_count} services based on {file_count} changed files. "
-            f"Risk score: {state.get('risk_score', 0)} out of 100."
-        )
+            explanation = generate_explanation_from_module(
+                scenario=state.get("scenario", "unknown"),
+                severity=state.get("severity", 50),
+                affected_services=state.get("affected_services", []),
+                processed_metrics=state.get("processed_metrics", {}),
+                risk_score=state.get("risk_score", 0),
+                risk_factors=state.get("risk_factors", {}),
+                simulation_results=state.get("simulation_results")
+            )
+        except Exception as inner_e:
+            logger.error(f"Error generating fallback explanation: {inner_e}")
+            # Generate a very simple explanation as last resort
+            file_count = len(state.get("diff_data", {}).get("files", []))
+            service_count = len(state.get("affected_services", []))
+            explanation = (
+                f"Simulation for {service_count} services based on {file_count} changed files. "
+                f"Risk score: {state.get('risk_score', 0)} out of 100."
+            )
 
         state["explanation"] = explanation
         return state
@@ -647,38 +711,33 @@ def generate_attestation(state: SimulationState) -> SimulationState:
             state["status"] = "failed"
             return state
 
-        # Generate a unique simulation ID
-        sim_id = f"sim_{state['rev_range'].replace('..', '_').replace('/', '_')}"
-
         # Get the manifest hash
         manifest_hash = state["manifest"]["metadata"]["annotations"]["arc-memory.io/manifest-hash"]
 
-        # Create the attestation
-        attestation = {
-            "sim_id": sim_id,
-            "manifest_hash": manifest_hash,
-            "commit_target": state["diff_data"].get("end_commit", "unknown"),
-            "metrics": state["metrics"],
-            "timestamp": state["diff_data"].get("timestamp", "unknown"),
-            "diff_hash": hashlib.md5(json.dumps(state["diff_data"], sort_keys=True).encode('utf-8')).hexdigest(),
-            "risk_score": state.get("risk_score", 0),
-            "explanation": state.get("explanation", "")
-        }
+        # Calculate diff hash
+        diff_hash = hashlib.md5(json.dumps(state["diff_data"], sort_keys=True).encode('utf-8')).hexdigest()
 
-        # Save the attestation
-        arc_dir = ensure_arc_dir()
-        attest_dir = arc_dir / ".attest"
-        attest_dir.mkdir(exist_ok=True)
-
-        attest_path = attest_dir / f"{sim_id}.json"
-        with open(attest_path, 'w') as f:
-            json.dump(attestation, f, indent=2)
+        # Generate and save the attestation
+        attestation = generate_and_save_attestation(
+            rev_range=state["rev_range"],
+            scenario=state["scenario"],
+            severity=state["severity"],
+            affected_services=state.get("affected_services", []),
+            metrics=state["metrics"],
+            risk_score=state.get("risk_score", 0),
+            explanation=state.get("explanation", ""),
+            manifest_hash=manifest_hash,
+            commit_target=state["diff_data"].get("end_commit", "unknown"),
+            timestamp=state["diff_data"].get("timestamp", "unknown"),
+            diff_hash=diff_hash,
+            simulation_results=state.get("simulation_results")
+        )
 
         # Update the state
         state["attestation"] = attestation
         state["status"] = "completed"
 
-        logger.info(f"Successfully generated attestation at {attest_path}")
+        logger.info(f"Successfully generated attestation")
         return state
     except Exception as e:
         logger.error(f"Error generating attestation: {e}")
@@ -839,6 +898,8 @@ def run_sim(
         "manifest_path": None,
         "simulation_results": None,
         "metrics": None,
+        "processed_metrics": None,
+        "risk_factors": None,
         "risk_score": None,
         "context_documents": None,
         "explanation": None,
