@@ -16,11 +16,14 @@ from arc_memory.logging_conf import get_logger
 logger = get_logger(__name__)
 
 # Try to import e2b_code_interpreter, but don't fail if it's not available
+# Note: The package name is 'e2b-code-interpreter' in pyproject.toml, but Python
+# imports use underscores instead of hyphens, so we import 'e2b_code_interpreter'
 try:
     from e2b_code_interpreter import Sandbox
     HAS_E2B = True
 except ImportError:
     logger.warning("e2b_code_interpreter not found. Sandbox simulation will not be available.")
+    logger.info("To enable sandbox simulation, install with: pip install e2b-code-interpreter")
     HAS_E2B = False
     Sandbox = None  # Define Sandbox as None for type checking
 
