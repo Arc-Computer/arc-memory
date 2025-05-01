@@ -23,6 +23,7 @@ OPTIONAL_DEPENDENCIES = {
     "cli": ["typer", "rich", "tqdm"],
     "git": ["gitpython"],
     "adr": ["pyyaml", "markdown_it_py"],
+    "sim": ["e2b_code_interpreter", "langgraph", "kubernetes_asyncio"],
 }
 
 
