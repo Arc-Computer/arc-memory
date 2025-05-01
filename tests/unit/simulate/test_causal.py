@@ -231,10 +231,11 @@ def test_get_affected_services():
     assert "db-service" in affected
 
 
+@mock.patch("arc_memory.simulate.causal.Path")
 @mock.patch("arc_memory.simulate.causal.build_networkx_graph")
 @mock.patch("arc_memory.simulate.causal.get_connection")
 @mock.patch("arc_memory.simulate.causal.map_files_to_services")
-def test_derive_causal(mock_map_files, mock_get_conn, mock_build_graph):
+def test_derive_causal(mock_map_files, mock_get_conn, mock_build_graph, mock_path):
     """Test deriving a causal graph from a database."""
     # Mock the database connection
     mock_conn = mock.MagicMock()
@@ -244,10 +245,17 @@ def test_derive_causal(mock_map_files, mock_get_conn, mock_build_graph):
     mock_graph = mock.MagicMock()
     mock_build_graph.return_value = mock_graph
 
+    # Mock the Path object
+    mock_path_instance = mock.MagicMock()
+    mock_path.return_value = mock_path_instance
+    mock_path_instance.exists.return_value = True
+
     # Call the function
     causal_graph = derive_causal("path/to/db")
 
     # Check that the mocks were called
+    mock_path.assert_called_once_with("path/to/db")
+    mock_path_instance.exists.assert_called_once()
     mock_get_conn.assert_called_once_with("path/to/db")
     mock_build_graph.assert_called_once_with(mock_conn)
     mock_map_files.assert_called_once()

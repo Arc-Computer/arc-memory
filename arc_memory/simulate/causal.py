@@ -173,6 +173,12 @@ def derive_causal(db_path: str) -> CausalGraph:
     logger.info(f"Deriving causal graph from {db_path}")
 
     try:
+        # Check if the database file exists
+        db_file = Path(db_path)
+        if not db_file.exists():
+            logger.warning(f"Database file not found: {db_path}")
+            return CausalGraph(nx.DiGraph())
+
         # Connect to the database
         conn = get_connection(db_path)
 
@@ -207,9 +213,25 @@ def map_files_to_services(conn: sqlite3.Connection, causal_graph: CausalGraph) -
         causal_graph: The causal graph to update
     """
     try:
-        # Get all file nodes
-        cursor = conn.execute("SELECT id, path FROM nodes WHERE type = 'file'")
-        file_nodes = {row[0]: row[1] for row in cursor.fetchall()}
+        # Get all file nodes - the path is stored in the extra JSON field
+        cursor = conn.execute("SELECT id, extra FROM nodes WHERE type = 'file'")
+        file_nodes = {}
+        for row in cursor.fetchall():
+            node_id = row[0]
+            extra_json = row[1]
+            if extra_json:
+                try:
+                    extra = json.loads(extra_json)
+                    if 'path' in extra:
+                        file_nodes[node_id] = extra['path']
+                except json.JSONDecodeError:
+                    logger.warning(f"Failed to parse extra JSON for node {node_id}")
+
+        # If we didn't find any paths in the extra field, try the title field
+        if not file_nodes:
+            cursor = conn.execute("SELECT id, title FROM nodes WHERE type = 'file'")
+            file_nodes = {row[0]: row[1] for row in cursor.fetchall()}
+            logger.debug(f"Fallback to title field used. Found {len(file_nodes)} file nodes.")
 
         # Get all commit nodes
         cursor = conn.execute("SELECT id FROM nodes WHERE type = 'commit'")
