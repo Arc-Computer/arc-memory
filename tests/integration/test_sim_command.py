@@ -135,6 +135,9 @@ class TestSimCommandIntegration:
                 try:
                     # Test with different scenarios
                     for scenario in ["network_latency", "cpu_stress", "memory_stress"]:
+                        # Reset the mock before each iteration to ensure isolation
+                        mock_workflow.reset_mock()
+
                         # Call the CLI command
                         result = self.runner.invoke(app, [
                             "--scenario", scenario,
@@ -145,9 +148,9 @@ class TestSimCommandIntegration:
                         # Verify the exit code
                         assert result.exit_code == 0
 
-                        # Verify the workflow was called with the correct scenario
-                        # Use assert_called_once instead of assert_called_with to avoid path issues
-                        assert mock_workflow.call_count >= 1
+                        # Verify the workflow was called exactly once
+                        mock_workflow.assert_called_once()
+
                         # Check that the scenario parameter was correct
                         assert mock_workflow.call_args.kwargs["scenario"] == scenario
                         assert mock_workflow.call_args.kwargs["severity"] == 50
@@ -184,18 +187,20 @@ class TestSimCommandIntegration:
                             "affected_services": ["service1", "service2"]
                         }
 
+                        # Reset the mock before each iteration to ensure isolation
+                        mock_workflow.reset_mock()
+
                         # Mock sys.exit to avoid exiting the test
                         with mock.patch("arc_memory.cli.sim.sys.exit") as mock_exit:
                             # Call the CLI command
-                            result = self.runner.invoke(app, [
+                            self.runner.invoke(app, [
                                 "--scenario", "network_latency",
                                 "--severity", str(severity),
                                 "--timeout", "300"
                             ])
 
-                            # Verify the workflow was called with the correct severity
-                            # Use assert_called_once instead of assert_called_with to avoid path issues
-                            assert mock_workflow.call_count >= 1
+                            # Verify the workflow was called exactly once with the correct severity
+                            mock_workflow.assert_called_once()
                             # Check that the severity parameter was correct
                             assert mock_workflow.call_args.kwargs["scenario"] == "network_latency"
                             assert mock_workflow.call_args.kwargs["severity"] == severity

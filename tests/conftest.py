@@ -197,24 +197,30 @@ def sample_attestation():
 
 
 @pytest.fixture
-def temp_diff_file():
+def temp_diff_file(request):
     """Create a temporary diff file for testing."""
-    with tempfile.NamedTemporaryFile(suffix=".json", delete=False) as temp_file:
-        diff_data = {
-            "files": [
-                {"path": "file1.py", "additions": 10, "deletions": 5},
-                {"path": "file2.py", "additions": 20, "deletions": 15}
-            ],
-            "end_commit": "abc123",
-            "timestamp": "2023-01-01T00:00:00Z"
-        }
-        temp_file.write(json.dumps(diff_data).encode())
-        temp_file.flush()
-        yield Path(temp_file.name)
+    temp_file = tempfile.NamedTemporaryFile(suffix=".json", delete=False)
 
-    # Clean up the file after the test
-    if os.path.exists(temp_file.name):
-        os.unlink(temp_file.name)
+    diff_data = {
+        "files": [
+            {"path": "file1.py", "additions": 10, "deletions": 5},
+            {"path": "file2.py", "additions": 20, "deletions": 15}
+        ],
+        "end_commit": "abc123",
+        "timestamp": "2023-01-01T00:00:00Z"
+    }
+    temp_file.write(json.dumps(diff_data).encode())
+    temp_file.flush()
+    temp_file.close()
+
+    # Register cleanup as a finalizer
+    file_path = temp_file.name
+    def cleanup():
+        if os.path.exists(file_path):
+            os.unlink(file_path)
+    request.addfinalizer(cleanup)
+
+    return Path(file_path)
 
 
 @pytest.fixture
