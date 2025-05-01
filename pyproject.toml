@@ -53,6 +53,9 @@ dependencies = [
 
     # Git integration
     "gitpython>=3.1.30",    # Git repository interaction
+
+    # Environment and configuration
+    "python-dotenv>=1.0.0", # Environment variable loading
 ]
 
 [project.optional-dependencies]
