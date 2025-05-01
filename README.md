@@ -62,9 +62,10 @@ Before you begin, ensure you have:
 
 - Python 3.10 or higher
 - Git repository with commit history
-- GitHub access token (for GitHub integration)
 - E2B API key (for simulation features)
 - OpenAI API key (for explanation generation)
+
+Note: GitHub authentication is built into the CLI with the `arc auth gh` command. You don't need to provide your own GitHub token unless you're contributing to this project.
 
 ### Environment Setup
 
@@ -74,13 +75,11 @@ Arc uses the following environment variables:
 # Create a .env file in your repository root
 E2B_API_KEY=your_e2b_api_key           # Required for simulations
 OPENAI_API_KEY=your_openai_api_key     # Required for explanations
-GITHUB_TOKEN=your_github_token         # Required for GitHub integration
 ```
 
 You can obtain these keys from:
 - E2B API key: [e2b.dev](https://e2b.dev)
 - OpenAI API key: [platform.openai.com](https://platform.openai.com)
-- GitHub token: [github.com/settings/tokens](https://github.com/settings/tokens)
 
 ### Installation
 
@@ -254,7 +253,7 @@ This creates a reinforcing flywheel where each component makes the others more p
 
 Here are solutions to common issues you might encounter:
 
-- **GitHub Authentication Issues**: If you encounter GitHub authentication problems, ensure your token has the correct permissions (repo, read:user).
+- **GitHub Authentication Issues**: If you encounter GitHub authentication problems, try running `arc auth gh` again to refresh your authentication.
 
 - **Empty Knowledge Graph**: If `arc build` completes but doesn't find any entities, check that your repository has commit history and that you're in the correct directory.
 
