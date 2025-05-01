@@ -28,31 +28,31 @@ logger = get_logger(__name__)
 @app.callback(invoke_without_command=True)
 def callback(
     ctx: typer.Context,
-    rev_range: str = typer.Option(
+    rev_range: str=typer.Option(
         "HEAD~1..HEAD", help="Git rev-range to analyze"
     ),
-    diff: Optional[Path] = typer.Option(
+    diff: Optional[Path]=typer.Option(
         None, help="Path to pre-serialized diff JSON"
     ),
-    scenario: str = typer.Option(
+    scenario: str=typer.Option(
         "network_latency", help="Fault scenario ID"
     ),
-    severity: int = typer.Option(
+    severity: int=typer.Option(
         50, help="CI fail threshold 0-100"
     ),
-    timeout: int = typer.Option(
+    timeout: int=typer.Option(
         600, help="Max runtime in seconds"
     ),
-    output: Optional[Path] = typer.Option(
+    output: Optional[Path]=typer.Option(
         None, help="Write result JSON to file (default: stdout)"
     ),
-    open_ui: bool = typer.Option(
+    open_ui: bool=typer.Option(
         False, "--open-ui/--no-ui", help="Open VS Code webview if available"
     ),
-    verbose: bool = typer.Option(
+    verbose: bool=typer.Option(
         False, "-v", "--verbose", help="Enable verbose output"
     ),
-    debug: bool = typer.Option(
+    debug: bool=typer.Option(
         False, "--debug", help="Enable debug logging"
     ),
 ) -> None:
@@ -102,14 +102,14 @@ def callback(
 
 def run_simulation(
     rev_range: str,
-    diff_path: Optional[Path] = None,
-    scenario: str = "network_latency",
-    severity: int = 50,
-    timeout: int = 600,
-    output_path: Optional[Path] = None,
-    open_ui: bool = False,
-    verbose: bool = False,
-    debug: bool = False,
+    diff_path: Optional[Path]=None,
+    scenario: str="network_latency",
+    severity: int=50,
+    timeout: int=600,
+    output_path: Optional[Path]=None,
+    open_ui: bool=False,
+    verbose: bool=False,
+    debug: bool=False,
 ) -> None:
     """Run a simulation to predict the impact of code changes.
 
