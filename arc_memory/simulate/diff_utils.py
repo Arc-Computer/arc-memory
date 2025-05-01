@@ -209,14 +209,29 @@ def analyze_diff(diff: Dict[str, Any], causal_db: str) -> List[str]:
     Returns:
         A list of affected service names
     """
+    from arc_memory.simulate.causal import derive_causal
+    from arc_memory.simulate.causal import get_affected_services
+
     # Extract the list of changed files
     changed_files = [file["path"] for file in diff.get("files", [])]
 
-    # For now, we'll return a simple mapping of file extensions to mock services
-    # In a real implementation, this would use the causal graph to map files to services
-    services = map_files_to_services(changed_files)
+    try:
+        # Derive the causal graph from the database
+        causal_graph = derive_causal(causal_db)
 
-    return list(services)
+        # Get affected services
+        affected_services = get_affected_services(causal_graph, changed_files)
+
+        # If no services were found, fall back to the simple mapping
+        if not affected_services:
+            affected_services = list(map_files_to_services(changed_files))
+
+        return affected_services
+
+    except Exception as e:
+        # Log the error and fall back to the simple mapping
+        logger.error(f"Error analyzing diff with causal graph: {e}")
+        return list(map_files_to_services(changed_files))
 
 
 def map_files_to_services(files: List[str]) -> Set[str]:
