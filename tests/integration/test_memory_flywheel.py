@@ -16,6 +16,10 @@ import sqlite3
 from pathlib import Path
 import pytest
 from datetime import datetime
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 from arc_memory.simulate.langgraph_flow import run_sim
 from arc_memory.sql.db import ensure_connection
