@@ -127,8 +127,8 @@ def test_get_impact_path():
     assert path[1] == "web-service"
     assert path[2] == "db-service"
 
-    # There should be no path from db-service to api-service
-    # (since the graph is undirected, there actually is a path)
+    # Since the graph is undirected, there is a valid path from db-service to api-service
+    # This represents a bidirectional impact relationship between services
     path = causal_graph.get_impact_path("db-service", "api-service")
     assert len(path) == 3
     assert path[0] == "db-service"

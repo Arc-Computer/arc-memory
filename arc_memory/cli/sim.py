@@ -5,6 +5,7 @@ by running targeted fault injection experiments in isolated sandbox environments
 """
 
 import json
+import re
 import sys
 from enum import Enum
 from pathlib import Path
@@ -169,8 +170,10 @@ def run_simulation(
             for service in affected_services:
                 if service not in service_files:
                     service_files[service] = []
-                # Simple heuristic to associate files with services
-                if service.split("-")[0] in file_path.lower():
+                # Use a regular expression to robustly associate files with services
+                # Match the service name as a distinct word or path component
+                service_prefix = service.split("-")[0]
+                if re.search(rf"(^|/){re.escape(service_prefix)}($|/|\.)", file_path.lower()):
                     service_files[service].append(file_path)
 
         # Add rows to the table
