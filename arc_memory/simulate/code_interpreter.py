@@ -234,10 +234,16 @@ class SimulationEnvironment:
             with open(manifest_path, 'r') as f:
                 manifest_content = f.read()
 
-            # Write the manifest to the sandbox
+            # Base64 encode the manifest content to avoid string interpolation issues
+            import base64
+            encoded_content = base64.b64encode(manifest_content.encode()).decode()
+
+            # Write the manifest to the sandbox using base64 encoding to avoid string interpolation issues
             self.sandbox.run_code(f"""
+import base64
 with open('{remote_path}', 'w') as f:
-    f.write('''{manifest_content}''')
+    decoded_content = base64.b64decode('{encoded_content}').decode()
+    f.write(decoded_content)
             """)
 
             # Apply the manifest
