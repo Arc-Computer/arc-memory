@@ -12,9 +12,9 @@ from typing import Dict, List, Any, Optional, TypedDict, Annotated, Literal, Uni
 
 from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
-from langchain_openai import ChatOpenAI
+from langchain_core.documents import Document
+from langchain_openai import ChatOpenAI, OpenAIEmbeddings
 from langgraph.graph import StateGraph, END
-from langgraph.prebuilt import ToolNode
 
 from arc_memory.logging_conf import get_logger
 from arc_memory.simulate.diff_utils import serialize_diff, analyze_diff, GitError
@@ -36,7 +36,7 @@ class SimulationState(TypedDict):
     timeout: int
     repo_path: str
     db_path: str
-    
+
     # Intermediate state
     diff_data: Optional[Dict[str, Any]]
     affected_services: Optional[List[str]]
@@ -46,7 +46,10 @@ class SimulationState(TypedDict):
     simulation_results: Optional[Dict[str, Any]]
     metrics: Optional[Dict[str, Any]]
     risk_score: Optional[int]
-    
+
+    # Context retrieval state
+    context_documents: Optional[List[Document]]
+
     # Output state
     explanation: Optional[str]
     attestation: Optional[Dict[str, Any]]
@@ -61,7 +64,7 @@ def get_llm():
     if not api_key:
         logger.warning("OPENAI_API_KEY not found in environment variables")
         return None
-    
+
     # Initialize the LLM
     try:
         llm = ChatOpenAI(
@@ -77,22 +80,22 @@ def get_llm():
 
 def extract_diff(state: SimulationState) -> SimulationState:
     """Extract the diff from Git.
-    
+
     Args:
         state: The current workflow state
-        
+
     Returns:
         Updated workflow state
     """
     logger.info(f"Extracting diff for range: {state['rev_range']}")
-    
+
     try:
         # Extract the diff
         diff_data = serialize_diff(state["rev_range"], repo_path=state["repo_path"])
-        
+
         # Update the state
         state["diff_data"] = diff_data
-        
+
         logger.info(f"Successfully extracted diff with {len(diff_data.get('files', []))} files")
         return state
     except GitError as e:
@@ -109,28 +112,28 @@ def extract_diff(state: SimulationState) -> SimulationState:
 
 def analyze_changes(state: SimulationState) -> SimulationState:
     """Analyze the diff to identify affected services.
-    
+
     Args:
         state: The current workflow state
-        
+
     Returns:
         Updated workflow state
     """
     logger.info("Analyzing diff to identify affected services")
-    
+
     try:
         # Check if we have diff data
         if not state.get("diff_data"):
             state["error"] = "No diff data available for analysis"
             state["status"] = "failed"
             return state
-        
+
         # Analyze the diff
         affected_services = analyze_diff(state["diff_data"], state["db_path"])
-        
+
         # Update the state
         state["affected_services"] = affected_services
-        
+
         logger.info(f"Identified {len(affected_services)} affected services")
         return state
     except Exception as e:
@@ -142,22 +145,22 @@ def analyze_changes(state: SimulationState) -> SimulationState:
 
 def build_causal_graph(state: SimulationState) -> SimulationState:
     """Build the causal graph from the knowledge graph.
-    
+
     Args:
         state: The current workflow state
-        
+
     Returns:
         Updated workflow state
     """
     logger.info("Building causal graph from knowledge graph")
-    
+
     try:
         # Derive the causal graph
         causal_graph = derive_causal(state["db_path"])
-        
+
         # Update the state
         state["causal_graph"] = causal_graph
-        
+
         logger.info("Successfully built causal graph")
         return state
     except Exception as e:
@@ -169,42 +172,42 @@ def build_causal_graph(state: SimulationState) -> SimulationState:
 
 def generate_manifest(state: SimulationState) -> SimulationState:
     """Generate the simulation manifest.
-    
+
     Args:
         state: The current workflow state
-        
+
     Returns:
         Updated workflow state
     """
     logger.info(f"Generating simulation manifest for scenario: {state['scenario']}")
-    
+
     try:
         # Check if we have the necessary data
         if not state.get("causal_graph"):
             state["error"] = "No causal graph available for manifest generation"
             state["status"] = "failed"
             return state
-        
+
         if not state.get("diff_data"):
             state["error"] = "No diff data available for manifest generation"
             state["status"] = "failed"
             return state
-        
+
         if not state.get("affected_services"):
             state["error"] = "No affected services identified for manifest generation"
             state["status"] = "failed"
             return state
-        
+
         # Get the affected files
         affected_files = [file["path"] for file in state["diff_data"].get("files", [])]
-        
+
         # Create a temporary manifest path
         arc_dir = ensure_arc_dir()
         sim_dir = arc_dir / "sim"
         sim_dir.mkdir(exist_ok=True)
-        
+
         manifest_path = sim_dir / f"manifest_{hashlib.md5(state['rev_range'].encode()).hexdigest()}.yaml"
-        
+
         # Generate the manifest
         manifest = generate_simulation_manifest(
             causal_graph=state["causal_graph"],
@@ -214,11 +217,11 @@ def generate_manifest(state: SimulationState) -> SimulationState:
             target_services=state["affected_services"],
             output_path=manifest_path
         )
-        
+
         # Update the state
         state["manifest"] = manifest
         state["manifest_path"] = str(manifest_path)
-        
+
         logger.info(f"Successfully generated simulation manifest at {manifest_path}")
         return state
     except Exception as e:
@@ -230,22 +233,22 @@ def generate_manifest(state: SimulationState) -> SimulationState:
 
 def run_simulation(state: SimulationState) -> SimulationState:
     """Run the simulation using the manifest.
-    
+
     Args:
         state: The current workflow state
-        
+
     Returns:
         Updated workflow state
     """
     logger.info("Running simulation")
-    
+
     try:
         # Check if we have a manifest
         if not state.get("manifest_path"):
             state["error"] = "No manifest available for simulation"
             state["status"] = "failed"
             return state
-        
+
         # Check if sandbox simulation is available
         if not HAS_E2B or not run_sandbox_simulation:
             logger.warning("E2B Code Interpreter not available, skipping simulation")
@@ -264,7 +267,7 @@ def run_simulation(state: SimulationState) -> SimulationState:
                     "service_count": 3,
                 }
             }
-            
+
             # Extract basic metrics
             state["metrics"] = {
                 "latency_ms": int(state["severity"] * 10),
@@ -273,12 +276,12 @@ def run_simulation(state: SimulationState) -> SimulationState:
                 "pod_count": 5,
                 "service_count": 3
             }
-            
+
             # Calculate a simple risk score
             state["risk_score"] = state["severity"] // 2
-            
+
             return state
-        
+
         # Run the simulation
         simulation_timeout = min(state["timeout"], 300)  # Cap at 5 minutes for now
         simulation_results = run_sandbox_simulation(
@@ -286,91 +289,179 @@ def run_simulation(state: SimulationState) -> SimulationState:
             duration_seconds=simulation_timeout,
             metrics_interval=30
         )
-        
+
         # Update the state
         state["simulation_results"] = simulation_results
-        
+
         # Extract metrics
         metrics = {
             "latency_ms": int(state["severity"] * 10),
             "error_rate": round(state["severity"] / 1000, 3),
         }
-        
+
         # Add actual metrics from simulation if available
         if "final_metrics" in simulation_results:
             final_metrics = simulation_results.get("final_metrics", {})
-            
+
             # Add basic metrics
             metrics["node_count"] = final_metrics.get("node_count", 0)
             metrics["pod_count"] = final_metrics.get("pod_count", 0)
             metrics["service_count"] = final_metrics.get("service_count", 0)
-            
+
             # Add CPU and memory metrics if available
             if "cpu_usage" in final_metrics:
                 metrics["cpu_usage"] = final_metrics.get("cpu_usage", {})
             if "memory_usage" in final_metrics:
                 metrics["memory_usage"] = final_metrics.get("memory_usage", {})
-        
+
         # Add experiment details if available
         if "experiment_name" in simulation_results:
             metrics["experiment_name"] = simulation_results.get("experiment_name")
-        
+
         # Update the state with metrics
         state["metrics"] = metrics
-        
+
         # Calculate risk score based on simulation results
         # For now, use a simple formula based on severity
         state["risk_score"] = state["severity"] // 2
-        
+
         logger.info("Successfully ran simulation")
         return state
     except Exception as e:
         logger.error(f"Error running simulation: {e}")
-        
+
         # Fall back to static analysis
         logger.info("Falling back to static analysis")
-        
+
         # Extract basic metrics
         state["metrics"] = {
             "latency_ms": int(state["severity"] * 10),
             "error_rate": round(state["severity"] / 1000, 3),
         }
-        
+
         # Calculate a simple risk score
         state["risk_score"] = state["severity"] // 2
-        
+
         return state
 
 
-def generate_explanation(state: SimulationState) -> SimulationState:
-    """Generate a human-readable explanation of the simulation results.
-    
+def create_embeddings_from_diff(state: SimulationState) -> SimulationState:
+    """Create embeddings from the diff data to enhance context retrieval.
+
     Args:
         state: The current workflow state
-        
+
+    Returns:
+        Updated workflow state with embeddings
+    """
+    logger.info("Creating embeddings from diff data")
+
+    try:
+        # Check if we have diff data
+        if not state.get("diff_data"):
+            logger.warning("No diff data available for embedding creation")
+            return state
+
+        # Create documents from diff data
+        documents = []
+
+        # Add file content as documents
+        for file in state.get("diff_data", {}).get("files", []):
+            if "content" in file and file["content"]:
+                documents.append(
+                    Document(
+                        page_content=file["content"],
+                        metadata={
+                            "path": file["path"],
+                            "type": "file_content",
+                            "change_type": file.get("change_type", "modified")
+                        }
+                    )
+                )
+
+            # Add diff hunks as separate documents for more granular context
+            if "hunks" in file:
+                for i, hunk in enumerate(file["hunks"]):
+                    hunk_content = hunk.get("content", "")
+                    if hunk_content:
+                        documents.append(
+                            Document(
+                                page_content=hunk_content,
+                                metadata={
+                                    "path": file["path"],
+                                    "type": "diff_hunk",
+                                    "hunk_index": i,
+                                    "change_type": file.get("change_type", "modified")
+                                }
+                            )
+                        )
+
+        # Add causal graph information if available
+        if state.get("causal_graph"):
+            causal_graph_str = json.dumps(state["causal_graph"], indent=2)
+            documents.append(
+                Document(
+                    page_content=causal_graph_str,
+                    metadata={
+                        "type": "causal_graph"
+                    }
+                )
+            )
+
+        # Add simulation results if available
+        if state.get("simulation_results"):
+            sim_results_str = json.dumps(state["simulation_results"], indent=2)
+            documents.append(
+                Document(
+                    page_content=sim_results_str,
+                    metadata={
+                        "type": "simulation_results"
+                    }
+                )
+            )
+
+        # Store the documents in the state
+        state["context_documents"] = documents
+
+        logger.info(f"Created {len(documents)} documents for context retrieval")
+        return state
+    except Exception as e:
+        logger.error(f"Error creating embeddings: {e}")
+        return state
+
+def generate_explanation(state: SimulationState) -> SimulationState:
+    """Generate a human-readable explanation of the simulation results.
+
+    Args:
+        state: The current workflow state
+
     Returns:
         Updated workflow state
     """
     logger.info("Generating explanation")
-    
+
     # Check if we have an LLM available
     llm = get_llm()
     if not llm:
         logger.warning("No LLM available, generating simple explanation")
-        
+
         # Generate a simple explanation
         file_count = len(state.get("diff_data", {}).get("files", []))
         service_count = len(state.get("affected_services", []))
-        
+
         explanation = (
             f"Simulation for {service_count} services based on {file_count} changed files. "
             f"Risk score: {state.get('risk_score', 0)} out of 100."
         )
-        
+
         state["explanation"] = explanation
         return state
-    
+
     try:
+        # Create embeddings for context if not already done
+        if not state.get("context_documents"):
+            state = create_embeddings_from_diff(state)
+
         # Prepare the prompt
         system_prompt = """You are an expert system analyst tasked with explaining the results of a simulation that predicts the impact of code changes.
 Your goal is to provide a clear, concise explanation of the simulation results, focusing on:
@@ -399,6 +490,9 @@ Focus on actionable insights rather than generic warnings.
 # Metrics
 {metrics_summary}
 
+# Relevant Code Context
+{code_context}
+
 Based on this information, provide a concise explanation (3-5 paragraphs) of the simulation results and what they mean for the developer.
 """
 
@@ -407,15 +501,75 @@ Based on this information, provide a concise explanation (3-5 paragraphs) of the
         file_summary = "\n".join([f"- {file['path']}" for file in files[:10]])
         if len(files) > 10:
             file_summary += f"\n- ... and {len(files) - 10} more files"
-        
+
         # Prepare the service summary
         services = state.get("affected_services", [])
         service_summary = "\n".join([f"- {service}" for service in services])
-        
+
         # Prepare the metrics summary
         metrics = state.get("metrics", {})
         metrics_summary = "\n".join([f"- {key}: {value}" for key, value in metrics.items() if not isinstance(value, dict)])
-        
+
+        # Prepare code context from documents
+        code_context = ""
+        if state.get("context_documents"):
+            # Use OpenAI embeddings for semantic search
+            embeddings = OpenAIEmbeddings(
+                model="text-embedding-3-large",
+                dimensions=1024
+            )
+
+            # Create a query combining the scenario and affected services
+            query = f"Impact of {state.get('scenario', '')} on {', '.join(state.get('affected_services', []))}"
+
+            # Embed the query
+            query_embedding = embeddings.embed_query(query)
+
+            # Find the most relevant documents
+            documents = state.get("context_documents", [])
+
+            # Embed all documents
+            doc_embeddings = embeddings.embed_documents([doc.page_content for doc in documents])
+
+            # Calculate similarity scores
+            from numpy import dot
+            from numpy.linalg import norm
+
+            def cosine_similarity(a, b):
+                return dot(a, b) / (norm(a) * norm(b))
+
+            # Calculate similarity for each document
+            similarities = [cosine_similarity(query_embedding, doc_emb) for doc_emb in doc_embeddings]
+
+            # Sort documents by similarity
+            sorted_docs = [doc for _, doc in sorted(zip(similarities, documents), key=lambda x: x[0], reverse=True)]
+
+            # Take the top 3 most relevant documents
+            top_docs = sorted_docs[:3]
+
+            # Format the code context
+            for doc in top_docs:
+                doc_type = doc.metadata.get("type", "unknown")
+                if doc_type == "file_content":
+                    code_context += f"\n## File: {doc.metadata.get('path', 'unknown')}\n"
+                    # Limit content to first 20 lines to avoid overwhelming the context
+                    content_lines = doc.page_content.split("\n")[:20]
+                    code_context += "\n".join(content_lines)
+                    if len(doc.page_content.split("\n")) > 20:
+                        code_context += "\n... (truncated)"
+                elif doc_type == "diff_hunk":
+                    code_context += f"\n## Diff in {doc.metadata.get('path', 'unknown')}\n"
+                    code_context += doc.page_content[:500]  # Limit to 500 chars
+                    if len(doc.page_content) > 500:
+                        code_context += "\n... (truncated)"
+                else:
+                    # For other types, just include a summary
+                    code_context += f"\n## {doc_type.replace('_', ' ').title()}\n"
+                    content_preview = doc.page_content[:300]
+                    code_context += content_preview
+                    if len(doc.page_content) > 300:
+                        code_context += "\n... (truncated)"
+
         # Format the prompt
         formatted_prompt = human_prompt.format(
             rev_range=state.get("rev_range", ""),
@@ -424,74 +578,75 @@ Based on this information, provide a concise explanation (3-5 paragraphs) of the
             risk_score=state.get("risk_score", 0),
             file_summary=file_summary,
             service_summary=service_summary,
-            metrics_summary=metrics_summary
+            metrics_summary=metrics_summary,
+            code_context=code_context
         )
-        
+
         # Create the prompt template
         prompt = ChatPromptTemplate.from_messages([
             SystemMessage(content=system_prompt),
             HumanMessage(content=formatted_prompt)
         ])
-        
+
         # Generate the explanation
         chain = prompt | llm
         explanation = chain.invoke({}).content
-        
+
         # Update the state
         state["explanation"] = explanation
-        
+
         logger.info("Successfully generated explanation")
         return state
     except Exception as e:
         logger.error(f"Error generating explanation: {e}")
-        
+
         # Generate a simple explanation as fallback
         file_count = len(state.get("diff_data", {}).get("files", []))
         service_count = len(state.get("affected_services", []))
-        
+
         explanation = (
             f"Simulation for {service_count} services based on {file_count} changed files. "
             f"Risk score: {state.get('risk_score', 0)} out of 100."
         )
-        
+
         state["explanation"] = explanation
         return state
 
 
 def generate_attestation(state: SimulationState) -> SimulationState:
     """Generate an attestation for the simulation results.
-    
+
     Args:
         state: The current workflow state
-        
+
     Returns:
         Updated workflow state
     """
     logger.info("Generating attestation")
-    
+
     try:
         # Check if we have the necessary data
         if not state.get("diff_data"):
             state["error"] = "No diff data available for attestation"
             state["status"] = "failed"
             return state
-        
+
         if not state.get("metrics"):
             state["error"] = "No metrics available for attestation"
             state["status"] = "failed"
             return state
-        
+
         if not state.get("manifest"):
             state["error"] = "No manifest available for attestation"
             state["status"] = "failed"
             return state
-        
+
         # Generate a unique simulation ID
         sim_id = f"sim_{state['rev_range'].replace('..', '_').replace('/', '_')}"
-        
+
         # Get the manifest hash
         manifest_hash = state["manifest"]["metadata"]["annotations"]["arc-memory.io/manifest-hash"]
-        
+
         # Create the attestation
         attestation = {
             "sim_id": sim_id,
@@ -503,20 +658,20 @@ def generate_attestation(state: SimulationState) -> SimulationState:
             "risk_score": state.get("risk_score", 0),
             "explanation": state.get("explanation", "")
         }
-        
+
         # Save the attestation
         arc_dir = ensure_arc_dir()
         attest_dir = arc_dir / ".attest"
         attest_dir.mkdir(exist_ok=True)
-        
+
         attest_path = attest_dir / f"{sim_id}.json"
         with open(attest_path, 'w') as f:
             json.dump(attestation, f, indent=2)
-        
+
         # Update the state
         state["attestation"] = attestation
         state["status"] = "completed"
-        
+
         logger.info(f"Successfully generated attestation at {attest_path}")
         return state
     except Exception as e:
@@ -528,10 +683,10 @@ def generate_attestation(state: SimulationState) -> SimulationState:
 
 def should_continue(state: SimulationState) -> Literal["continue", "end"]:
     """Determine if the workflow should continue or end.
-    
+
     Args:
         state: The current workflow state
-        
+
     Returns:
         "continue" if the workflow should continue, "end" if it should end
     """
@@ -542,33 +697,35 @@ def should_continue(state: SimulationState) -> Literal["continue", "end"]:
 
 def create_workflow() -> StateGraph:
     """Create the simulation workflow graph.
-    
+
     Returns:
         The workflow graph
     """
     # Create the workflow graph
     workflow = StateGraph(SimulationState)
-    
+
     # Add the nodes
     workflow.add_node("extract_diff", extract_diff)
     workflow.add_node("analyze_changes", analyze_changes)
     workflow.add_node("build_causal_graph", build_causal_graph)
     workflow.add_node("generate_manifest", generate_manifest)
     workflow.add_node("run_simulation", run_simulation)
+    workflow.add_node("create_embeddings", create_embeddings_from_diff)
     workflow.add_node("generate_explanation", generate_explanation)
     workflow.add_node("generate_attestation", generate_attestation)
-    
+
     # Define the edges
     workflow.add_edge("extract_diff", "analyze_changes")
     workflow.add_edge("analyze_changes", "build_causal_graph")
     workflow.add_edge("build_causal_graph", "generate_manifest")
     workflow.add_edge("generate_manifest", "run_simulation")
-    workflow.add_edge("run_simulation", "generate_explanation")
+    workflow.add_edge("run_simulation", "create_embeddings")
+    workflow.add_edge("create_embeddings", "generate_explanation")
     workflow.add_edge("generate_explanation", "generate_attestation")
-    
+
     # Set the entry point
     workflow.set_entry_point("extract_diff")
-    
+
     # Set conditional edges
     workflow.add_conditional_edges(
         "extract_diff",
@@ -578,7 +735,7 @@ def create_workflow() -> StateGraph:
             "end": END
         }
     )
-    
+
     workflow.add_conditional_edges(
         "analyze_changes",
         should_continue,
@@ -587,7 +744,7 @@ def create_workflow() -> StateGraph:
             "end": END
         }
     )
-    
+
     workflow.add_conditional_edges(
         "build_causal_graph",
         should_continue,
@@ -596,7 +753,7 @@ def create_workflow() -> StateGraph:
             "end": END
         }
     )
-    
+
     workflow.add_conditional_edges(
         "generate_manifest",
         should_continue,
@@ -605,7 +762,25 @@ def create_workflow() -> StateGraph:
             "end": END
         }
     )
-    
+
+    workflow.add_conditional_edges(
+        "run_simulation",
+        should_continue,
+        {
+            "continue": "create_embeddings",
+            "end": END
+        }
+    )
+
+    workflow.add_conditional_edges(
+        "create_embeddings",
+        should_continue,
+        {
+            "continue": "generate_explanation",
+            "end": END
+        }
+    )
+
     # Compile the workflow
     return workflow.compile()
 
@@ -619,7 +794,7 @@ def run_sim(
     db_path: Optional[str] = None
 ) -> Dict[str, Any]:
     """Run a simulation workflow.
-    
+
     Args:
         rev_range: Git rev-range to analyze
         scenario: Fault scenario ID
@@ -627,20 +802,20 @@ def run_sim(
         timeout: Max runtime in seconds
         repo_path: Path to the Git repository (default: current directory)
         db_path: Path to the knowledge graph database (default: .arc/graph.db)
-        
+
     Returns:
         The simulation results
     """
     logger.info(f"Starting simulation workflow for rev-range: {rev_range}")
-    
+
     # Set default paths
     if not repo_path:
         repo_path = os.getcwd()
-    
+
     if not db_path:
         arc_dir = ensure_arc_dir()
         db_path = str(arc_dir / "graph.db")
-    
+
     # Create the initial state
     initial_state: SimulationState = {
         "rev_range": rev_range,
@@ -657,19 +832,20 @@ def run_sim(
         "simulation_results": None,
         "metrics": None,
         "risk_score": None,
+        "context_documents": None,
         "explanation": None,
         "attestation": None,
         "error": None,
         "status": "in_progress"
     }
-    
+
     try:
         # Create the workflow
         workflow = create_workflow()
-        
+
         # Run the workflow
         final_state = workflow.invoke(initial_state)
-        
+
         # Check if the workflow completed successfully
         if final_state.get("status") == "failed":
             logger.error(f"Workflow failed: {final_state.get('error')}")
@@ -678,7 +854,7 @@ def run_sim(
                 "error": final_state.get("error"),
                 "rev_range": rev_range
             }
-        
+
         # Return the results
         return {
             "status": "completed",

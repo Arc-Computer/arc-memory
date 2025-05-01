@@ -15,6 +15,7 @@ from arc_memory.simulate.langgraph_flow import (
     build_causal_graph,
     generate_manifest,
     run_simulation,
+    create_embeddings_from_diff,
     generate_explanation,
     generate_attestation,
     should_continue,
@@ -333,6 +334,62 @@ class TestLangGraphFlow:
         assert "No manifest" in result["error"]
         assert result["status"] == "failed"
 
+    def test_create_embeddings_from_diff_success(self):
+        """Test creating embeddings from diff data successfully."""
+        # Setup
+        state = {
+            "diff_data": {
+                "files": [
+                    {
+                        "path": "file1.py",
+                        "content": "def hello():\n    return 'world'",
+                        "change_type": "modified",
+                        "hunks": [
+                            {"content": "@@ -1,1 +1,2 @@\n-def hello()\n+def hello():\n+    return 'world'"}
+                        ]
+                    },
+                    {
+                        "path": "file2.py",
+                        "content": "def goodbye():\n    return 'farewell'",
+                        "change_type": "added"
+                    }
+                ]
+            },
+            "causal_graph": {
+                "nodes": ["service1", "service2"],
+                "edges": [{"source": "service1", "target": "service2"}]
+            },
+            "status": "in_progress"
+        }
+
+        # Execute
+        result = create_embeddings_from_diff(state)
+
+        # Verify
+        assert result["context_documents"] is not None
+        assert len(result["context_documents"]) == 4  # 2 file contents + 1 hunk + 1 causal graph
+        assert result["status"] == "in_progress"
+
+        # Check document types
+        doc_types = [doc.metadata.get("type") for doc in result["context_documents"]]
+        assert "file_content" in doc_types
+        assert "diff_hunk" in doc_types
+        assert "causal_graph" in doc_types
+
+    def test_create_embeddings_from_diff_no_diff(self):
+        """Test creating embeddings without diff data."""
+        # Setup
+        state = {
+            "status": "in_progress"
+        }
+
+        # Execute
+        result = create_embeddings_from_diff(state)
+
+        # Verify
+        assert "context_documents" not in result
+        assert result["status"] == "in_progress"
+
     def test_generate_explanation_with_llm(self):
         """Test generating explanation with LLM."""
         # Setup
@@ -355,6 +412,16 @@ class TestLangGraphFlow:
                 "pod_count": 5,
                 "service_count": 3
             },
+            "context_documents": [
+                mock.MagicMock(
+                    page_content="def hello():\n    return 'world'",
+                    metadata={"path": "file1.py", "type": "file_content"}
+                ),
+                mock.MagicMock(
+                    page_content="@@ -1,1 +1,2 @@\n-def hello()\n+def hello():\n+    return 'world'",
+                    metadata={"path": "file1.py", "type": "diff_hunk"}
+                )
+            ],
             "status": "in_progress"
         }
 
@@ -364,22 +431,32 @@ class TestLangGraphFlow:
             mock_chain = mock.MagicMock()
             mock_chain.invoke.return_value = mock.MagicMock(content="This is a test explanation.")
 
-            # Mock the chain creation (prompt | llm)
-            with mock.patch("arc_memory.simulate.langgraph_flow.ChatPromptTemplate") as mock_prompt:
-                mock_prompt.from_messages.return_value = mock.MagicMock()
-                mock_prompt.from_messages.return_value.__or__.return_value = mock_chain
+            # Mock OpenAIEmbeddings
+            with mock.patch("arc_memory.simulate.langgraph_flow.OpenAIEmbeddings") as mock_embeddings:
+                mock_embeddings_instance = mock.MagicMock()
+                mock_embeddings_instance.embed_query.return_value = [0.1, 0.2, 0.3]
+                mock_embeddings_instance.embed_documents.return_value = [[0.1, 0.2, 0.3], [0.4, 0.5, 0.6]]
+                mock_embeddings.return_value = mock_embeddings_instance
 
-                mock_get_llm.return_value = mock_llm
+                # Mock the chain creation (prompt | llm)
+                with mock.patch("arc_memory.simulate.langgraph_flow.ChatPromptTemplate") as mock_prompt:
+                    mock_prompt.from_messages.return_value = mock.MagicMock()
+                    mock_prompt.from_messages.return_value.__or__.return_value = mock_chain
 
-                # Execute
-                result = generate_explanation(state)
+                    mock_get_llm.return_value = mock_llm
 
-                # Verify
-                assert result["explanation"] is not None
-                assert "This is a test explanation." in result["explanation"]
-                assert result["status"] == "in_progress"
-                mock_get_llm.assert_called_once()
-                mock_chain.invoke.assert_called_once()
+                    # Execute
+                    result = generate_explanation(state)
+
+                    # Verify
+                    assert result["explanation"] is not None
+                    assert "This is a test explanation." in result["explanation"]
+                    assert result["status"] == "in_progress"
+                    mock_get_llm.assert_called_once()
+                    mock_chain.invoke.assert_called_once()
+                    mock_embeddings.assert_called()
+                    mock_embeddings_instance.embed_query.assert_called_once()
+                    mock_embeddings_instance.embed_documents.assert_called_once()
 
     def test_generate_explanation_no_llm(self):
         """Test generating explanation without LLM."""
@@ -526,6 +603,26 @@ class TestLangGraphFlow:
 
         # Verify
         assert workflow is not None
+
+        # Test with a mock StateGraph to verify nodes
+        with mock.patch("arc_memory.simulate.langgraph_flow.StateGraph") as mock_state_graph:
+            mock_graph = mock.MagicMock()
+            mock_state_graph.return_value = mock_graph
+
+            # Call create_workflow
+            create_workflow()
+
+            # Verify that all nodes are added
+            assert mock_graph.add_node.call_count >= 8  # At least 8 nodes
+
+            # Check that our new node is added
+            mock_graph.add_node.assert_any_call("create_embeddings", create_embeddings_from_diff)
+
+            # Check that the edge from run_simulation to create_embeddings exists
+            mock_graph.add_edge.assert_any_call("run_simulation", "create_embeddings")
+
+            # Check that the edge from create_embeddings to generate_explanation exists
+            mock_graph.add_edge.assert_any_call("create_embeddings", "generate_explanation")
 
     def test_run_sim_success(self):
         """Test running the simulation workflow successfully."""
