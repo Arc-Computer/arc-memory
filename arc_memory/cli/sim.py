@@ -66,18 +66,40 @@ def run_simulation_and_extract_metrics(
             simulation_timeout = min(timeout, 300)  # Cap at 5 minutes for now
             simulation_results = run_sandbox_simulation(
                 manifest_path=manifest_path,
-                duration_seconds=simulation_timeout
+                duration_seconds=simulation_timeout,
+                metrics_interval=30  # Collect metrics every 30 seconds
             )
 
             # Extract metrics from the simulation results
             metrics = {
                 "latency_ms": int(severity * 10),  # Based on severity
                 "error_rate": round(severity / 1000, 3),  # Based on severity
-                # Add actual metrics from simulation if available
-                "node_count": simulation_results.get("final_metrics", {}).get("node_count", 0),
-                "pod_count": simulation_results.get("final_metrics", {}).get("pod_count", 0),
-                "service_count": simulation_results.get("final_metrics", {}).get("service_count", 0)
             }
+
+            # Add actual metrics from simulation if available
+            if "final_metrics" in simulation_results:
+                final_metrics = simulation_results.get("final_metrics", {})
+
+                # Extract basic metrics
+                basic_metrics = extract_metrics(
+                    final_metrics,
+                    ["node_count", "pod_count", "service_count"]
+                )
+                metrics.update(basic_metrics)
+
+                # Extract resource usage metrics
+                if "cpu_usage" in final_metrics:
+                    metrics["cpu_usage"] = final_metrics.get("cpu_usage", {})
+                if "memory_usage" in final_metrics:
+                    metrics["memory_usage"] = final_metrics.get("memory_usage", {})
+
+            # Add experiment details if available
+            if "experiment_name" in simulation_results:
+                metrics["experiment_name"] = simulation_results.get("experiment_name")
+
+            # Add metrics history if available for detailed analysis
+            if "metrics_history" in simulation_results:
+                metrics["metrics_history"] = simulation_results.get("metrics_history")
 
             # Calculate risk score based on simulation results
             # For now, use a simple formula based on severity and metrics
@@ -98,6 +120,20 @@ def run_simulation_and_extract_metrics(
         metrics, risk_score = get_static_analysis_metrics(severity)
 
     return metrics, risk_score
+
+
+def extract_metrics(metrics_data: Dict[str, Any], metric_keys: List[str], default_value: Any = 0) -> Dict[str, Any]:
+    """Extract specific metrics from metrics data.
+
+    Args:
+        metrics_data: The metrics data to extract from
+        metric_keys: List of metric keys to extract
+        default_value: Default value to use if a metric is not found
+
+    Returns:
+        A dictionary of extracted metrics
+    """
+    return {key: metrics_data.get(key, default_value) for key in metric_keys}
 
 
 def get_static_analysis_metrics(severity: int) -> Tuple[Dict[str, Any], int]:
