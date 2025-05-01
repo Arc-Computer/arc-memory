@@ -209,7 +209,8 @@ def analyze_diff(diff: Dict[str, Any], causal_db: str) -> List[str]:
     Returns:
         A list of affected service names
     """
-    from arc_memory.simulate.causal import derive_causal, get_affected_services
+    from arc_memory.simulate.causal import derive_causal
+    from arc_memory.simulate.causal import get_affected_services
 
     # Extract the list of changed files
     changed_files = [file["path"] for file in diff.get("files", [])]

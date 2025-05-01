@@ -14,8 +14,13 @@ from typing import Dict, List, Optional, Set, Any, Tuple
 import networkx as nx
 
 from arc_memory.logging_conf import get_logger
-from arc_memory.schema.models import EdgeRel, NodeType
-from arc_memory.sql.db import get_connection, get_edges_by_src, get_edges_by_dst, get_node_by_id, build_networkx_graph
+from arc_memory.schema.models import EdgeRel
+from arc_memory.schema.models import NodeType
+from arc_memory.sql.db import get_connection
+from arc_memory.sql.db import get_edges_by_src
+from arc_memory.sql.db import get_edges_by_dst
+from arc_memory.sql.db import get_node_by_id
+from arc_memory.sql.db import build_networkx_graph
 
 logger = get_logger(__name__)
 
