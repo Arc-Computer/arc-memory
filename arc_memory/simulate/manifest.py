@@ -134,7 +134,8 @@ class ManifestGenerator:
             "kind": "Schedule",
             "metadata": {
                 "name": "empty-schedule",
-                "namespace": "default"
+                "namespace": "default",
+                "annotations": {}
             },
             "spec": {
                 "schedule": "0 * * * *",
@@ -436,9 +437,15 @@ def generate_simulation_manifest(
     # Calculate the manifest hash
     manifest_hash = generator.calculate_manifest_hash(manifest)
 
+    # Ensure the metadata field exists
+    if "metadata" not in manifest:
+        manifest["metadata"] = {}
+
+    # Ensure the annotations field exists
+    if "annotations" not in manifest["metadata"]:
+        manifest["metadata"]["annotations"] = {}
+
     # Add the hash to the manifest
-    manifest["metadata"]["annotations"] = {
-        "arc-memory.io/manifest-hash": manifest_hash
-    }
+    manifest["metadata"]["annotations"]["arc-memory.io/manifest-hash"] = manifest_hash
 
     return manifest
