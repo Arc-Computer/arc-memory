@@ -6,6 +6,7 @@ by running targeted fault injection experiments in isolated sandbox environments
 
 import hashlib
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -28,6 +29,15 @@ from arc_memory.simulate.diff_utils import load_diff_from_file
 from arc_memory.simulate.diff_utils import serialize_diff
 from arc_memory.simulate.manifest import generate_simulation_manifest
 from arc_memory.simulate.manifest import list_available_scenarios
+
+# Try to import the LangGraph workflow, but don't fail if it's not available
+try:
+    from arc_memory.simulate.langgraph_flow import run_sim as run_langgraph_workflow
+    HAS_LANGGRAPH = True
+except ImportError:
+    logger.warning("LangGraph not found. LangGraph workflow will not be available.")
+    HAS_LANGGRAPH = False
+    run_langgraph_workflow = None
 
 # Try to import the sandbox simulation, but don't fail if it's not available
 try:
@@ -261,6 +271,79 @@ def run_simulation(
         # Get the database path
         arc_dir = ensure_arc_dir()
         db_path = arc_dir / "graph.db"
+
+        # Check if LangGraph workflow is available
+        if HAS_LANGGRAPH and run_langgraph_workflow:
+            logger.info("Using LangGraph workflow for simulation")
+            console.print("[bold]Using LangGraph workflow for simulation...[/bold]")
+
+            # If diff_path is provided, we need to load it first
+            if diff_path:
+                logger.info(f"Loading diff from file: {diff_path}")
+                try:
+                    diff_data = load_diff_from_file(diff_path)
+                    # We'll need to modify the workflow to handle pre-loaded diff data
+                    # For now, just log a warning
+                    logger.warning("Pre-loaded diff data is not fully supported with LangGraph workflow")
+                    console.print("[yellow]Pre-loaded diff data is not fully supported with LangGraph workflow[/yellow]")
+                except Exception as e:
+                    console.print(f"[red]Error loading diff file: {e}[/red]")
+                    sys.exit(3)  # Invalid Input
+
+            # Run the LangGraph workflow
+            workflow_result = run_langgraph_workflow(
+                rev_range=rev_range,
+                scenario=scenario,
+                severity=severity,
+                timeout=timeout,
+                repo_path=os.getcwd(),
+                db_path=str(db_path)
+            )
+
+            # Check if the workflow completed successfully
+            if workflow_result.get("status") != "completed":
+                error_message = workflow_result.get("error", "Unknown error")
+                console.print(f"[red]Workflow failed: {error_message}[/red]")
+                sys.exit(2)  # Error
+
+            # Get the attestation
+            attestation = workflow_result.get("attestation", {})
+
+            # Create the result object
+            result = {
+                "sim_id": attestation.get("sim_id", f"sim_{rev_range.replace('..', '_').replace('/', '_')}"),
+                "risk_score": attestation.get("risk_score", 0),
+                "services": workflow_result.get("affected_services", []),
+                "metrics": attestation.get("metrics", {}),
+                "explanation": attestation.get("explanation", ""),
+                "manifest_hash": attestation.get("manifest_hash", ""),
+                "commit_target": attestation.get("commit_target", "unknown"),
+                "timestamp": attestation.get("timestamp", "unknown"),
+                "diff_hash": attestation.get("diff_hash", "")
+            }
+
+            # Output the result
+            if output_path:
+                with open(output_path, 'w') as f:
+                    json.dump(result, f, indent=2)
+                console.print(f"[green]Results written to: {output_path}[/green]")
+            else:
+                console.print("\n[bold]Simulation Results:[/bold]")
+                console.print(json.dumps(result, indent=2))
+
+            # Return appropriate exit code based on risk score
+            if result["risk_score"] >= severity:
+                console.print(f"[red]Risk score {result['risk_score']} exceeds threshold {severity}[/red]")
+                sys.exit(1)  # Failure - risk score exceeds threshold
+            else:
+                console.print(f"[green]Risk score {result['risk_score']} is below threshold {severity}[/green]")
+                # Success - continue with exit code 0
+
+            return
+
+        # If LangGraph is not available, fall back to the original implementation
+        logger.info("LangGraph workflow not available, using traditional approach")
+        console.print("[yellow]LangGraph workflow not available, using traditional approach[/yellow]")
 
         # Step 1: Get the diff
         diff_data = None
