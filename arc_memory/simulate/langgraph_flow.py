@@ -87,6 +87,12 @@ def extract_diff(state: SimulationState) -> SimulationState:
     Returns:
         Updated workflow state
     """
+    # Check if diff data is already provided
+    if state.get("diff_data"):
+        logger.info("Using pre-loaded diff data")
+        logger.info(f"Pre-loaded diff contains {len(state['diff_data'].get('files', []))} files")
+        return state
+
     logger.info(f"Extracting diff for range: {state['rev_range']}")
 
     try:
@@ -791,7 +797,8 @@ def run_sim(
     severity: int = 50,
     timeout: int = 600,
     repo_path: Optional[str] = None,
-    db_path: Optional[str] = None
+    db_path: Optional[str] = None,
+    diff_data: Optional[Dict[str, Any]] = None
 ) -> Dict[str, Any]:
     """Run a simulation workflow.
 
@@ -802,6 +809,7 @@ def run_sim(
         timeout: Max runtime in seconds
         repo_path: Path to the Git repository (default: current directory)
         db_path: Path to the knowledge graph database (default: .arc/graph.db)
+        diff_data: Pre-loaded diff data (optional)
 
     Returns:
         The simulation results
@@ -824,7 +832,7 @@ def run_sim(
         "timeout": timeout,
         "repo_path": repo_path,
         "db_path": db_path,
-        "diff_data": None,
+        "diff_data": diff_data,  # Use pre-loaded diff data if provided
         "affected_services": None,
         "causal_graph": None,
         "manifest": None,

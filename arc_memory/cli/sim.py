@@ -163,6 +163,33 @@ def get_static_analysis_metrics(severity: int) -> Tuple[Dict[str, Any], int]:
 
     return metrics, risk_score
 
+
+def output_simulation_results(result: Dict[str, Any], output_path: Optional[Path], severity: int, console: Console) -> None:
+    """Output simulation results and set appropriate exit code.
+
+    Args:
+        result: The simulation results
+        output_path: Path to write result JSON (optional)
+        severity: CI fail threshold 0-100
+        console: Rich console for output
+    """
+    # Output the result
+    if output_path:
+        with open(output_path, 'w') as f:
+            json.dump(result, f, indent=2)
+        console.print(f"[green]Results written to: {output_path}[/green]")
+    else:
+        console.print("\n[bold]Simulation Results:[/bold]")
+        console.print(json.dumps(result, indent=2))
+
+    # Return appropriate exit code based on risk score
+    if result["risk_score"] >= severity:
+        console.print(f"[red]Risk score {result['risk_score']} exceeds threshold {severity}[/red]")
+        sys.exit(1)  # Failure - risk score exceeds threshold
+    else:
+        console.print(f"[green]Risk score {result['risk_score']} is below threshold {severity}[/green]")
+        # Success - continue with exit code 0
+
 app = typer.Typer(help="Simulate the impact of code changes with fault injection")
 console = Console()
 logger = get_logger(__name__)
@@ -278,14 +305,12 @@ def run_simulation(
             console.print("[bold]Using LangGraph workflow for simulation...[/bold]")
 
             # If diff_path is provided, we need to load it first
+            diff_data = None
             if diff_path:
                 logger.info(f"Loading diff from file: {diff_path}")
                 try:
                     diff_data = load_diff_from_file(diff_path)
-                    # We'll need to modify the workflow to handle pre-loaded diff data
-                    # For now, just log a warning
-                    logger.warning("Pre-loaded diff data is not fully supported with LangGraph workflow")
-                    console.print("[yellow]Pre-loaded diff data is not fully supported with LangGraph workflow[/yellow]")
+                    console.print(f"[green]Successfully loaded diff from file with {len(diff_data.get('files', []))} files[/green]")
                 except Exception as e:
                     console.print(f"[red]Error loading diff file: {e}[/red]")
                     sys.exit(3)  # Invalid Input
@@ -297,7 +322,8 @@ def run_simulation(
                 severity=severity,
                 timeout=timeout,
                 repo_path=os.getcwd(),
-                db_path=str(db_path)
+                db_path=str(db_path),
+                diff_data=diff_data  # Pass the pre-loaded diff data if available
             )
 
             # Check if the workflow completed successfully
@@ -322,22 +348,8 @@ def run_simulation(
                 "diff_hash": attestation.get("diff_hash", "")
             }
 
-            # Output the result
-            if output_path:
-                with open(output_path, 'w') as f:
-                    json.dump(result, f, indent=2)
-                console.print(f"[green]Results written to: {output_path}[/green]")
-            else:
-                console.print("\n[bold]Simulation Results:[/bold]")
-                console.print(json.dumps(result, indent=2))
-
-            # Return appropriate exit code based on risk score
-            if result["risk_score"] >= severity:
-                console.print(f"[red]Risk score {result['risk_score']} exceeds threshold {severity}[/red]")
-                sys.exit(1)  # Failure - risk score exceeds threshold
-            else:
-                console.print(f"[green]Risk score {result['risk_score']} is below threshold {severity}[/green]")
-                # Success - continue with exit code 0
+            # Output the result using the shared function
+            output_simulation_results(result, output_path, severity, console)
 
             return
 
@@ -453,22 +465,8 @@ def run_simulation(
             "diff_hash": hashlib.md5(json.dumps(diff_data, sort_keys=True).encode('utf-8')).hexdigest()
         }
 
-        # Output the result
-        if output_path:
-            with open(output_path, 'w') as f:
-                json.dump(result, f, indent=2)
-            console.print(f"[green]Results written to: {output_path}[/green]")
-        else:
-            console.print("\n[bold]Simulation Results:[/bold]")
-            console.print(json.dumps(result, indent=2))
-
-        # Return appropriate exit code based on risk score
-        if result["risk_score"] >= severity:
-            console.print(f"[red]Risk score {result['risk_score']} exceeds threshold {severity}[/red]")
-            sys.exit(1)  # Failure - risk score exceeds threshold
-        else:
-            console.print(f"[green]Risk score {result['risk_score']} is below threshold {severity}[/green]")
-            # Success - continue with exit code 0
+        # Output the result using the shared function
+        output_simulation_results(result, output_path, severity, console)
 
     except Exception as e:
         logger.exception("Error in simulation")
