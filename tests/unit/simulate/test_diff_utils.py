@@ -8,6 +8,7 @@ from unittest import mock
 
 import pytest
 
+# Import core implementation functions from diff_utils
 from arc_memory.simulate.diff_utils import (
     GitError,
     analyze_diff,
@@ -17,6 +18,16 @@ from arc_memory.simulate.diff_utils import (
     serialize_diff,
 )
 
+# Import wrapper functions from diff
+from arc_memory.simulate.diff import (
+    analyze_changes,
+    extract_diff,
+    load_diff_from_file as wrapper_load_diff_from_file,
+    save_diff_to_file,
+)
+
+
+# Tests for core implementation (diff_utils.py)
 
 def test_parse_rev_range():
     """Test parsing Git revision ranges."""
@@ -220,3 +231,95 @@ def test_serialize_diff(mock_repo):
         with mock.patch("os.getcwd", return_value="/tmp"):
             with mock.patch("pathlib.Path.cwd", return_value=Path("/tmp")):
                 serialize_diff("HEAD~1..HEAD")
+
+
+# Tests for wrapper functions (diff.py)
+
+@mock.patch("arc_memory.simulate.diff_utils.serialize_diff")
+def test_extract_diff(mock_serialize_diff):
+    """Test extract_diff wrapper function."""
+    # Setup mock data
+    mock_diff_data = {
+        "files": [{"path": "app.py"}],
+        "commit_count": 1
+    }
+    mock_serialize_diff.return_value = mock_diff_data
+    
+    # Define a mock progress callback
+    progress_calls = []
+    def mock_progress_callback(message, progress):
+        progress_calls.append((message, progress))
+    
+    # Call the function
+    result = extract_diff("HEAD~1..HEAD", progress_callback=mock_progress_callback)
+    
+    # Verify the result
+    assert result == mock_diff_data
+    assert len(progress_calls) == 2
+    assert "Extracting diff" in progress_calls[0][0]
+    assert "Successfully extracted" in progress_calls[1][0]
+    
+    # Verify the mock was called correctly
+    mock_serialize_diff.assert_called_once_with("HEAD~1..HEAD", repo_path=None)
+
+
+@mock.patch("arc_memory.simulate.diff_utils.analyze_diff")
+def test_analyze_changes(mock_analyze_diff):
+    """Test analyze_changes wrapper function."""
+    # Setup mock data
+    mock_services = ["service1", "service2"]
+    mock_analyze_diff.return_value = mock_services
+    
+    diff_data = {
+        "files": [{"path": "app.py"}],
+        "commit_count": 1
+    }
+    
+    # Define a mock progress callback
+    progress_calls = []
+    def mock_progress_callback(message, progress):
+        progress_calls.append((message, progress))
+    
+    # Call the function
+    result = analyze_changes(diff_data, "db_path", progress_callback=mock_progress_callback)
+    
+    # Verify the result
+    assert result == mock_services
+    assert len(progress_calls) == 2
+    assert "Analyzing diff" in progress_calls[0][0]
+    assert "Identified" in progress_calls[1][0]
+    
+    # Verify the mock was called correctly
+    mock_analyze_diff.assert_called_once_with(diff_data, "db_path")
+
+
+def test_save_and_load_diff():
+    """Test saving and loading diff data."""
+    # Create test data
+    diff_data = {
+        "files": [
+            {
+                "path": "app.py",
+                "insertions": 10,
+                "deletions": 5,
+                "status": "modified"
+            }
+        ],
+        "commit_count": 1,
+        "range": "HEAD~1..HEAD"
+    }
+    
+    try:
+        # Test saving the diff
+        diff_path = save_diff_to_file(diff_data)
+        
+        # Test loading the diff using the wrapper
+        loaded_diff = wrapper_load_diff_from_file(diff_path)
+        
+        # Verify the data is the same
+        assert loaded_diff == diff_data
+        
+    finally:
+        # Clean up
+        if 'diff_path' in locals() and diff_path.exists():
+            os.unlink(diff_path)

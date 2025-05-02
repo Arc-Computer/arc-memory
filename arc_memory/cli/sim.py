@@ -21,27 +21,19 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from arc_memory.logging_conf import configure_logging
-from arc_memory.logging_conf import get_logger
+from arc_memory.logging_conf import configure_logging, get_logger, get_console
 from arc_memory.logging_conf import is_debug_mode
 
 logger = get_logger(__name__)
+
+# Import core simulation components
 from arc_memory.simulate.causal_utils import build_causal_graph
 from arc_memory.simulate.diff_utils import GitError
-from arc_memory.simulate.diff_utils import analyze_diff
-from arc_memory.simulate.diff_utils import load_diff_from_file
-from arc_memory.simulate.diff_utils import serialize_diff
-from arc_memory.simulate.manifest import generate_simulation_manifest
-from arc_memory.simulate.manifest import list_available_scenarios
-
-# Try to import the Smol Agents workflow, but don't fail if it's not available
-try:
-    from arc_memory.simulate.workflow import run_simulation_workflow as run_smol_workflow
-    HAS_SMOL_AGENTS = True
-except ImportError:
-    logger.warning("Smol Agents not found. Smol Agents workflow will not be available.")
-    HAS_SMOL_AGENTS = False
-    run_smol_workflow = None
+from arc_memory.simulate.diff import analyze_changes, load_diff_from_file, serialize_diff, extract_diff_data
+from arc_memory.simulate.manifest import generate_simulation_manifest, list_available_scenarios
+from arc_memory.simulate.manifest import load_manifest_from_file, build_manifest
+from arc_memory.simulate.code_interpreter import run_simulation
+from arc_memory.simulate.workflow import run_smol_workflow, HAS_SMOL_AGENTS
 
 # Try to import the LangGraph workflow as fallback, but don't fail if it's not available
 try:
@@ -52,20 +44,38 @@ except ImportError:
     HAS_LANGGRAPH = False
     run_langgraph_workflow = None
 
-# Try to import the sandbox simulation as fallback, but don't fail if it's not available
+# Try to import schema for type hints
 try:
-    from arc_memory.simulate.code_interpreter import run_simulation as run_sandbox_simulation
-    HAS_SANDBOX = True
+    from arc_memory.schema.models import SimulationNode
+    HAS_SCHEMA = True
 except ImportError:
-    logger.warning("E2B Code Interpreter not found. Sandbox simulation will not be available.")
-    HAS_SANDBOX = False
-    run_sandbox_simulation = None
-from arc_memory.sql.db import ensure_arc_dir, get_connection
-from arc_memory.telemetry import track_cli_command
-from arc_memory.memory.query import (
-    get_simulations_by_service,
-    get_simulations_by_file,
-)
+    logger.warning("Schema models not found. Using basic types.")
+    HAS_SCHEMA = False
+
+# Import database access functions if available
+try:
+    from arc_memory.sql.db import ensure_arc_dir, get_connection
+    from arc_memory.memory.query import (
+        get_simulations_by_service,
+        get_simulations_by_file,
+    )
+    HAS_DB = True
+except ImportError:
+    logger.warning("DB access not found. History queries will not be available.")
+    HAS_DB = False
+    ensure_arc_dir = lambda: Path(os.path.expanduser("~/.arc"))
+    get_connection = lambda _: None
+    get_simulations_by_service = lambda *args, **kwargs: []
+    get_simulations_by_file = lambda *args, **kwargs: []
+
+# Try to import telemetry
+try:
+    from arc_memory.telemetry import track_cli_command
+    HAS_TELEMETRY = True
+except ImportError:
+    logger.warning("Telemetry not found. Telemetry will not be available.")
+    HAS_TELEMETRY = False
+    def track_cli_command(*args, **kwargs): pass
 
 
 def run_simulation_and_extract_metrics(
@@ -537,7 +547,7 @@ def run_simulation(
 
         # Step 2: Analyze the diff to identify affected services
         logger.info("Analyzing diff to identify affected services")
-        affected_services = analyze_diff(diff_data, db_path)
+        affected_services = analyze_changes(diff_data, db_path)
 
         # Create a table to display affected services
         table = Table(title="Affected Services")
@@ -795,3 +805,55 @@ def history(
         logger.exception("Error retrieving simulation history")
         console.print(f"[red]Error: {e}[/red]")
         sys.exit(2)  # Error
+
+
+def run_simulation_with_smol_agents(
+    rev_range: str,
+    scenario: str,
+    severity: int,
+    timeout: int = 600,
+    db_path: Optional[str] = None,
+    diff_path: Optional[Path] = None,
+    diff_data: Optional[Dict[str, Any]] = None,
+    use_memory: bool = False,
+    verbose: bool = False,
+    model_name: str = "gpt-4o",
+):
+    """Run a simulation using the Smol Agents workflow.
+    
+    Args:
+        rev_range: Git revision range
+        scenario: Fault scenario ID
+        severity: Severity level (0-100)
+        timeout: Timeout in seconds
+        db_path: Path to the knowledge graph database
+        diff_path: Path to the diff file
+        diff_data: Diff data (if not provided, it will be extracted)
+        use_memory: Whether to use memory integration
+        verbose: Whether to print verbose output
+        model_name: LLM model name to use
+        
+    Returns:
+        Dictionary with simulation results
+    """
+    # Use the already imported logger and console
+    # Check if Smol Agents is available
+    if not HAS_SMOL_AGENTS or not run_smol_workflow:
+        logger.error("Smol Agents workflow is not available")
+        console = get_console()
+        console.print("[red]Error: Smol Agents workflow is not available. Please install it with 'pip install smolagents'.[/red]")
+        sys.exit(2)
+    
+    # Run the workflow
+    return run_smol_workflow(
+        rev_range=rev_range,
+        scenario=scenario,
+        severity=severity,
+        timeout=timeout,
+        db_path=db_path,
+        diff_path=diff_path,
+        diff_data=diff_data,
+        use_memory=use_memory,
+        verbose=verbose,
+        model_name=model_name,
+    )

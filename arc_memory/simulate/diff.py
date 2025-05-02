@@ -1,18 +1,21 @@
 """Diff extraction and analysis module for Arc Memory simulation.
 
-This module provides functions for extracting and analyzing Git diffs to identify
-affected files and services for simulation.
+This module provides wrapper functions for extracting and analyzing Git diffs,
+adding progress callback capabilities to the core implementation in diff_utils.py.
 """
 
-import os
 import json
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Callable
 
 from arc_memory.logging_conf import get_logger
-from arc_memory.simulate.diff_utils import serialize_diff as _serialize_diff
-from arc_memory.simulate.diff_utils import analyze_diff as _analyze_diff
-from arc_memory.simulate.diff_utils import GitError
+from arc_memory.simulate.diff_utils import (
+    serialize_diff as _serialize_diff,
+    analyze_diff as _analyze_diff,
+    load_diff_from_file as _load_diff_from_file,
+    extract_diff_data as _extract_diff_data,
+    GitError
+)
 
 logger = get_logger(__name__)
 
@@ -42,7 +45,7 @@ def extract_diff(
     logger.info(f"Extracting diff for range: {rev_range}")
 
     try:
-        # Extract the diff
+        # Extract the diff using the core implementation
         diff_data = _serialize_diff(rev_range, repo_path=Path(repo_path) if repo_path else None)
         
         # Update progress if callback is available
@@ -105,7 +108,7 @@ def analyze_changes(
                 
             raise ValueError(error_msg)
 
-        # Analyze the diff
+        # Analyze the diff using the core implementation
         affected_services = _analyze_diff(diff_data, db_path)
         
         # Update progress if callback is available
@@ -174,14 +177,8 @@ def load_diff_from_file(diff_path: Path) -> Dict[str, Any]:
         ValueError: If the diff file contains invalid data
     """
     try:
-        # Load the diff data
-        with open(diff_path, 'r') as f:
-            diff_data = json.load(f)
-        
-        # Validate the diff data
-        if not isinstance(diff_data, dict) or "files" not in diff_data:
-            raise ValueError("Invalid diff data format")
-        
+        # Load the diff data using the core implementation
+        diff_data = _load_diff_from_file(diff_path)
         logger.info(f"Loaded diff data from {diff_path}")
         return diff_data
     except FileNotFoundError:
@@ -193,3 +190,20 @@ def load_diff_from_file(diff_path: Path) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error loading diff data: {e}")
         raise ValueError(f"Error loading diff data: {e}")
+
+
+def extract_diff_data(diff_path: Path) -> Dict[str, Any]:
+    """Extract data from a diff file.
+    
+    Args:
+        diff_path: Path to the diff file
+        
+    Returns:
+        Extracted diff data as a dictionary
+    """
+    try:
+        # Extract diff data using the core implementation
+        return _extract_diff_data(diff_path)
+    except Exception as e:
+        logger.error(f"Error extracting diff data: {e}")
+        raise ValueError(f"Error extracting diff data: {e}")
