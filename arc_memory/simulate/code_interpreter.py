@@ -162,7 +162,7 @@ def run_simulation(
         manifest_path_b64 = base64.b64encode(str(manifest_path).encode()).decode()
 
         # Create the simulation script with enhanced logging
-        simulation_script = f"""
+        simulation_script = """
 import json
 import time
 import os
@@ -172,13 +172,13 @@ from pathlib import Path
 
 # Function to log command execution
 def run_and_log(cmd, description):
-    print(f"Executing: {{cmd}}")
+    print("Executing: " + str(cmd))
     start_time = time.time()
     try:
         result = subprocess.run(cmd, check=False, capture_output=True, text=True)
         duration = time.time() - start_time
         success = result.returncode == 0
-        log = {{
+        log = {
             "command": cmd,
             "description": description,
             "success": success,
@@ -187,20 +187,20 @@ def run_and_log(cmd, description):
             "stderr": result.stderr,
             "duration": duration,
             "timestamp": time.time()
-        }}
-        print(f"Command completed with status: {{result.returncode}}")
+        }
+        print("Command completed with status: " + str(result.returncode))
         return log
     except Exception as e:
         duration = time.time() - start_time
-        log = {{
+        log = {
             "command": cmd,
             "description": description,
             "success": False,
             "error": str(e),
             "duration": duration,
             "timestamp": time.time()
-        }}
-        print(f"Command failed with error: {{e}}")
+        }
+        print("Command failed with error: " + str(e))
         return log
 
 # Decode the manifest path
@@ -218,16 +218,16 @@ diff_path = manifest.get("diff_path", "")
 causal_path = manifest.get("causal_path", "")
 output_dir = manifest.get("output_dir", "")
 
-print(f"Running simulation for scenario: {{scenario}}")
-print(f"Severity: {{severity}}")
-print(f"Affected services: {{', '.join(affected_services)}}")
+print("Running simulation for scenario: " + str(scenario))
+print("Severity: " + str(severity))
+print("Affected services: " + ", ".join(affected_services if affected_services else ["none"]))
 
 # Initialize command logs
 command_logs = []
 
 # Simulate setting up a k3d cluster (without actually running the commands)
 print("Simulating k3d cluster setup...")
-k3d_log = {{
+k3d_log = {
     "command": ["k3d", "cluster", "create", "arc-sim", "--agents", "1"],
     "description": "Create k3d cluster",
     "success": True,
@@ -236,12 +236,12 @@ k3d_log = {{
     "stderr": "",
     "duration": 2.5,
     "timestamp": time.time()
-}}
+}
 command_logs.append(k3d_log)
 
 # Simulate deploying Chaos Mesh
 print("Simulating Chaos Mesh deployment...")
-create_ns_log = {{
+create_ns_log = {
     "command": ["kubectl", "create", "ns", "chaos-testing"],
     "description": "Create chaos-testing namespace",
     "success": True,
@@ -250,19 +250,19 @@ create_ns_log = {{
     "stderr": "",
     "duration": 0.8,
     "timestamp": time.time()
-}}
+}
 command_logs.append(create_ns_log)
 
-deploy_chaos_log = {{
+deploy_chaos_log = {
     "command": ["kubectl", "apply", "-f", "https://github.com/chaos-mesh/chaos-mesh/releases/download/v2.6.1/chaos-mesh.yaml"],
     "description": "Deploy Chaos Mesh",
     "success": True,
     "returncode": 0,
-    "stdout": "deployment.apps/chaos-mesh created\nservice/chaos-mesh created",
+    "stdout": "deployment.apps/chaos-mesh created\\nservice/chaos-mesh created",
     "stderr": "",
     "duration": 3.2,
     "timestamp": time.time()
-}}
+}
 command_logs.append(deploy_chaos_log)
 
 # Simulate collecting initial metrics
@@ -272,23 +272,23 @@ node_data = {"items": [{"metadata": {"name": "node1"}}]}
 
 # Create pod data with hardcoded values to avoid f-string issues
 pod_items = [
-    {{"metadata": {{"name": "pod-0"}}}},
-    {{"metadata": {{"name": "pod-1"}}}},
-    {{"metadata": {{"name": "pod-2"}}}},
-    {{"metadata": {{"name": "pod-3"}}}},
-    {{"metadata": {{"name": "pod-4"}}}}
+    {"metadata": {"name": "pod-0"}},
+    {"metadata": {"name": "pod-1"}},
+    {"metadata": {"name": "pod-2"}},
+    {"metadata": {"name": "pod-3"}},
+    {"metadata": {"name": "pod-4"}}
 ]
-pod_data = {{"items": pod_items}}
+pod_data = {"items": pod_items}
 
 # Create service data with hardcoded values to avoid f-string issues
 svc_items = [
-    {{"metadata": {{"name": "svc-0"}}}},
-    {{"metadata": {{"name": "svc-1"}}}},
-    {{"metadata": {{"name": "svc-2"}}}}
+    {"metadata": {"name": "svc-0"}},
+    {"metadata": {"name": "svc-1"}},
+    {"metadata": {"name": "svc-2"}}
 ]
-svc_data = {{"items": svc_items}}
+svc_data = {"items": svc_items}
 
-node_log = {{
+node_log = {
     "command": ["kubectl", "get", "nodes", "-o", "json"],
     "description": "Get Kubernetes nodes",
     "success": True,
@@ -297,10 +297,10 @@ node_log = {{
     "stderr": "",
     "duration": 0.5,
     "timestamp": time.time()
-}}
+}
 command_logs.append(node_log)
 
-pod_log = {{
+pod_log = {
     "command": ["kubectl", "get", "pods", "--all-namespaces", "-o", "json"],
     "description": "Get Kubernetes pods",
     "success": True,
@@ -309,10 +309,10 @@ pod_log = {{
     "stderr": "",
     "duration": 0.6,
     "timestamp": time.time()
-}}
+}
 command_logs.append(pod_log)
 
-svc_log = {{
+svc_log = {
     "command": ["kubectl", "get", "services", "--all-namespaces", "-o", "json"],
     "description": "Get Kubernetes services",
     "success": True,
@@ -321,58 +321,58 @@ svc_log = {{
     "stderr": "",
     "duration": 0.4,
     "timestamp": time.time()
-}}
+}
 command_logs.append(svc_log)
 
 # Parse metrics from command outputs
 try:
-    node_data = json.loads(node_log.get("stdout", "{{}}"))
-    pod_data = json.loads(pod_log.get("stdout", "{{}}"))
-    svc_data = json.loads(svc_log.get("stdout", "{{}}"))
+    node_data = json.loads(node_log.get("stdout", "{}"))
+    pod_data = json.loads(pod_log.get("stdout", "{}"))
+    svc_data = json.loads(svc_log.get("stdout", "{}"))
 
     node_count = len(node_data.get("items", []))
     pod_count = len(pod_data.get("items", []))
     service_count = len(svc_data.get("items", []))
 except Exception as e:
-    print(f"Error parsing metrics: {{e}}")
+    print("Error parsing metrics: " + str(e))
     node_count = 1
     pod_count = 5
     service_count = 3
 
-initial_metrics = {{
+initial_metrics = {
     "node_count": node_count,
     "pod_count": pod_count,
     "service_count": service_count,
-    "cpu_usage": {{"node1": 0.2}},
-    "memory_usage": {{"node1": 0.3}},
+    "cpu_usage": {"node1": 0.2},
+    "memory_usage": {"node1": 0.3},
     "timestamp": time.time()
-}}
+}
 
 # Generate a chaos experiment manifest
-print(f"Generating chaos experiment for {{scenario}}...")
-experiment_name = f"arc-sim-{{scenario}}-{{int(time.time())}}"
-experiment_manifest = {{
+print("Generating chaos experiment for " + str(scenario) + "...")
+experiment_name = "arc-sim-" + str(scenario) + "-" + str(int(time.time()))
+experiment_manifest = {
     "apiVersion": "chaos-mesh.org/v1alpha1",
     "kind": "NetworkChaos",
-    "metadata": {{
+    "metadata": {
         "name": experiment_name,
         "namespace": "chaos-testing"
-    }},
-    "spec": {{
+    },
+    "spec": {
         "action": "delay",
         "mode": "one",
-        "selector": {{
+        "selector": {
             "namespaces": ["default"],
-            "labelSelectors": {{
+            "labelSelectors": {
                 "app": affected_services[0] if affected_services else "demo"
-            }}
-        }},
-        "delay": {{
-            "latency": f"{{severity}}ms"
-        }},
-        "duration": f"{{duration_seconds}}s"
-    }}
-}}
+            }
+        },
+        "delay": {
+            "latency": str(severity) + "ms"
+        },
+        "duration": str(duration_seconds) + "s"
+    }
+}
 
 # Save the experiment manifest
 experiment_path = Path(output_dir) / "experiment.yaml"
@@ -385,56 +385,54 @@ apply_chaos_log = run_and_log(["kubectl", "apply", "-f", str(experiment_path)], 
 command_logs.append(apply_chaos_log)
 
 # Simulate waiting for the specified duration
-print(f"Simulating experiment for {{duration_seconds}} seconds...")
+print("Simulating experiment for " + str(duration_seconds) + " seconds...")
 metrics_history = [initial_metrics]
 
 # Reduce the number of intervals to speed up simulation
-# Fix nested f-string issue
 metrics_interval_value = {metrics_interval}
 num_intervals = min(5, duration_seconds // metrics_interval_value)
-print(f"Collecting metrics at {{num_intervals}} intervals...")
+print("Collecting metrics at " + str(num_intervals) + " intervals...")
 
 for i in range(num_intervals):
     # Simulate a short delay
     time.sleep(0.5)  # Just a small delay for simulation
 
     # Simulate metrics collection
-    print(f"Simulating metrics collection at interval {{i}}...")
+    print("Simulating metrics collection at interval " + str(i) + "...")
 
     # Create simulated metrics
     node_count = 1
     pod_count = 5 + i  # Simulate pod scaling
     service_count = 3
 
-    metrics = {{
+    metrics = {
         "node_count": node_count,
         "pod_count": pod_count,
         "service_count": service_count,
         "cpu_usage": {"node1": 0.2 + (i * 0.01)},
         "memory_usage": {"node1": 0.3 + (i * 0.005)},
         "timestamp": time.time()
-    }}
+    }
     metrics_history.append(metrics)
-    # Fix nested f-string issue
     interval_seconds = i * metrics_interval_value
-    print(f"Collected metrics at {{interval_seconds}} seconds (simulated)")
+    print("Collected metrics at " + str(interval_seconds) + " seconds (simulated)")
 
 # Simulate collecting final metrics
 print("Simulating final metrics collection...")
 
 # Create simulated final metrics
-final_metrics = {{
+final_metrics = {
     "node_count": 1,
     "pod_count": 8,  # Increased from initial 5
     "service_count": 3,
     "cpu_usage": {"node1": 0.25},  # Slightly increased
     "memory_usage": {"node1": 0.35},  # Slightly increased
     "timestamp": time.time()
-}}
+}
 
 # Simulate cleaning up resources
 print("Simulating resource cleanup...")
-delete_chaos_log = {{
+delete_chaos_log = {
     "command": ["kubectl", "delete", "-f", str(experiment_path)],
     "description": "Delete chaos experiment",
     "success": True,
@@ -443,9 +441,9 @@ delete_chaos_log = {{
     "stderr": "",
     "duration": 0.8,
     "timestamp": time.time()
-}}
+}
 
-delete_cluster_log = {{
+delete_cluster_log = {
     "command": ["k3d", "cluster", "delete", "arc-sim"],
     "description": "Delete k3d cluster",
     "success": True,
@@ -454,13 +452,13 @@ delete_cluster_log = {{
     "stderr": "",
     "duration": 1.2,
     "timestamp": time.time()
-}}
+}
 
 command_logs.append(delete_chaos_log)
 command_logs.append(delete_cluster_log)
 
 # Return the results
-results = {{
+results = {
     "experiment_name": experiment_name,
     "scenario": scenario,
     "severity": severity,
@@ -471,7 +469,7 @@ results = {{
     "metrics_history": metrics_history,
     "command_logs": command_logs,
     "timestamp": time.time()
-}}
+}
 
 print("Simulation completed successfully")
 results
