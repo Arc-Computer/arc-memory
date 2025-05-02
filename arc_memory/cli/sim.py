@@ -11,6 +11,10 @@ import re
 import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Any, Tuple
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 import typer
 from rich.console import Console
@@ -22,7 +26,7 @@ from arc_memory.logging_conf import get_logger
 from arc_memory.logging_conf import is_debug_mode
 
 logger = get_logger(__name__)
-from arc_memory.simulate.causal import derive_causal
+from arc_memory.simulate.causal_utils import build_causal_graph
 from arc_memory.simulate.diff_utils import GitError
 from arc_memory.simulate.diff_utils import analyze_diff
 from arc_memory.simulate.diff_utils import load_diff_from_file
@@ -30,7 +34,16 @@ from arc_memory.simulate.diff_utils import serialize_diff
 from arc_memory.simulate.manifest import generate_simulation_manifest
 from arc_memory.simulate.manifest import list_available_scenarios
 
-# Try to import the LangGraph workflow, but don't fail if it's not available
+# Try to import the Smol Agents workflow, but don't fail if it's not available
+try:
+    from arc_memory.simulate.workflow import run_simulation_workflow as run_smol_workflow
+    HAS_SMOL_AGENTS = True
+except ImportError:
+    logger.warning("Smol Agents not found. Smol Agents workflow will not be available.")
+    HAS_SMOL_AGENTS = False
+    run_smol_workflow = None
+
+# Try to import the LangGraph workflow as fallback, but don't fail if it's not available
 try:
     from arc_memory.simulate.langgraph_flow import run_sim as run_langgraph_workflow
     HAS_LANGGRAPH = True
@@ -39,7 +52,7 @@ except ImportError:
     HAS_LANGGRAPH = False
     run_langgraph_workflow = None
 
-# Try to import the sandbox simulation, but don't fail if it's not available
+# Try to import the sandbox simulation as fallback, but don't fail if it's not available
 try:
     from arc_memory.simulate.code_interpreter import run_simulation as run_sandbox_simulation
     HAS_SANDBOX = True
@@ -52,8 +65,6 @@ from arc_memory.telemetry import track_cli_command
 from arc_memory.memory.query import (
     get_simulations_by_service,
     get_simulations_by_file,
-    get_simulation_by_id,
-    get_simulation_metrics,
 )
 
 
@@ -170,7 +181,7 @@ def get_static_analysis_metrics(severity: int) -> Tuple[Dict[str, Any], int]:
     return metrics, risk_score
 
 
-def output_simulation_results(result: Dict[str, Any], output_path: Optional[Path], severity: int, console: Console) -> None:
+def output_simulation_results(result: Dict[str, Any], output_path: Optional[Path], severity: int, console: Console, verbose: bool = False) -> None:
     """Output simulation results and set appropriate exit code.
 
     Args:
@@ -178,22 +189,39 @@ def output_simulation_results(result: Dict[str, Any], output_path: Optional[Path
         output_path: Path to write result JSON (optional)
         severity: CI fail threshold 0-100
         console: Rich console for output
+        verbose: Whether to display verbose output (default: False)
     """
-    # Output the result
+    # Import the formatter
+    from arc_memory.cli.utils import display_simulation_results
+
+    # Always save the raw JSON if output_path is provided
     if output_path:
         with open(output_path, 'w') as f:
             json.dump(result, f, indent=2)
         console.print(f"[green]Results written to: {output_path}[/green]")
-    else:
-        console.print("\n[bold]Simulation Results:[/bold]")
-        console.print(json.dumps(result, indent=2))
+
+    # Display the formatted results
+    console.print("\n[bold]Simulation Results:[/bold]")
+    display_simulation_results(result, console, verbose)
+
+    # Add a separator
+    console.print("\n" + "─" * 80 + "\n")
 
     # Return appropriate exit code based on risk score
-    if result["risk_score"] >= severity:
-        console.print(f"[red]Risk score {result['risk_score']} exceeds threshold {severity}[/red]")
+    risk_score = result["risk_score"]
+    if risk_score >= severity:
+        console.print(Panel(
+            f"Risk score {risk_score} exceeds threshold {severity}",
+            title="[bold red]SIMULATION FAILED[/bold red]",
+            border_style="red"
+        ))
         sys.exit(1)  # Failure - risk score exceeds threshold
     else:
-        console.print(f"[green]Risk score {result['risk_score']} is below threshold {severity}[/green]")
+        console.print(Panel(
+            f"Risk score {risk_score} is below threshold {severity}",
+            title="[bold green]SIMULATION PASSED[/bold green]",
+            border_style="green"
+        ))
         # Success - continue with exit code 0
 
 app = typer.Typer(help="Simulate the impact of code changes with fault injection")
@@ -224,6 +252,9 @@ def callback(
     ),
     memory: bool=typer.Option(
         False, "--memory/--no-memory", help="Enable memory integration to learn from past simulations"
+    ),
+    model_name: str=typer.Option(
+        "gpt-4o", "--model-name", help="LLM model name to use for simulation"
     ),
     open_ui: bool=typer.Option(
         False, "--open-ui/--no-ui", help="Open VS Code webview if available"
@@ -276,6 +307,7 @@ def callback(
         timeout=timeout,
         output_path=output,
         memory=memory,
+        model_name=model_name,
         open_ui=open_ui,
         verbose=verbose,
         debug=debug,
@@ -290,6 +322,7 @@ def run_simulation(
     timeout: int=600,
     output_path: Optional[Path]=None,
     memory: bool=False,
+    model_name: str="gpt-4o",
     open_ui: bool=False,
     verbose: bool=False,
     debug: bool=False,
@@ -313,10 +346,10 @@ def run_simulation(
         arc_dir = ensure_arc_dir()
         db_path = arc_dir / "graph.db"
 
-        # Check if LangGraph workflow is available
-        if HAS_LANGGRAPH and run_langgraph_workflow:
-            logger.info("Using LangGraph workflow for simulation")
-            console.print("[bold]Using LangGraph workflow for simulation...[/bold]")
+        # Check if Smol Agents workflow is available
+        if HAS_SMOL_AGENTS and run_smol_workflow:
+            logger.info("Using Smol Agents workflow for simulation")
+            console.print("[bold]Using Smol Agents workflow for simulation...[/bold]")
 
             # If diff_path is provided, we need to load it first
             diff_data = None
@@ -329,17 +362,53 @@ def run_simulation(
                     console.print(f"[red]Error loading diff file: {e}[/red]")
                     sys.exit(3)  # Invalid Input
 
-            # Run the LangGraph workflow
-            workflow_result = run_langgraph_workflow(
-                rev_range=rev_range,
-                scenario=scenario,
-                severity=severity,
-                timeout=timeout,
-                repo_path=os.getcwd(),
-                db_path=str(db_path),
-                diff_data=diff_data,  # Pass the pre-loaded diff data if available
-                use_memory=memory  # Enable/disable memory integration
-            )
+            # Import the progress display
+            from arc_memory.cli.utils import create_progress_display
+
+            # Create a progress display
+            progress = create_progress_display()
+
+            # Start the progress display
+            with progress:
+                # Add a task for the simulation
+                task = progress.add_task("Running simulation...", total=100)
+
+                # Update progress to show we're starting
+                progress.update(task, advance=10, description="Extracting and analyzing code changes...")
+
+                # Check if OpenAI API key is available
+                if not os.environ.get("OPENAI_API_KEY"):
+                    console.print("[red]Error: OPENAI_API_KEY environment variable not set[/red]")
+                    console.print("[yellow]Please set the OPENAI_API_KEY environment variable to use the LLM features[/yellow]")
+                    sys.exit(2)  # Error
+
+                try:
+                    # Define a progress callback function
+                    def progress_callback(message, percentage):
+                        progress.update(task, completed=percentage, description=message)
+
+                    # Run the Smol Agents workflow with progress updates
+                    workflow_result = run_smol_workflow(
+                        rev_range=rev_range,
+                        scenario=scenario,
+                        severity=severity,
+                        timeout=min(timeout, 300),  # Cap at 5 minutes for now
+                        repo_path=os.getcwd(),
+                        db_path=str(db_path),
+                        diff_data=diff_data,  # Pass the pre-loaded diff data if available
+                        use_memory=memory,  # Enable/disable memory integration
+                        model_name=model_name,  # Pass the model name
+                        progress_callback=progress_callback,  # Pass the progress callback
+                        verbose=verbose  # Pass the verbose flag
+                    )
+
+                    # Make sure we're at 100% when done
+                    if progress.tasks[task].completed < 100:
+                        progress.update(task, completed=100, description="Simulation complete!")
+                except Exception as e:
+                    # Update progress to show error
+                    progress.update(task, completed=100, description=f"Error: {str(e)[:30]}...")
+                    raise e
 
             # Check if the workflow completed successfully
             if workflow_result.get("status") != "completed":
@@ -364,7 +433,97 @@ def run_simulation(
             }
 
             # Output the result using the shared function
-            output_simulation_results(result, output_path, severity, console)
+            output_simulation_results(result, output_path, severity, console, verbose)
+
+            return
+
+        # Check if LangGraph workflow is available
+        elif HAS_LANGGRAPH and run_langgraph_workflow:
+            logger.info("Using LangGraph workflow for simulation")
+            console.print("[bold]Using LangGraph workflow for simulation...[/bold]")
+
+            # If diff_path is provided, we need to load it first
+            diff_data = None
+            if diff_path:
+                logger.info(f"Loading diff from file: {diff_path}")
+                try:
+                    diff_data = load_diff_from_file(diff_path)
+                    console.print(f"[green]Successfully loaded diff from file with {len(diff_data.get('files', []))} files[/green]")
+                except Exception as e:
+                    console.print(f"[red]Error loading diff file: {e}[/red]")
+                    sys.exit(3)  # Invalid Input
+
+            # Import the progress display
+            from arc_memory.cli.utils import create_progress_display
+
+            # Create a progress display
+            progress = create_progress_display()
+
+            # Start the progress display
+            with progress:
+                # Add a task for the simulation
+                task = progress.add_task("Running simulation...", total=100)
+
+                # Update progress to show we're starting
+                progress.update(task, advance=10, description="Extracting and analyzing code changes...")
+
+                # Check if OpenAI API key is available
+                if not os.environ.get("OPENAI_API_KEY"):
+                    console.print("[red]Error: OPENAI_API_KEY environment variable not set[/red]")
+                    console.print("[yellow]Please set the OPENAI_API_KEY environment variable to use the LLM features[/yellow]")
+                    sys.exit(2)  # Error
+
+                try:
+                    # Define a progress callback function
+                    def progress_callback(message, percentage):
+                        progress.update(task, completed=percentage, description=message)
+
+                    # Run the LangGraph workflow with progress updates
+                    workflow_result = run_langgraph_workflow(
+                        rev_range=rev_range,
+                        scenario=scenario,
+                        severity=severity,
+                        timeout=min(timeout, 300),  # Cap at 5 minutes for now
+                        repo_path=os.getcwd(),
+                        db_path=str(db_path),
+                        diff_data=diff_data,  # Pass the pre-loaded diff data if available
+                        use_memory=memory,  # Enable/disable memory integration
+                        progress_callback=progress_callback,  # Pass the progress callback
+                        verbose=verbose  # Pass the verbose flag
+                    )
+
+                    # Make sure we're at 100% when done
+                    if progress.tasks[task].completed < 100:
+                        progress.update(task, completed=100, description="Simulation complete!")
+                except Exception as e:
+                    # Update progress to show error
+                    progress.update(task, completed=100, description=f"Error: {str(e)[:30]}...")
+                    raise e
+
+            # Check if the workflow completed successfully
+            if workflow_result.get("status") != "completed":
+                error_message = workflow_result.get("error", "Unknown error")
+                console.print(f"[red]Workflow failed: {error_message}[/red]")
+                sys.exit(2)  # Error
+
+            # Get the attestation
+            attestation = workflow_result.get("attestation", {})
+
+            # Create the result object
+            result = {
+                "sim_id": attestation.get("sim_id", f"sim_{rev_range.replace('..', '_').replace('/', '_')}"),
+                "risk_score": attestation.get("risk_score", 0),
+                "services": workflow_result.get("affected_services", []),
+                "metrics": attestation.get("metrics", {}),
+                "explanation": attestation.get("explanation", ""),
+                "manifest_hash": attestation.get("manifest_hash", ""),
+                "commit_target": attestation.get("commit_target", "unknown"),
+                "timestamp": attestation.get("timestamp", "unknown"),
+                "diff_hash": attestation.get("diff_hash", "")
+            }
+
+            # Output the result using the shared function
+            output_simulation_results(result, output_path, severity, console, verbose)
 
             return
 
@@ -435,8 +594,8 @@ def run_simulation(
         console.print(f"[bold]Timeout:[/bold] {timeout} seconds")
 
         # Get the causal graph
-        logger.info("Deriving causal graph from knowledge graph")
-        causal_graph = derive_causal(db_path)
+        logger.info("Building causal graph from knowledge graph")
+        causal_graph = build_causal_graph(db_path)
 
         # Get the affected files
         affected_files = [file["path"] for file in diff_data.get("files", [])]
@@ -481,7 +640,7 @@ def run_simulation(
         }
 
         # Output the result using the shared function
-        output_simulation_results(result, output_path, severity, console)
+        output_simulation_results(result, output_path, severity, console, verbose)
 
     except Exception as e:
         logger.exception("Error in simulation")

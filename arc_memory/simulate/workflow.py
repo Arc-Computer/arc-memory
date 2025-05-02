@@ -148,7 +148,8 @@ def run_simulation_workflow(
     diff_data: Optional[Dict[str, Any]] = None,
     use_memory: bool = False,
     model_name: str = "gpt-4o",
-    progress_callback: Optional[Callable[[str, int], None]] = None
+    progress_callback: Optional[Callable[[str, int], None]] = None,
+    verbose: bool = False
 ) -> Dict[str, Any]:
     """Run the simulation workflow using Smol Agents.
 
@@ -161,7 +162,9 @@ def run_simulation_workflow(
         db_path: Path to the knowledge graph database (default: .arc/graph.db)
         diff_data: Pre-loaded diff data (optional)
         use_memory: Whether to use memory integration (default: False)
+        model_name: Model name to use for LLM (default: "gpt-4o")
         progress_callback: Callback function for progress updates (optional)
+        verbose: Whether to enable verbose output (default: False)
 
     Returns:
         Dictionary containing the simulation results
@@ -258,61 +261,26 @@ def run_simulation_workflow(
         with open(manifest_path, 'rb') as f:
             manifest_hash = hashlib.sha256(f.read()).hexdigest()
 
-        # Run the simulation using the agent
+        # Run the simulation using the code interpreter
         report_progress("Running simulation in sandbox environment", 50)
-
-        # Read the manifest content to include in the prompt
-        with open(manifest_path, 'r') as f:
-            manifest_content = f.read()
-
-        # Create the agent prompt with manifest content included
-        agent_prompt = f"""
-You are a system reliability engineer tasked with running a fault injection simulation.
-
-Here is the simulation manifest content:
-```json
-{manifest_content}
-```
-
-The manifest contains information about the scenario, severity, affected services, and paths to the diff and causal graph.
-
-Your task is to:
-1. Parse the manifest content provided above
-2. Set up a k3d cluster
-3. Deploy Chaos Mesh
-4. Apply a chaos experiment based on the scenario and severity
-5. Collect metrics before and after the experiment
-6. Return the results
-
-Please follow these steps:
-1. Parse the manifest content from the JSON provided above
-2. Import the necessary modules from arc_memory.simulate.code_interpreter
-3. Create a simulation environment
-4. Set up the k3d cluster
-5. Deploy Chaos Mesh
-6. Generate a chaos experiment manifest based on the scenario and severity
-7. Apply the chaos experiment
-8. Collect initial metrics
-9. Wait for the specified duration
-10. Collect final metrics
-11. Clean up resources
-12. Return the results as a JSON object
-
-The simulation should run for 300 seconds.
-
-IMPORTANT: The manifest content is already provided in this prompt. Do not try to read it from a file.
-"""
-
-        # Run the agent
-        agent_result = agent.run(agent_prompt)
+        
+        from arc_memory.simulate.code_interpreter import run_simulation
+        
+        simulation_results = run_simulation(
+            manifest_path=str(manifest_path),
+            duration_seconds=min(timeout, 300),  # Cap at 5 minutes for now
+            metrics_interval=30,  # Collect metrics every 30 seconds
+            progress_callback=lambda msg, pct: report_progress(msg, 50 + int(pct * 0.25)),  # Map to 50-75% of overall progress
+            verbose=verbose  # Pass the verbose flag
+        )
 
         # Parse the agent result
         try:
-            simulation_results = json.loads(agent_result.output)
+            simulation_results = json.loads(simulation_results)
         except json.JSONDecodeError:
             # Try to extract JSON from the output
             import re
-            json_match = re.search(r'```json\n(.*?)\n```', agent_result.output, re.DOTALL)
+            json_match = re.search(r'```json\n(.*?)\n```', simulation_results, re.DOTALL)
             if json_match:
                 simulation_results = json.loads(json_match.group(1))
             else:
