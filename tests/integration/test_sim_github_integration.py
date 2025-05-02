@@ -79,23 +79,26 @@ class TestSimGitHubIntegration:
                     temp_file.write(json.dumps(diff_data).encode())
                     temp_file.flush()
 
-                    # Call the CLI command with the diff file
-                    result = self.runner.invoke(app, [
-                        "--diff", temp_file.name,
-                        "--scenario", "network_latency",
-                        "--severity", "50",
-                        "--timeout", "300"
-                    ])
+                    # Mock os.getcwd to avoid directory issues
+                    with mock.patch("os.getcwd", return_value="/tmp"):
+                        with mock.patch("arc_memory.cli.sim.os.getcwd", return_value="/tmp"):
+                            # Call the CLI command with the diff file
+                            result = self.runner.invoke(app, [
+                                "--diff", temp_file.name,
+                                "--scenario", "network_latency",
+                                "--severity", "50",
+                                "--timeout", "300"
+                            ])
 
-                    # Verify the exit code
-                    assert result.exit_code == 0
+                            # Verify the exit code
+                            assert result.exit_code == 0
 
-                    # Verify the mock was called
-                    mock_github_api.assert_called_once()
+                            # Verify the mock was called
+                            mock_github_api.assert_called_once()
 
-                    # Verify the workflow was called with the diff data
-                    mock_workflow.assert_called_once()
-                    assert mock_workflow.call_args[1]["diff_data"] is not None
+                            # Verify the workflow was called with the diff data
+                            mock_workflow.assert_called_once()
+                            assert mock_workflow.call_args[1]["diff_data"] is not None
 
     def test_github_commit_diff_analysis(self, mock_github_api):
         """Test analyzing a GitHub commit diff."""
@@ -135,23 +138,26 @@ class TestSimGitHubIntegration:
                     temp_file.write(json.dumps(diff_data).encode())
                     temp_file.flush()
 
-                    # Call the CLI command with the diff file
-                    result = self.runner.invoke(app, [
-                        "--diff", temp_file.name,
-                        "--scenario", "network_latency",
-                        "--severity", "50",
-                        "--timeout", "300"
-                    ])
+                    # Mock os.getcwd to avoid directory issues
+                    with mock.patch("os.getcwd", return_value="/tmp"):
+                        with mock.patch("arc_memory.cli.sim.os.getcwd", return_value="/tmp"):
+                            # Call the CLI command with the diff file
+                            result = self.runner.invoke(app, [
+                                "--diff", temp_file.name,
+                                "--scenario", "network_latency",
+                                "--severity", "50",
+                                "--timeout", "300"
+                            ])
 
-                    # Verify the exit code
-                    assert result.exit_code == 0
+                            # Verify the exit code
+                            assert result.exit_code == 0
 
-                    # Verify the mock was called
-                    mock_github_api.assert_called_once()
+                            # Verify the mock was called
+                            mock_github_api.assert_called_once()
 
-                    # Verify the workflow was called with the diff data
-                    mock_workflow.assert_called_once()
-                    assert mock_workflow.call_args[1]["diff_data"] is not None
+                            # Verify the workflow was called with the diff data
+                            mock_workflow.assert_called_once()
+                            assert mock_workflow.call_args[1]["diff_data"] is not None
 
     @pytest.mark.skip(reason="Requires GitHub token and real repository access")
     def test_github_integration_with_real_repo(self):
@@ -196,17 +202,20 @@ class TestSimGitHubIntegration:
                     temp_file.write(json.dumps(diff_data).encode())
                     temp_file.flush()
 
-                    # Call the CLI command with the diff file
-                    result = self.runner.invoke(app, [
-                        "--diff", temp_file.name,
-                        "--scenario", "network_latency",
-                        "--severity", "50",
-                        "--timeout", "300"
-                    ])
+                    # Mock os.getcwd to avoid directory issues
+                    with mock.patch("os.getcwd", return_value="/tmp"):
+                        with mock.patch("arc_memory.cli.sim.os.getcwd", return_value="/tmp"):
+                            # Call the CLI command with the diff file
+                            result = self.runner.invoke(app, [
+                                "--diff", temp_file.name,
+                                "--scenario", "network_latency",
+                                "--severity", "50",
+                                "--timeout", "300"
+                            ])
 
-                    # Verify the exit code
-                    assert result.exit_code == 0
+                            # Verify the exit code
+                            assert result.exit_code == 0
 
-                    # Verify the workflow was called with the diff data
-                    mock_workflow.assert_called_once()
-                    assert mock_workflow.call_args[1]["diff_data"] is not None
+                            # Verify the workflow was called with the diff data
+                            mock_workflow.assert_called_once()
+                            assert mock_workflow.call_args[1]["diff_data"] is not None

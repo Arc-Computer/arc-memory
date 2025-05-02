@@ -1,6 +1,5 @@
 """Integration tests for package verification."""
 
-import os
 import subprocess
 import tempfile
 import unittest
@@ -51,8 +50,8 @@ class TestPackageVerification(unittest.TestCase):
             check=True
         )
 
-        # Save the original working directory
-        cls.original_cwd = os.getcwd()
+        # No need to save the original working directory
+        # We'll use mocking instead
 
         # For testing purposes, we'll simulate a successful package installation
         # without actually building and installing the package
@@ -60,9 +59,6 @@ class TestPackageVerification(unittest.TestCase):
     @classmethod
     def tearDownClass(cls):
         """Tear down test fixtures."""
-        # Restore the original working directory
-        os.chdir(cls.original_cwd)
-
         # Clean up
         cls.repo_dir.cleanup()
 

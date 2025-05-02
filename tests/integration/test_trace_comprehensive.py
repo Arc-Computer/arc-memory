@@ -1,15 +1,13 @@
 """Comprehensive integration tests for the trace history functionality."""
 
-import os
-import shutil
-import sqlite3
 import subprocess
 import tempfile
 import unittest
 from datetime import datetime
 from pathlib import Path
+from unittest import mock
 
-from arc_memory.schema.models import Node, Edge, NodeType, EdgeRel
+from arc_memory.schema.models import NodeType, EdgeRel
 from arc_memory.sql.db import get_connection, init_db
 from arc_memory.trace import (
     get_commit_for_line,
@@ -206,11 +204,8 @@ class TestTraceHistoryComprehensive(unittest.TestCase):
 
     def test_get_commit_for_line_different_lines(self):
         """Test getting commits for different lines."""
-        # Change to the repository directory
-        original_cwd = os.getcwd()
-        os.chdir(self.repo_path)
-
-        try:
+        # Use mocking instead of changing directories
+        with mock.patch("os.getcwd", return_value=str(self.repo_path)):
             # Line 2 (def hello():) should be from the first commit
             commit_id_1 = get_commit_for_line(self.repo_path, "test_file.py", 2)
             self.assertEqual(commit_id_1, self.commit_hash_1)
@@ -218,17 +213,11 @@ class TestTraceHistoryComprehensive(unittest.TestCase):
             # Line 5 (def goodbye():) should be from the second commit
             commit_id_2 = get_commit_for_line(self.repo_path, "test_file.py", 5)
             self.assertEqual(commit_id_2, self.commit_hash_2)
-        finally:
-            # Restore the original working directory
-            os.chdir(original_cwd)
 
     def test_trace_history_basic(self):
         """Test basic trace history functionality."""
-        # Change to the repository directory
-        original_cwd = os.getcwd()
-        os.chdir(self.repo_path)
-
-        try:
+        # Use mocking instead of changing directories
+        with mock.patch("os.getcwd", return_value=str(self.repo_path)):
             # Get a connection to the database
             conn = get_connection(self.db_path)
 
@@ -244,17 +233,11 @@ class TestTraceHistoryComprehensive(unittest.TestCase):
 
             # Close the connection
             conn.close()
-        finally:
-            # Restore the original working directory
-            os.chdir(original_cwd)
 
     def test_trace_history_with_max_hops(self):
         """Test tracing history with different max_hops values."""
-        # Change to the repository directory
-        original_cwd = os.getcwd()
-        os.chdir(self.repo_path)
-
-        try:
+        # Use mocking instead of changing directories
+        with mock.patch("os.getcwd", return_value=str(self.repo_path)):
             # Get a connection to the database
             conn = get_connection(self.db_path)
 
@@ -269,17 +252,11 @@ class TestTraceHistoryComprehensive(unittest.TestCase):
 
             # Close the connection
             conn.close()
-        finally:
-            # Restore the original working directory
-            os.chdir(original_cwd)
 
     def test_trace_history_with_max_results(self):
         """Test tracing history with different max_results values."""
-        # Change to the repository directory
-        original_cwd = os.getcwd()
-        os.chdir(self.repo_path)
-
-        try:
+        # Use mocking instead of changing directories
+        with mock.patch("os.getcwd", return_value=str(self.repo_path)):
             # Get a connection to the database
             conn = get_connection(self.db_path)
 
@@ -298,17 +275,11 @@ class TestTraceHistoryComprehensive(unittest.TestCase):
 
             # Close the connection
             conn.close()
-        finally:
-            # Restore the original working directory
-            os.chdir(original_cwd)
 
     def test_trace_history_for_file_line_integration(self):
         """Test the full trace_history_for_file_line function."""
-        # Change to the repository directory
-        original_cwd = os.getcwd()
-        os.chdir(self.repo_path)
-
-        try:
+        # Use mocking instead of changing directories
+        with mock.patch("os.getcwd", return_value=str(self.repo_path)):
             # Trace history for line 2 (def hello():)
             results = trace_history_for_file_line(
                 self.db_path,
@@ -328,17 +299,11 @@ class TestTraceHistoryComprehensive(unittest.TestCase):
             # Check that the commit has the expected hash
             commit_node = commit_nodes[0]
             self.assertEqual(commit_node["sha"], self.commit_hash_1)
-        finally:
-            # Restore the original working directory
-            os.chdir(original_cwd)
 
     def test_trace_history_for_different_file_lines(self):
         """Test tracing history for different lines in the same file."""
-        # Change to the repository directory
-        original_cwd = os.getcwd()
-        os.chdir(self.repo_path)
-
-        try:
+        # Use mocking instead of changing directories
+        with mock.patch("os.getcwd", return_value=str(self.repo_path)):
             # Trace history for line 2 (def hello():)
             results_1 = trace_history_for_file_line(
                 self.db_path,
@@ -372,9 +337,6 @@ class TestTraceHistoryComprehensive(unittest.TestCase):
             commit_node_2 = commit_nodes_2[0]
             self.assertEqual(commit_node_1["sha"], self.commit_hash_1)
             self.assertEqual(commit_node_2["sha"], self.commit_hash_2)
-        finally:
-            # Restore the original working directory
-            os.chdir(original_cwd)
 
 
 if __name__ == "__main__":
