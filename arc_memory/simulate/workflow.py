@@ -9,7 +9,8 @@ import time
 import json
 import hashlib
 from pathlib import Path
-from typing import Dict, List, Any, Optional, Callable, Union
+from typing import Dict, List, Any, Optional, Callable, Union, Tuple, TYPE_CHECKING
+from typing import cast
 
 from arc_memory.logging_conf import get_logger
 from arc_memory.simulate.utils.progress import create_progress_reporter
@@ -22,6 +23,8 @@ try:
     HAS_SMOL_AGENTS = True
 except ImportError:
     HAS_SMOL_AGENTS = False
+    if TYPE_CHECKING:
+        from smolagents import CodeAgent
 
 
 def create_simulation_agent(
@@ -29,7 +32,7 @@ def create_simulation_agent(
     model_name: str = "gpt-4o",
     executor_type: str = "e2b",
     api_key: Optional[str] = None
-) -> Union[CodeAgent, None]:
+) -> Union["CodeAgent", None]:
     """Create a simulation agent using Smol Agents.
 
     Args:
@@ -39,14 +42,14 @@ def create_simulation_agent(
         api_key: API key for the LLM provider (optional)
 
     Returns:
-        CodeAgent instance or None if Smol Agents is not available
+        "CodeAgent" instance or None if Smol Agents is not available
 
     Raises:
         RuntimeError: If the agent cannot be created
     """
     # Check if Smol Agents is available
     if not HAS_SMOL_AGENTS:
-        logger.error("Smol Agents is not available. Please install it with 'pip install smolagents'.")
+        logger.error("Smol Agents is not installed. Please install it with 'pip install smolagents'.")
         return None
 
     try:
@@ -189,6 +192,13 @@ def run_simulation_workflow(
             db_path = os.path.join(os.path.expanduser("~"), ".arc", "graph.db")
 
         # Create the simulation agent
+        if not HAS_SMOL_AGENTS:
+            logger.error("Smol Agents is not installed. Please install it with 'pip install smolagents'.")
+            return {
+                "success": False,
+                "error": "Smol Agents is not installed. Please install it with 'pip install smolagents'."
+            }
+        
         report_progress(f"Creating simulation agent with model {model_name}", 10)
 
         # Get the API key from environment variables
