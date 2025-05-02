@@ -547,12 +547,23 @@ def history(
             # Get all simulations (limited)
             console.print(f"[bold]Retrieving recent simulations[/bold] (limit: {limit})")
             # Execute a query to get all simulation nodes, ordered by timestamp
+            # Filter out entries with empty sim_id and ensure we have a valid timestamp
             cursor = conn.execute(
                 """
                 SELECT id, type, title, body, extra
                 FROM nodes
                 WHERE type = 'simulation'
-                ORDER BY json_extract(extra, '$.ts') DESC
+                  AND json_extract(extra, '$.sim_id') IS NOT NULL
+                  AND json_extract(extra, '$.sim_id') != ''
+                  AND (
+                      json_extract(extra, '$.ts') IS NOT NULL
+                      OR json_extract(extra, '$.timestamp') IS NOT NULL
+                  )
+                ORDER BY
+                  CASE
+                    WHEN json_extract(extra, '$.timestamp') IS NOT NULL THEN json_extract(extra, '$.timestamp')
+                    ELSE json_extract(extra, '$.ts')
+                  END DESC
                 LIMIT ?
                 """,
                 (limit,)
@@ -590,19 +601,32 @@ def history(
         # Prepare the results for output
         results = []
         for sim in simulations:
-            # Format the timestamp
-            timestamp = sim.ts.strftime("%Y-%m-%d %H:%M") if sim.ts else "Unknown"
+            # Skip entries with empty sim_id
+            if not sim.sim_id:
+                continue
+
+            # Use the most reliable timestamp available
+            display_timestamp = None
+            if sim.timestamp:
+                display_timestamp = sim.timestamp.strftime("%Y-%m-%d %H:%M")
+            elif sim.ts:
+                display_timestamp = sim.ts.strftime("%Y-%m-%d %H:%M")
+            else:
+                display_timestamp = "Unknown"
 
             # Format the services
-            services = ", ".join(sim.affected_services[:3])
-            if len(sim.affected_services) > 3:
-                services += f" +{len(sim.affected_services) - 3} more"
+            if sim.affected_services:
+                services = ", ".join(sim.affected_services[:3])
+                if len(sim.affected_services) > 3:
+                    services += f" +{len(sim.affected_services) - 3} more"
+            else:
+                services = "None"
 
             # Add to the table
             table.add_row(
                 sim.sim_id,
-                timestamp,
-                sim.scenario,
+                display_timestamp,
+                sim.scenario or "Unknown",
                 str(sim.risk_score),
                 services
             )
@@ -610,7 +634,7 @@ def history(
             # Add to the results
             results.append({
                 "sim_id": sim.sim_id,
-                "timestamp": sim.ts.isoformat() if sim.ts else None,
+                "timestamp": sim.timestamp.isoformat() if sim.timestamp else (sim.ts.isoformat() if sim.ts else None),
                 "scenario": sim.scenario,
                 "severity": sim.severity,
                 "risk_score": sim.risk_score,

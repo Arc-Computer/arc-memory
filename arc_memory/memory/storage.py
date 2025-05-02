@@ -65,11 +65,13 @@ def create_simulation_node(
         )
 
     # Create the simulation node
+    current_time = timestamp or datetime.now()
     sim_node = SimulationNode(
         id=node_id,
         title=title,
         body=explanation,
-        ts=timestamp or datetime.now(),
+        ts=current_time,
+        timestamp=current_time,  # Set explicit timestamp field
         sim_id=sim_id,
         rev_range=rev_range,
         scenario=scenario,

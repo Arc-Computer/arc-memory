@@ -106,6 +106,7 @@ class SimulationNode(Node):
     commit_target: str  # Target commit hash
     diff_hash: str  # Hash of the diff
     affected_services: List[str] = Field(default_factory=list)  # List of services affected by the changes
+    timestamp: Optional[datetime] = None  # Explicit timestamp field for the simulation
 
 
 class MetricNode(Node):

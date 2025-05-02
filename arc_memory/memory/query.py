@@ -42,12 +42,33 @@ def _node_to_simulation(node_data: Dict[str, Any]) -> Optional[SimulationNode]:
         # Extract extra data
         extra = node_data.get("extra", {})
 
+        # Parse timestamp
+        ts = None
+        if extra.get("ts"):
+            try:
+                ts = datetime.fromisoformat(extra.get("ts"))
+            except ValueError:
+                logger.warning(f"Failed to parse ts: {extra.get('ts')}")
+
+        # Parse explicit timestamp if available
+        timestamp = None
+        if extra.get("timestamp"):
+            try:
+                timestamp = datetime.fromisoformat(extra.get("timestamp"))
+            except ValueError:
+                logger.warning(f"Failed to parse timestamp: {extra.get('timestamp')}")
+
+        # Use ts as timestamp if timestamp is not available
+        if not timestamp:
+            timestamp = ts
+
         # Create a SimulationNode
         return SimulationNode(
             id=node_data["id"],
             title=node_data.get("title"),
             body=node_data.get("body"),
-            ts=datetime.fromisoformat(extra.get("ts")) if extra.get("ts") else None,
+            ts=ts,
+            timestamp=timestamp,
             sim_id=extra.get("sim_id", ""),
             rev_range=extra.get("rev_range", ""),
             scenario=extra.get("scenario", ""),
