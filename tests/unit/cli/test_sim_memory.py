@@ -20,7 +20,7 @@ class TestSimMemoryIntegration(unittest.TestCase):
         # Create a temporary directory for the test
         self.temp_dir = tempfile.TemporaryDirectory()
         self.db_path = os.path.join(self.temp_dir.name, "test.db")
-        
+
         # Create a CLI runner
         self.runner = CliRunner()
 
@@ -51,25 +51,28 @@ class TestSimMemoryIntegration(unittest.TestCase):
                 "simulation_stored": True,
             },
         }
-        
+
         # Create a temporary output file
         output_file = os.path.join(self.temp_dir.name, "output.json")
-        
+
         # Run the command with the --memory flag
         with patch("arc_memory.cli.sim.ensure_arc_dir") as mock_ensure_arc_dir:
             # Set up the mock to return the temp directory
             mock_ensure_arc_dir.return_value = Path(self.temp_dir.name)
-            
-            # Run the command
-            result = self.runner.invoke(
-                app,
-                ["--memory", "--output", output_file],
-                catch_exceptions=False,
-            )
-        
+
+            # Mock os.getcwd to avoid directory issues
+            with patch("os.getcwd", return_value="/tmp"):
+                with patch("arc_memory.cli.sim.os.getcwd", return_value="/tmp"):
+                    # Run the command
+                    result = self.runner.invoke(
+                        app,
+                        ["--memory", "--output", output_file],
+                        catch_exceptions=False,
+                    )
+
         # Check that the command ran successfully
         self.assertEqual(result.exit_code, 0)
-        
+
         # Check that run_langgraph_workflow was called with use_memory=True
         mock_run_workflow.assert_called_once()
         kwargs = mock_run_workflow.call_args.kwargs
@@ -84,11 +87,11 @@ class TestSimMemoryIntegration(unittest.TestCase):
         mock_ensure_arc_dir.return_value = Path(self.temp_dir.name)
         mock_conn = MagicMock()
         mock_get_connection.return_value = mock_conn
-        
+
         # Create mock simulation nodes
         from arc_memory.schema.models import SimulationNode
         from datetime import datetime
-        
+
         mock_simulations = [
             SimulationNode(
                 id="simulation:sim1",
@@ -122,30 +125,30 @@ class TestSimMemoryIntegration(unittest.TestCase):
             ),
         ]
         mock_get_simulations.return_value = mock_simulations
-        
+
         # Create a temporary output file
         output_file = os.path.join(self.temp_dir.name, "history.json")
-        
+
         # Run the history command
         result = self.runner.invoke(
             app,
             ["history", "--service", "api-service", "--output", output_file],
             catch_exceptions=False,
         )
-        
+
         # Check that the command ran successfully
         self.assertEqual(result.exit_code, 0)
-        
+
         # Check that get_simulations_by_service was called with the correct arguments
         mock_get_simulations.assert_called_once_with(mock_conn, "api-service", limit=10)
-        
+
         # Check that the output file was created
         self.assertTrue(os.path.exists(output_file))
-        
+
         # Check the content of the output file
         with open(output_file, "r") as f:
             output_data = json.load(f)
-        
+
         # Check that the output contains the expected data
         self.assertEqual(len(output_data), 2)
         self.assertEqual(output_data[0]["sim_id"], "sim1")
@@ -160,11 +163,11 @@ class TestSimMemoryIntegration(unittest.TestCase):
         mock_ensure_arc_dir.return_value = Path(self.temp_dir.name)
         mock_conn = MagicMock()
         mock_get_connection.return_value = mock_conn
-        
+
         # Create mock simulation nodes
         from arc_memory.schema.models import SimulationNode
         from datetime import datetime
-        
+
         mock_simulations = [
             SimulationNode(
                 id="simulation:sim1",
@@ -183,17 +186,17 @@ class TestSimMemoryIntegration(unittest.TestCase):
             ),
         ]
         mock_get_simulations.return_value = mock_simulations
-        
+
         # Run the history command
         result = self.runner.invoke(
             app,
             ["history", "--file", "src/api.py"],
             catch_exceptions=False,
         )
-        
+
         # Check that the command ran successfully
         self.assertEqual(result.exit_code, 0)
-        
+
         # Check that get_simulations_by_file was called with the correct arguments
         mock_get_simulations.assert_called_once_with(mock_conn, "src/api.py", limit=10)
 

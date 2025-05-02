@@ -199,7 +199,9 @@ def test_serialize_diff(mock_repo):
     mock_commit2.diff.return_value = mock_diff_index
 
     # Test serializing the diff
-    diff = serialize_diff("HEAD~1..HEAD")
+    with mock.patch("os.getcwd", return_value="/tmp"):
+        with mock.patch("pathlib.Path.cwd", return_value=Path("/tmp")):
+            diff = serialize_diff("HEAD~1..HEAD")
 
     # Verify the result
     assert diff["commit_count"] == 2
@@ -215,4 +217,6 @@ def test_serialize_diff(mock_repo):
     # Test error handling
     mock_repo.side_effect = Exception("Test error")
     with pytest.raises(GitError):
-        serialize_diff("HEAD~1..HEAD")
+        with mock.patch("os.getcwd", return_value="/tmp"):
+            with mock.patch("pathlib.Path.cwd", return_value=Path("/tmp")):
+                serialize_diff("HEAD~1..HEAD")

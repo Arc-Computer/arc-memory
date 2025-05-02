@@ -31,11 +31,12 @@ class TestLangGraphFlow:
     def test_extract_diff_success(self):
         """Test extracting diff successfully."""
         # Setup
-        state = {
-            "rev_range": "HEAD~1..HEAD",
-            "repo_path": os.getcwd(),
-            "status": "in_progress"
-        }
+        with mock.patch("os.getcwd", return_value="/tmp"):
+            state = {
+                "rev_range": "HEAD~1..HEAD",
+                "repo_path": "/tmp",
+                "status": "in_progress"
+            }
 
         # Mock the serialize_diff function
         with mock.patch("arc_memory.simulate.langgraph_flow.serialize_diff") as mock_serialize_diff:
@@ -55,16 +56,17 @@ class TestLangGraphFlow:
             assert result["diff_data"] is not None
             assert len(result["diff_data"]["files"]) == 2
             assert result["status"] == "in_progress"
-            mock_serialize_diff.assert_called_once_with("HEAD~1..HEAD", repo_path=os.getcwd())
+            mock_serialize_diff.assert_called_once_with("HEAD~1..HEAD", repo_path="/tmp")
 
     def test_extract_diff_failure(self):
         """Test extracting diff with failure."""
         # Setup
-        state = {
-            "rev_range": "HEAD~1..HEAD",
-            "repo_path": os.getcwd(),
-            "status": "in_progress"
-        }
+        with mock.patch("os.getcwd", return_value="/tmp"):
+            state = {
+                "rev_range": "HEAD~1..HEAD",
+                "repo_path": "/tmp",
+                "status": "in_progress"
+            }
 
         # Mock the serialize_diff function
         with mock.patch("arc_memory.simulate.langgraph_flow.serialize_diff") as mock_serialize_diff:
@@ -77,7 +79,7 @@ class TestLangGraphFlow:
             assert result["error"] is not None
             assert "Test error" in result["error"]
             assert result["status"] == "failed"
-            mock_serialize_diff.assert_called_once_with("HEAD~1..HEAD", repo_path=os.getcwd())
+            mock_serialize_diff.assert_called_once_with("HEAD~1..HEAD", repo_path="/tmp")
 
     def test_analyze_changes_success(self):
         """Test analyzing changes successfully."""
@@ -669,7 +671,9 @@ class TestLangGraphFlow:
             mock_create_workflow.return_value = mock_workflow
 
             # Execute
-            result = run_sim("HEAD~1..HEAD")
+            with mock.patch("os.getcwd", return_value="/tmp"):
+                with mock.patch("pathlib.Path.cwd", return_value=Path("/tmp")):
+                    result = run_sim("HEAD~1..HEAD")
 
             # Verify
             assert result["status"] == "completed"
@@ -695,7 +699,9 @@ class TestLangGraphFlow:
             mock_create_workflow.return_value = mock_workflow
 
             # Execute
-            result = run_sim("HEAD~1..HEAD")
+            with mock.patch("os.getcwd", return_value="/tmp"):
+                with mock.patch("pathlib.Path.cwd", return_value=Path("/tmp")):
+                    result = run_sim("HEAD~1..HEAD")
 
             # Verify
             assert result["status"] == "failed"
@@ -711,7 +717,9 @@ class TestLangGraphFlow:
             mock_create_workflow.side_effect = Exception("Test error")
 
             # Execute
-            result = run_sim("HEAD~1..HEAD")
+            with mock.patch("os.getcwd", return_value="/tmp"):
+                with mock.patch("pathlib.Path.cwd", return_value=Path("/tmp")):
+                    result = run_sim("HEAD~1..HEAD")
 
             # Verify
             assert result["status"] == "failed"
