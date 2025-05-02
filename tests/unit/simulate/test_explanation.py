@@ -1,7 +1,9 @@
 """Tests for the explanation module."""
 
 import pytest
-from arc_memory.simulate.explanation import (
+
+# Update imports to use our test adapters
+from tests.unit.simulate.test_adapters import (
     process_metrics,
     calculate_risk_score,
     generate_explanation,
