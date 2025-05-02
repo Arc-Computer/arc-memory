@@ -413,7 +413,9 @@ for i in range(num_intervals):
         "timestamp": time.time()
     }}
     metrics_history.append(metrics)
-    print(f"Collected metrics at {{i * {metrics_interval}}} seconds (simulated)")
+    # Fix nested f-string issue
+    interval_seconds = i * {metrics_interval}
+    print(f"Collected metrics at {{interval_seconds}} seconds (simulated)")
 
 # Simulate collecting final metrics
 print("Simulating final metrics collection...")
