@@ -18,7 +18,7 @@ logger = get_logger(__name__)
 
 # Check if Smol Agents is available
 try:
-    from smolagents import CodeAgent, LiteLLMModel
+    from smolagents import CodeAgent
     HAS_SMOL_AGENTS = True
 except ImportError:
     HAS_SMOL_AGENTS = False
@@ -50,27 +50,85 @@ def create_simulation_agent(
         return None
 
     try:
-        # Get the API key from environment variables if not provided
-        if not api_key and llm_provider == "openai":
-            api_key = os.environ.get("OPENAI_API_KEY")
-            if not api_key:
-                raise ValueError("OpenAI API key not found in environment variables.")
+        # Import the environment utilities
+        from arc_memory.simulate.utils.env import get_api_key
 
-        # Create the model
-        model = LiteLLMModel(
+        # Get the API key from the environment or provided value
+        api_key = get_api_key(api_key, "OPENAI_API_KEY")
+
+        # Set the API key in the environment
+        os.environ["OPENAI_API_KEY"] = api_key
+
+        # Import OpenAI directly
+        from openai import OpenAI
+
+        # Create a client with the API key
+        openai_client = OpenAI(api_key=api_key)
+
+        # Create a wrapper for the OpenAI client that matches the LiteLLMModel interface
+        class OpenAIModelWrapper:
+            def __init__(self, client, model_id, temperature=0.2, max_tokens=4000):
+                self.client = client
+                self.model_id = model_id
+                self.temperature = temperature
+                self.max_tokens = max_tokens
+
+            def __call__(self, messages, **kwargs):
+                # Convert messages to the format expected by OpenAI
+                formatted_messages = []
+                for message in messages:
+                    if isinstance(message["content"], list):
+                        # Handle multi-modal content
+                        formatted_messages.append({
+                            "role": message["role"],
+                            "content": message["content"]
+                        })
+                    else:
+                        # Handle text-only content
+                        formatted_messages.append({
+                            "role": message["role"],
+                            "content": message["content"]
+                        })
+
+                # Make the API call
+                response = self.client.chat.completions.create(
+                    model=self.model_id,
+                    messages=formatted_messages,
+                    temperature=kwargs.get("temperature", self.temperature),
+                    max_tokens=kwargs.get("max_tokens", self.max_tokens)
+                )
+
+                # Return a response object that matches the LiteLLMModel interface
+                from smolagents.models import ChatMessage
+                return ChatMessage(
+                    role="assistant",
+                    content=response.choices[0].message.content,
+                    raw=response
+                )
+
+        # Create the model with the API key
+        model = OpenAIModelWrapper(
+            client=openai_client,
             model_id=model_name,
-            api_key=api_key
+            temperature=0.2,  # Lower temperature for more deterministic outputs
+            max_tokens=4000   # Ensure we have enough tokens for the response
         )
 
         # Get E2B API key for sandbox execution
-        e2b_api_key = os.environ.get("E2B_API_KEY", "")
+        from arc_memory.simulate.utils.env import get_api_key
+        try:
+            e2b_api_key = get_api_key(None, "E2B_API_KEY")
+        except ValueError:
+            logger.warning("E2B API key not found, using empty string")
+            e2b_api_key = ""
 
         # Create the agent with proper sandbox configuration
         agent = CodeAgent(
             model=model,
             executor_type=executor_type,
             tools=[],  # No tools needed for workflow orchestration
-            executor_kwargs={"api_key": e2b_api_key} if executor_type == "e2b" else None
+            executor_kwargs={"api_key": e2b_api_key} if executor_type == "e2b" else None,
+            additional_authorized_imports=["os", "json", "time", "base64", "subprocess", "pathlib"]
         )
 
         logger.info(f"Created simulation agent with {llm_provider} {model_name}")
@@ -89,6 +147,7 @@ def run_simulation_workflow(
     db_path: Optional[str] = None,
     diff_data: Optional[Dict[str, Any]] = None,
     use_memory: bool = False,
+    model_name: str = "gpt-4o",
     progress_callback: Optional[Callable[[str, int], None]] = None
 ) -> Dict[str, Any]:
     """Run the simulation workflow using Smol Agents.
@@ -127,8 +186,13 @@ def run_simulation_workflow(
             db_path = os.path.join(os.path.expanduser("~"), ".arc", "graph.db")
 
         # Create the simulation agent
-        report_progress("Creating simulation agent", 10)
-        agent = create_simulation_agent()
+        report_progress(f"Creating simulation agent with model {model_name}", 10)
+
+        # Get the API key from environment variables
+        from arc_memory.simulate.utils.env import get_api_key
+        api_key = get_api_key(None, "OPENAI_API_KEY")
+
+        agent = create_simulation_agent(model_name=model_name, api_key=api_key)
 
         if agent is None:
             raise RuntimeError("Failed to create simulation agent")
@@ -197,15 +261,23 @@ def run_simulation_workflow(
         # Run the simulation using the agent
         report_progress("Running simulation in sandbox environment", 50)
 
-        # Create the agent prompt
+        # Read the manifest content to include in the prompt
+        with open(manifest_path, 'r') as f:
+            manifest_content = f.read()
+
+        # Create the agent prompt with manifest content included
         agent_prompt = f"""
 You are a system reliability engineer tasked with running a fault injection simulation.
 
-You have been provided with a simulation manifest at {manifest_path}.
+Here is the simulation manifest content:
+```json
+{manifest_content}
+```
+
 The manifest contains information about the scenario, severity, affected services, and paths to the diff and causal graph.
 
 Your task is to:
-1. Read the manifest
+1. Parse the manifest content provided above
 2. Set up a k3d cluster
 3. Deploy Chaos Mesh
 4. Apply a chaos experiment based on the scenario and severity
@@ -213,7 +285,7 @@ Your task is to:
 6. Return the results
 
 Please follow these steps:
-1. Read the manifest file
+1. Parse the manifest content from the JSON provided above
 2. Import the necessary modules from arc_memory.simulate.code_interpreter
 3. Create a simulation environment
 4. Set up the k3d cluster
@@ -227,6 +299,8 @@ Please follow these steps:
 12. Return the results as a JSON object
 
 The simulation should run for 300 seconds.
+
+IMPORTANT: The manifest content is already provided in this prompt. Do not try to read it from a file.
 """
 
         # Run the agent
@@ -273,7 +347,9 @@ The simulation should run for 300 seconds.
             risk_factors=risk_factors,
             simulation_results=simulation_results,
             diff_data=diff_data,
-            causal_graph=causal_graph
+            causal_graph=causal_graph,
+            use_memory=use_memory,
+            db_path=db_path
         )
 
         # Generate the attestation
@@ -320,6 +396,27 @@ The simulation should run for 300 seconds.
                 diff_data=diff_data,
                 db_path=db_path
             )
+
+            # Enhance the explanation with historical context if memory node was created
+            if memory_node:
+                report_progress("Enhancing explanation with historical context", 97)
+
+                # Import here to avoid circular imports
+                from arc_memory.simulate.memory import enhance_explanation
+
+                enhanced_explanation = enhance_explanation(
+                    explanation=explanation,
+                    affected_services=affected_services,
+                    scenario=scenario,
+                    severity=severity,
+                    risk_score=risk_score,
+                    db_path=db_path
+                )
+
+                # Update the explanation if it was enhanced
+                if enhanced_explanation != explanation:
+                    explanation = enhanced_explanation
+                    logger.info("Enhanced explanation with historical context")
         else:
             memory_node = None
 
