@@ -10,7 +10,7 @@ import os
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Any, Tuple
+from typing import Dict, List, Optional, Any, Tuple, Callable
 from dotenv import load_dotenv
 
 # Load environment variables from .env file
@@ -314,6 +314,131 @@ def callback(
     )
 
 
+def run_workflow_with_progress(
+    workflow_name: str,
+    workflow_function: Callable,
+    rev_range: str,
+    scenario: str,
+    severity: int,
+    timeout: int,
+    db_path: str,
+    diff_path: Optional[Path] = None,
+    diff_data: Optional[Dict[str, Any]] = None,
+    use_memory: bool = False,
+    model_name: Optional[str] = None,
+    verbose: bool = False,
+    output_path: Optional[Path] = None,
+) -> None:
+    """Run a simulation workflow with progress tracking.
+    
+    Args:
+        workflow_name: Name of the workflow for display
+        workflow_function: Function to run the workflow
+        rev_range: Git rev-range to analyze
+        scenario: Fault scenario ID
+        severity: CI fail threshold 0-100
+        timeout: Max runtime in seconds
+        db_path: Path to the knowledge graph database
+        diff_path: Path to pre-serialized diff JSON
+        diff_data: Pre-loaded diff data (optional)
+        use_memory: Whether to enable memory integration
+        model_name: LLM model name to use (optional)
+        verbose: Whether to enable verbose output
+        output_path: Path to write result JSON
+    """
+    logger.info(f"Using {workflow_name} workflow for simulation")
+    console.print(f"[bold]Using {workflow_name} workflow for simulation...[/bold]")
+    
+    # If diff_path is provided and diff_data is not, we need to load it first
+    if diff_path and diff_data is None:
+        logger.info(f"Loading diff from file: {diff_path}")
+        try:
+            diff_data = load_diff_from_file(diff_path)
+            console.print(f"[green]Successfully loaded diff from file with {len(diff_data.get('files', []))} files[/green]")
+        except Exception as e:
+            console.print(f"[red]Error loading diff file: {e}[/red]")
+            sys.exit(3)  # Invalid Input
+    
+    # Import the progress display
+    from arc_memory.cli.utils import create_progress_display
+    
+    # Create a progress display
+    progress = create_progress_display()
+    
+    # Start the progress display
+    with progress:
+        # Add a task for the simulation
+        task = progress.add_task("Running simulation...", total=100)
+        
+        # Update progress to show we're starting
+        progress.update(task, advance=10, description="Extracting and analyzing code changes...")
+        
+        # Check if OpenAI API key is available
+        if not os.environ.get("OPENAI_API_KEY"):
+            console.print("[red]Error: OPENAI_API_KEY environment variable not set[/red]")
+            console.print("[yellow]Please set the OPENAI_API_KEY environment variable to use the LLM features[/yellow]")
+            sys.exit(2)  # Error
+        
+        try:
+            # Define a progress callback function
+            def progress_callback(message, percentage):
+                progress.update(task, completed=percentage, description=message)
+            
+            # Prepare the workflow arguments
+            workflow_args = {
+                "rev_range": rev_range,
+                "scenario": scenario,
+                "severity": severity,
+                "timeout": min(timeout, 300),  # Cap at 5 minutes for now
+                "repo_path": os.getcwd(),
+                "db_path": str(db_path),
+                "diff_data": diff_data,  # Pass the pre-loaded diff data if available
+                "use_memory": use_memory,  # Enable/disable memory integration
+                "progress_callback": progress_callback,  # Pass the progress callback
+                "verbose": verbose  # Pass the verbose flag
+            }
+            
+            # Add model_name if provided
+            if model_name:
+                workflow_args["model_name"] = model_name
+            
+            # Run the workflow with progress updates
+            workflow_result = workflow_function(**workflow_args)
+            
+            # Make sure we're at 100% when done
+            if progress.tasks[task].completed < 100:
+                progress.update(task, completed=100, description="Simulation complete!")
+        except Exception as e:
+            # Update progress to show error
+            progress.update(task, completed=100, description=f"Error: {str(e)[:30]}...")
+            raise e
+    
+    # Check if the workflow completed successfully
+    if workflow_result.get("success") is False or workflow_result.get("status") == "failed":
+        error_message = workflow_result.get("error", "Unknown error")
+        console.print(f"[red]Workflow failed: {error_message}[/red]")
+        sys.exit(2)  # Error
+    
+    # Get the attestation
+    attestation = workflow_result.get("attestation", {})
+    
+    # Create the result object
+    result = {
+        "sim_id": attestation.get("sim_id", f"sim_{rev_range.replace('..', '_').replace('/', '_')}"),
+        "risk_score": attestation.get("risk_score", 0),
+        "services": workflow_result.get("affected_services", []),
+        "metrics": attestation.get("metrics", {}),
+        "explanation": attestation.get("explanation", ""),
+        "manifest_hash": attestation.get("manifest_hash", ""),
+        "commit_target": attestation.get("commit_target", "unknown"),
+        "timestamp": attestation.get("timestamp", "unknown"),
+        "diff_hash": attestation.get("diff_hash", "")
+    }
+    
+    # Output the result using the shared function
+    output_simulation_results(result, output_path, severity, console, verbose)
+
+
 def run_simulation(
     rev_range: str,
     diff_path: Optional[Path]=None,
@@ -337,6 +462,7 @@ def run_simulation(
         timeout: Max runtime in seconds
         output_path: Path to write result JSON
         memory: Whether to enable memory integration to learn from past simulations
+        model_name: LLM model name to use for simulation
         open_ui: Whether to open VS Code webview
         verbose: Whether to enable verbose output
         debug: Whether to enable debug logging
@@ -348,183 +474,37 @@ def run_simulation(
 
         # Check if Smol Agents workflow is available
         if HAS_SMOL_AGENTS and run_smol_workflow:
-            logger.info("Using Smol Agents workflow for simulation")
-            console.print("[bold]Using Smol Agents workflow for simulation...[/bold]")
-
-            # If diff_path is provided, we need to load it first
-            diff_data = None
-            if diff_path:
-                logger.info(f"Loading diff from file: {diff_path}")
-                try:
-                    diff_data = load_diff_from_file(diff_path)
-                    console.print(f"[green]Successfully loaded diff from file with {len(diff_data.get('files', []))} files[/green]")
-                except Exception as e:
-                    console.print(f"[red]Error loading diff file: {e}[/red]")
-                    sys.exit(3)  # Invalid Input
-
-            # Import the progress display
-            from arc_memory.cli.utils import create_progress_display
-
-            # Create a progress display
-            progress = create_progress_display()
-
-            # Start the progress display
-            with progress:
-                # Add a task for the simulation
-                task = progress.add_task("Running simulation...", total=100)
-
-                # Update progress to show we're starting
-                progress.update(task, advance=10, description="Extracting and analyzing code changes...")
-
-                # Check if OpenAI API key is available
-                if not os.environ.get("OPENAI_API_KEY"):
-                    console.print("[red]Error: OPENAI_API_KEY environment variable not set[/red]")
-                    console.print("[yellow]Please set the OPENAI_API_KEY environment variable to use the LLM features[/yellow]")
-                    sys.exit(2)  # Error
-
-                try:
-                    # Define a progress callback function
-                    def progress_callback(message, percentage):
-                        progress.update(task, completed=percentage, description=message)
-
-                    # Run the Smol Agents workflow with progress updates
-                    workflow_result = run_smol_workflow(
-                        rev_range=rev_range,
-                        scenario=scenario,
-                        severity=severity,
-                        timeout=min(timeout, 300),  # Cap at 5 minutes for now
-                        repo_path=os.getcwd(),
-                        db_path=str(db_path),
-                        diff_data=diff_data,  # Pass the pre-loaded diff data if available
-                        use_memory=memory,  # Enable/disable memory integration
-                        model_name=model_name,  # Pass the model name
-                        progress_callback=progress_callback,  # Pass the progress callback
-                        verbose=verbose  # Pass the verbose flag
-                    )
-
-                    # Make sure we're at 100% when done
-                    if progress.tasks[task].completed < 100:
-                        progress.update(task, completed=100, description="Simulation complete!")
-                except Exception as e:
-                    # Update progress to show error
-                    progress.update(task, completed=100, description=f"Error: {str(e)[:30]}...")
-                    raise e
-
-            # Check if the workflow completed successfully
-            if workflow_result.get("status") != "completed":
-                error_message = workflow_result.get("error", "Unknown error")
-                console.print(f"[red]Workflow failed: {error_message}[/red]")
-                sys.exit(2)  # Error
-
-            # Get the attestation
-            attestation = workflow_result.get("attestation", {})
-
-            # Create the result object
-            result = {
-                "sim_id": attestation.get("sim_id", f"sim_{rev_range.replace('..', '_').replace('/', '_')}"),
-                "risk_score": attestation.get("risk_score", 0),
-                "services": workflow_result.get("affected_services", []),
-                "metrics": attestation.get("metrics", {}),
-                "explanation": attestation.get("explanation", ""),
-                "manifest_hash": attestation.get("manifest_hash", ""),
-                "commit_target": attestation.get("commit_target", "unknown"),
-                "timestamp": attestation.get("timestamp", "unknown"),
-                "diff_hash": attestation.get("diff_hash", "")
-            }
-
-            # Output the result using the shared function
-            output_simulation_results(result, output_path, severity, console, verbose)
-
+            run_workflow_with_progress(
+                workflow_name="Smol Agents",
+                workflow_function=run_smol_workflow,
+                rev_range=rev_range,
+                scenario=scenario,
+                severity=severity,
+                timeout=timeout,
+                db_path=str(db_path),
+                diff_path=diff_path,
+                use_memory=memory,
+                model_name=model_name,
+                verbose=verbose,
+                output_path=output_path
+            )
             return
 
         # Check if LangGraph workflow is available
         elif HAS_LANGGRAPH and run_langgraph_workflow:
-            logger.info("Using LangGraph workflow for simulation")
-            console.print("[bold]Using LangGraph workflow for simulation...[/bold]")
-
-            # If diff_path is provided, we need to load it first
-            diff_data = None
-            if diff_path:
-                logger.info(f"Loading diff from file: {diff_path}")
-                try:
-                    diff_data = load_diff_from_file(diff_path)
-                    console.print(f"[green]Successfully loaded diff from file with {len(diff_data.get('files', []))} files[/green]")
-                except Exception as e:
-                    console.print(f"[red]Error loading diff file: {e}[/red]")
-                    sys.exit(3)  # Invalid Input
-
-            # Import the progress display
-            from arc_memory.cli.utils import create_progress_display
-
-            # Create a progress display
-            progress = create_progress_display()
-
-            # Start the progress display
-            with progress:
-                # Add a task for the simulation
-                task = progress.add_task("Running simulation...", total=100)
-
-                # Update progress to show we're starting
-                progress.update(task, advance=10, description="Extracting and analyzing code changes...")
-
-                # Check if OpenAI API key is available
-                if not os.environ.get("OPENAI_API_KEY"):
-                    console.print("[red]Error: OPENAI_API_KEY environment variable not set[/red]")
-                    console.print("[yellow]Please set the OPENAI_API_KEY environment variable to use the LLM features[/yellow]")
-                    sys.exit(2)  # Error
-
-                try:
-                    # Define a progress callback function
-                    def progress_callback(message, percentage):
-                        progress.update(task, completed=percentage, description=message)
-
-                    # Run the LangGraph workflow with progress updates
-                    workflow_result = run_langgraph_workflow(
-                        rev_range=rev_range,
-                        scenario=scenario,
-                        severity=severity,
-                        timeout=min(timeout, 300),  # Cap at 5 minutes for now
-                        repo_path=os.getcwd(),
-                        db_path=str(db_path),
-                        diff_data=diff_data,  # Pass the pre-loaded diff data if available
-                        use_memory=memory,  # Enable/disable memory integration
-                        progress_callback=progress_callback,  # Pass the progress callback
-                        verbose=verbose  # Pass the verbose flag
-                    )
-
-                    # Make sure we're at 100% when done
-                    if progress.tasks[task].completed < 100:
-                        progress.update(task, completed=100, description="Simulation complete!")
-                except Exception as e:
-                    # Update progress to show error
-                    progress.update(task, completed=100, description=f"Error: {str(e)[:30]}...")
-                    raise e
-
-            # Check if the workflow completed successfully
-            if workflow_result.get("status") != "completed":
-                error_message = workflow_result.get("error", "Unknown error")
-                console.print(f"[red]Workflow failed: {error_message}[/red]")
-                sys.exit(2)  # Error
-
-            # Get the attestation
-            attestation = workflow_result.get("attestation", {})
-
-            # Create the result object
-            result = {
-                "sim_id": attestation.get("sim_id", f"sim_{rev_range.replace('..', '_').replace('/', '_')}"),
-                "risk_score": attestation.get("risk_score", 0),
-                "services": workflow_result.get("affected_services", []),
-                "metrics": attestation.get("metrics", {}),
-                "explanation": attestation.get("explanation", ""),
-                "manifest_hash": attestation.get("manifest_hash", ""),
-                "commit_target": attestation.get("commit_target", "unknown"),
-                "timestamp": attestation.get("timestamp", "unknown"),
-                "diff_hash": attestation.get("diff_hash", "")
-            }
-
-            # Output the result using the shared function
-            output_simulation_results(result, output_path, severity, console, verbose)
-
+            run_workflow_with_progress(
+                workflow_name="LangGraph",
+                workflow_function=run_langgraph_workflow,
+                rev_range=rev_range,
+                scenario=scenario,
+                severity=severity,
+                timeout=timeout,
+                db_path=str(db_path),
+                diff_path=diff_path,
+                use_memory=memory,
+                verbose=verbose,
+                output_path=output_path
+            )
             return
 
         # If LangGraph is not available, fall back to the original implementation

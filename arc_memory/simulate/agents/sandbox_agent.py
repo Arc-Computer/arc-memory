@@ -49,6 +49,8 @@ def create_sandbox_agent(
         api_key = os.environ.get("OPENAI_API_KEY")
         # Import the environment utilities
         from arc_memory.simulate.utils.env import get_api_key
+        # Import the model wrapper utilities
+        from arc_memory.simulate.utils.model_wrappers import create_openai_wrapper
 
         # Get the API key from the environment or provided value
         api_key = get_api_key(api_key, "OPENAI_API_KEY")
@@ -56,60 +58,8 @@ def create_sandbox_agent(
         # Set the API key in the environment
         os.environ["OPENAI_API_KEY"] = api_key
 
-        # Import OpenAI directly
-        from openai import OpenAI
-
-        # Create a client with the API key
-        openai_client = OpenAI(api_key=api_key)
-
-        # Create a wrapper for the OpenAI client that matches the LiteLLMModel interface
-        class OpenAIModelWrapper:
-            def __init__(self, client, model_id, temperature=0.2, max_tokens=4000):
-                self.client = client
-                self.model_id = model_id
-                self.temperature = temperature
-                self.max_tokens = max_tokens
-
-            def __call__(self, messages, **kwargs):
-                # Convert messages to the format expected by OpenAI
-                formatted_messages = []
-                for message in messages:
-                    if isinstance(message["content"], list):
-                        # Handle multi-modal content
-                        formatted_messages.append({
-                            "role": message["role"],
-                            "content": message["content"]
-                        })
-                    else:
-                        # Handle text-only content
-                        formatted_messages.append({
-                            "role": message["role"],
-                            "content": message["content"]
-                        })
-
-                # Make the API call
-                response = self.client.chat.completions.create(
-                    model=self.model_id,
-                    messages=formatted_messages,
-                    temperature=kwargs.get("temperature", self.temperature),
-                    max_tokens=kwargs.get("max_tokens", self.max_tokens)
-                )
-
-                # Return a response object that matches the LiteLLMModel interface
-                from smolagents.models import ChatMessage
-                return ChatMessage(
-                    role="assistant",
-                    content=response.choices[0].message.content,
-                    raw=response
-                )
-
-        # Create the model with the API key
-        model = OpenAIModelWrapper(
-            client=openai_client,
-            model_id=model_name,
-            temperature=0.2,  # Lower temperature for more deterministic outputs
-            max_tokens=4000   # Ensure we have enough tokens for the response
-        )
+        # Create the OpenAI model wrapper
+        model = create_openai_wrapper(api_key, model_name)
 
         # Get E2B API key for sandbox execution
         from arc_memory.simulate.utils.env import get_api_key
