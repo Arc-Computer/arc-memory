@@ -274,7 +274,14 @@ export E2B_API_KEY=your_e2b_api_key
 export OPENAI_API_KEY=your_openai_api_key
 ```
 
-Or create a `.env` file in your repository root with these variables.
+Or create a `.env` file in your repository root with these variables:
+
+```
+E2B_API_KEY=your_e2b_api_key
+OPENAI_API_KEY=your_openai_api_key
+```
+
+Note: The E2B integration now uses the constructor pattern `Sandbox(api_key=api_key)` instead of the deprecated `Sandbox.create()` method. This requires E2B Code Interpreter version 0.5.0 or higher.
 
 ### Simulation Failures
 
@@ -283,6 +290,8 @@ If the simulation fails, check the following:
 - Check that your API keys are valid
 - Try increasing the timeout if the simulation is taking too long
 - Try using a different scenario if the current one is not working
+
+The simulation now includes a fallback mechanism that will automatically switch to a local executor if the E2B sandbox fails. This helps ensure that simulations can still run even if there are issues with the E2B service. You'll see a warning in the logs if this happens.
 
 ### Invalid Diff Format
 

@@ -125,14 +125,35 @@ def create_simulation_agent(
             logger.warning("E2B API key not found, using empty string")
             e2b_api_key = ""
 
+        # Log the executor type and API key status
+        logger.info(f"Creating simulation agent with executor_type={executor_type}")
+        if executor_type == "e2b":
+            logger.info(f"Using E2B API key: {e2b_api_key[:4]}...{e2b_api_key[-4:] if len(e2b_api_key) > 8 else ''}")
+
         # Create the agent with proper sandbox configuration
-        agent = CodeAgent(
-            model=model,
-            executor_type=executor_type,
-            tools=[],  # No tools needed for workflow orchestration
-            executor_kwargs={"api_key": e2b_api_key} if executor_type == "e2b" else None,
-            additional_authorized_imports=["os", "json", "time", "base64", "subprocess", "pathlib"]
-        )
+        try:
+            agent = CodeAgent(
+                model=model,
+                executor_type=executor_type,
+                tools=[],  # No tools needed for workflow orchestration
+                executor_kwargs={"api_key": e2b_api_key} if executor_type == "e2b" else None,
+                additional_authorized_imports=["os", "json", "time", "base64", "subprocess", "pathlib"]
+            )
+            logger.info(f"Successfully created CodeAgent with executor_type={executor_type}")
+        except Exception as e:
+            logger.error(f"Error creating CodeAgent with executor_type={executor_type}: {e}")
+            # Try with a different executor type if E2B fails
+            if executor_type == "e2b":
+                logger.warning("Falling back to local executor")
+                agent = CodeAgent(
+                    model=model,
+                    executor_type="local",
+                    tools=[],
+                    additional_authorized_imports=["os", "json", "time", "base64", "subprocess", "pathlib"]
+                )
+                logger.info("Successfully created CodeAgent with fallback executor_type=local")
+            else:
+                raise
 
         logger.info(f"Created simulation agent with {llm_provider} {model_name}")
         return agent
@@ -198,7 +219,7 @@ def run_simulation_workflow(
                 "success": False,
                 "error": "Smol Agents is not installed. Please install it with 'pip install smolagents'."
             }
-        
+
         report_progress(f"Creating simulation agent with model {model_name}", 10)
 
         # Get the API key from environment variables
@@ -273,9 +294,9 @@ def run_simulation_workflow(
 
         # Run the simulation using the code interpreter
         report_progress("Running simulation in sandbox environment", 50)
-        
+
         from arc_memory.simulate.code_interpreter import run_simulation
-        
+
         simulation_results = run_simulation(
             manifest_path=str(manifest_path),
             duration_seconds=min(timeout, 300),  # Cap at 5 minutes for now

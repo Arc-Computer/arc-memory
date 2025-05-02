@@ -70,13 +70,33 @@ def create_diff_agent(
             logger.warning("E2B API key not found, using empty string")
             e2b_api_key = ""
 
+        # Log the executor type and API key status
+        logger.info(f"Creating diff agent with executor_type={executor_type}")
+        if executor_type == "e2b":
+            logger.info(f"Using E2B API key: {e2b_api_key[:4]}...{e2b_api_key[-4:] if len(e2b_api_key) > 8 else ''}")
+
         # Create the agent with proper sandbox configuration
-        agent = CodeAgent(
-            model=model,
-            executor_type=executor_type,
-            tools=[],  # No tools needed for diff analysis
-            executor_kwargs={"api_key": e2b_api_key} if executor_type == "e2b" else None
-        )
+        try:
+            agent = CodeAgent(
+                model=model,
+                executor_type=executor_type,
+                tools=[],  # No tools needed for diff analysis
+                executor_kwargs={"api_key": e2b_api_key} if executor_type == "e2b" else None
+            )
+            logger.info(f"Successfully created CodeAgent with executor_type={executor_type}")
+        except Exception as e:
+            logger.error(f"Error creating CodeAgent with executor_type={executor_type}: {e}")
+            # Try with a different executor type if E2B fails
+            if executor_type == "e2b":
+                logger.warning("Falling back to local executor")
+                agent = CodeAgent(
+                    model=model,
+                    executor_type="local",
+                    tools=[]
+                )
+                logger.info("Successfully created CodeAgent with fallback executor_type=local")
+            else:
+                raise
 
         logger.info(f"Created diff agent with {llm_provider} {model_name}")
         return agent
