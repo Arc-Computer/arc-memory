@@ -389,7 +389,9 @@ print(f"Simulating experiment for {{duration_seconds}} seconds...")
 metrics_history = [initial_metrics]
 
 # Reduce the number of intervals to speed up simulation
-num_intervals = min(5, duration_seconds // {metrics_interval})
+# Fix nested f-string issue
+metrics_interval_value = {metrics_interval}
+num_intervals = min(5, duration_seconds // metrics_interval_value)
 print(f"Collecting metrics at {{num_intervals}} intervals...")
 
 for i in range(num_intervals):
@@ -414,7 +416,7 @@ for i in range(num_intervals):
     }}
     metrics_history.append(metrics)
     # Fix nested f-string issue
-    interval_seconds = i * {metrics_interval}
+    interval_seconds = i * metrics_interval_value
     print(f"Collected metrics at {{interval_seconds}} seconds (simulated)")
 
 # Simulate collecting final metrics
