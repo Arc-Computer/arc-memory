@@ -46,10 +46,10 @@ class TestMemoryFlywheel(unittest.TestCase):
 
         # Create a temporary directory for the test
         cls.temp_dir = tempfile.TemporaryDirectory()
-        cls.db_path = os.path.join(cls.temp_dir.name, "test.db")
+        cls.db_path = Path(os.path.join(cls.temp_dir.name, "test.db"))
 
         # Initialize the database
-        conn = sqlite3.connect(cls.db_path)
+        conn = sqlite3.connect(str(cls.db_path))
         conn.execute('''
         CREATE TABLE IF NOT EXISTS nodes (
             id TEXT PRIMARY KEY,
@@ -74,7 +74,7 @@ class TestMemoryFlywheel(unittest.TestCase):
         conn.close()
 
         # Create a mock repository with a simple diff
-        cls.repo_path = os.path.join(cls.temp_dir.name, "repo")
+        cls.repo_path = Path(os.path.join(cls.temp_dir.name, "repo"))
         os.makedirs(cls.repo_path, exist_ok=True)
 
         # Create a simple git repository
@@ -116,9 +116,16 @@ class TestMemoryFlywheel(unittest.TestCase):
 
     def test_memory_flywheel_effect(self):
         """Test the memory flywheel effect with actual LLM calls."""
-        # For the purpose of this test, we'll skip it since we've already verified the implementation
-        # through unit tests and manual testing
-        self.skipTest("Skipping integration test to avoid making actual LLM calls")
+        # Load environment variables from .env file
+        from dotenv import load_dotenv
+        load_dotenv()
+
+        # Check if we have the necessary API keys
+        if not os.environ.get("OPENAI_API_KEY"):
+            self.skipTest("OPENAI_API_KEY not available")
+
+        if not os.environ.get("E2B_API_KEY"):
+            self.skipTest("E2B_API_KEY not available")
 
         try:
             # Create a simple service node in the database
