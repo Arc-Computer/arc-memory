@@ -410,8 +410,8 @@ for i in range(num_intervals):
         "node_count": node_count,
         "pod_count": pod_count,
         "service_count": service_count,
-        "cpu_usage": {{"node1": 0.2 + (i * 0.01)}},
-        "memory_usage": {{"node1": 0.3 + (i * 0.005)}},
+        "cpu_usage": {"node1": 0.2 + (i * 0.01)},
+        "memory_usage": {"node1": 0.3 + (i * 0.005)},
         "timestamp": time.time()
     }}
     metrics_history.append(metrics)
@@ -427,8 +427,8 @@ final_metrics = {{
     "node_count": 1,
     "pod_count": 8,  # Increased from initial 5
     "service_count": 3,
-    "cpu_usage": {{"node1": 0.25}},  # Slightly increased
-    "memory_usage": {{"node1": 0.35}},  # Slightly increased
+    "cpu_usage": {"node1": 0.25},  # Slightly increased
+    "memory_usage": {"node1": 0.35},  # Slightly increased
     "timestamp": time.time()
 }}
 
