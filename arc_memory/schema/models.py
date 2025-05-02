@@ -1,35 +1,140 @@
-"""Data models for Arc Memory."""
+"""Schema models for Arc Memory.
+
+This module defines the data models used in the Arc Memory application.
+"""
 
 from datetime import datetime
 from enum import Enum
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
 
 class NodeType(str, Enum):
-    """Types of nodes in the knowledge graph."""
-
-    COMMIT = "commit"
+    """Type of node in the knowledge graph."""
+    
     FILE = "file"
+    SERVICE = "service"
+    COMMIT = "commit"
     PR = "pr"
     ISSUE = "issue"
     ADR = "adr"
-    SIMULATION = "simulation"  # A simulation run
-    METRIC = "metric"  # A metric collected during simulation
+    SIMULATION = "simulation"
+    METRIC = "metric"
+    FAULT = "fault"
+    ANNOTATION = "annotation"
 
 
 class EdgeRel(str, Enum):
-    """Types of relationships between nodes."""
+    """Type of relationship between nodes in the knowledge graph."""
+    
+    CONTAINS = "CONTAINS"
+    DEPENDS_ON = "DEPENDS_ON"
+    PART_OF = "PART_OF"
+    AFFECTS = "AFFECTS"
+    CAUSED_BY = "CAUSED_BY"
+    HAS_METRIC = "HAS_METRIC"
+    HAS_ANNOTATION = "HAS_ANNOTATION"
 
-    MODIFIES = "MODIFIES"  # Commit modifies a file
-    MERGES = "MERGES"      # PR merges a commit
-    MENTIONS = "MENTIONS"  # PR/Issue mentions another entity
-    DECIDES = "DECIDES"    # ADR decides on a file/commit
-    SIMULATES = "SIMULATES"  # Simulation simulates a commit/PR
-    AFFECTS = "AFFECTS"    # Simulation affects a service
-    MEASURES = "MEASURES"  # Simulation measures a metric
-    PREDICTS = "PREDICTS"  # Simulation predicts an impact
+
+class Node:
+    """Base class for all nodes in the knowledge graph."""
+    
+    def __init__(self, id: str, type: NodeType):
+        """Initialize a Node.
+        
+        Args:
+            id: Unique identifier for the node
+            type: Type of the node
+        """
+        self.id = id
+        self.type = type
+
+
+class Edge:
+    """Base class for all edges in the knowledge graph."""
+    
+    def __init__(self, src: str, dst: str, rel: EdgeRel):
+        """Initialize an Edge.
+        
+        Args:
+            src: ID of the source node
+            dst: ID of the destination node
+            rel: Type of relationship
+        """
+        self.src = src
+        self.dst = dst
+        self.rel = rel
+
+
+class SimulationNode(Node):
+    """Simulation node in the knowledge graph."""
+    
+    def __init__(
+        self,
+        id: str,
+        type: NodeType,
+        sim_id: str,
+        rev_range: str,
+        scenario: str,
+        severity: int,
+        risk_score: int,
+        manifest_hash: str,
+        commit_target: str,
+        diff_hash: str,
+        affected_services: List[str],
+    ):
+        """Initialize a SimulationNode.
+        
+        Args:
+            id: Unique identifier for the node
+            type: Type of the node
+            sim_id: Simulation ID
+            rev_range: Git revision range
+            scenario: Fault scenario ID
+            severity: Severity level
+            risk_score: Risk score
+            manifest_hash: Hash of the simulation manifest
+            commit_target: Target commit hash
+            diff_hash: Hash of the diff
+            affected_services: List of affected services
+        """
+        super().__init__(id, type)
+        self.sim_id = sim_id
+        self.rev_range = rev_range
+        self.scenario = scenario
+        self.severity = severity
+        self.risk_score = risk_score
+        self.manifest_hash = manifest_hash
+        self.commit_target = commit_target
+        self.diff_hash = diff_hash
+        self.affected_services = affected_services
+
+
+class MetricNode(Node):
+    """Metric node in the knowledge graph."""
+    
+    def __init__(
+        self,
+        id: str,
+        type: NodeType,
+        name: str,
+        value: Union[int, float, str],
+        unit: Optional[str] = None,
+    ):
+        """Initialize a MetricNode.
+        
+        Args:
+            id: Unique identifier for the node
+            type: Type of the node
+            name: Metric name
+            value: Metric value
+            unit: Metric unit (optional)
+        """
+        super().__init__(id, type)
+        self.name = name
+        self.value = value
+        self.unit = unit
 
 
 class Node(BaseModel):
@@ -91,33 +196,6 @@ class ADRNode(Node):
     status: str
     decision_makers: List[str] = Field(default_factory=list)
     path: str
-
-
-class SimulationNode(Node):
-    """A simulation run node."""
-
-    type: NodeType = NodeType.SIMULATION
-    sim_id: str  # Unique identifier for the simulation
-    rev_range: str  # Git rev-range used for the simulation
-    scenario: str  # The fault scenario that was simulated
-    severity: int  # The severity level of the simulation (0-100)
-    risk_score: int  # Calculated risk score (0-100)
-    manifest_hash: str  # Hash of the simulation manifest
-    commit_target: str  # Target commit hash
-    diff_hash: str  # Hash of the diff
-    affected_services: List[str] = Field(default_factory=list)  # List of services affected by the changes
-    timestamp: Optional[datetime] = None  # Explicit timestamp field for the simulation
-
-
-class MetricNode(Node):
-    """A metric collected during simulation."""
-
-    type: NodeType = NodeType.METRIC
-    name: str  # Name of the metric
-    value: float  # Value of the metric
-    unit: Optional[str] = None  # Unit of the metric
-    timestamp: datetime  # When the metric was collected
-    service: Optional[str] = None  # Service the metric is associated with
 
 
 class Edge(BaseModel):

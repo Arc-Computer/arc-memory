@@ -4,6 +4,10 @@ import logging
 import os
 import sys
 from typing import Optional
+from rich.console import Console
+
+# Create a rich console for output
+console = Console()
 
 
 def configure_logging(debug: bool = False) -> None:
@@ -42,9 +46,14 @@ def get_logger(name: str) -> logging.Logger:
 
 # Environment variable to control debug mode
 def is_debug_mode() -> bool:
-    """Check if debug mode is enabled via environment variable.
+    """Return whether debug mode is enabled."""
+    return os.environ.get("DEBUG", "").lower() in ("1", "true", "yes", "on")
 
+
+def get_console() -> Console:
+    """Return the rich console instance.
+    
     Returns:
-        True if debug mode is enabled, False otherwise.
+        Console: A rich console instance
     """
-    return os.environ.get("ARC_DEBUG", "").lower() in ("1", "true", "yes")
+    return console

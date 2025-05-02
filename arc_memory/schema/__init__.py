@@ -1,4 +1,7 @@
-"""Schema definitions for Arc Memory."""
+"""Schema package for Arc Memory.
+
+This package provides schema definitions for the Arc Memory application.
+"""
 
 from arc_memory.schema.models import (
     NodeType,
@@ -17,6 +20,7 @@ from arc_memory.schema.models import (
 )
 
 __all__ = [
+    "models",
     "NodeType",
     "EdgeRel",
     "Node",

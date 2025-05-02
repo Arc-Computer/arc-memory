@@ -7,6 +7,7 @@ that describe the parameters and targets for fault injection experiments.
 import os
 import yaml
 import json
+import time
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 
@@ -123,3 +124,68 @@ def generate_simulation_manifest(
         logger.info(f"Saved simulation manifest to {output_path}")
     
     return manifest
+
+
+def load_manifest_from_file(manifest_path: Path) -> Dict[str, Any]:
+    """Load a simulation manifest from a file.
+    
+    Args:
+        manifest_path: Path to the manifest file
+        
+    Returns:
+        The loaded manifest as a dictionary
+    """
+    logger.info(f"Loading manifest from {manifest_path}")
+    try:
+        with open(manifest_path, "r") as f:
+            return json.load(f)
+    except Exception as e:
+        logger.error(f"Error loading manifest: {e}")
+        raise
+
+
+def build_manifest(
+    diff_data: Dict[str, Any],
+    scenario: str,
+    severity: int,
+) -> Dict[str, Any]:
+    """Build a simulation manifest from diff data.
+    
+    Args:
+        diff_data: Diff data extracted from git
+        scenario: Fault scenario ID
+        severity: Severity threshold (0-100)
+        
+    Returns:
+        A simulation manifest as a dictionary
+    """
+    logger.info(f"Building manifest for scenario {scenario} with severity {severity}")
+    try:
+        # Extract services from diff data
+        services = []
+        
+        # Add files to the manifest
+        files = []
+        if "files" in diff_data:
+            for file_data in diff_data["files"]:
+                files.append({
+                    "path": file_data.get("path", ""),
+                    "additions": file_data.get("additions", 0),
+                    "deletions": file_data.get("deletions", 0),
+                })
+        
+        # Create the manifest
+        manifest = {
+            "id": f"sim_{int(time.time())}",
+            "revision": diff_data.get("range", "HEAD~1..HEAD"),
+            "scenario": scenario,
+            "severity": severity,
+            "services": services,
+            "files": files,
+            "timestamp": int(time.time()),
+        }
+        
+        return manifest
+    except Exception as e:
+        logger.error(f"Error building manifest: {e}")
+        raise

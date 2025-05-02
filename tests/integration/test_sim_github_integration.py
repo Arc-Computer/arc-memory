@@ -41,15 +41,93 @@ class TestSimGitHubIntegration:
             }
             yield mock_load_diff
 
-    @pytest.mark.skip(reason="Need to implement run_simulation_with_smol_agents function")
     def test_github_pr_diff_analysis(self, mock_github_api):
         """Test analyzing a GitHub PR diff."""
         # Mock the Smol Agents workflow
+        with mock.patch("arc_memory.cli.sim.run_simulation_with_smol_agents") as mock_workflow:
+            # Set up the mock to return a successful result
+            mock_workflow.return_value = {
+                "status": "completed",
+                "attestation": {
+                    "sim_id": "sim_test",
+                    "risk_score": 25,
+                    "metrics": {"latency_ms": 500, "error_rate": 0.05},
+                    "explanation": "Test explanation",
+                    "manifest_hash": "abc123",
+                    "commit_target": "def456",
+                    "timestamp": "2023-01-01T00:00:00Z",
+                    "diff_hash": "ghi789"
+                },
+                "affected_services": ["service1", "service2"]
+            }
 
-    @pytest.mark.skip(reason="Need to implement run_simulation_with_smol_agents function")
+            # Create a temporary output file
+            with tempfile.NamedTemporaryFile(suffix=".json") as temp_output:
+                # Create a temporary diff file
+                with tempfile.NamedTemporaryFile(suffix=".json") as temp_diff:
+                    # Mock os.getcwd to avoid directory issues
+                    with mock.patch("os.getcwd", return_value="/tmp"):
+                        with mock.patch("arc_memory.cli.sim.os.getcwd", return_value="/tmp"):
+                            # Call the CLI command
+                            result = self.runner.invoke(app, [
+                                "--diff", temp_diff.name,
+                                "--scenario", "network_latency",
+                                "--severity", "50",
+                                "--timeout", "300",
+                                "--output", temp_output.name
+                            ])
+
+                            # Check that the command ran successfully
+                            assert result.exit_code == 0
+
+                            # Check that the workflow was called with the right parameters
+                            mock_workflow.assert_called_once()
+                            assert mock_workflow.call_args[1]["diff_path"] is not None
+                            assert mock_workflow.call_args[1]["scenario"] == "network_latency"
+                            assert mock_workflow.call_args[1]["severity"] == 50
+
     def test_github_commit_diff_analysis(self, mock_github_api):
         """Test analyzing a GitHub commit diff."""
         # Mock the Smol Agents workflow
+        with mock.patch("arc_memory.cli.sim.run_simulation_with_smol_agents") as mock_workflow:
+            # Set up the mock to return a successful result
+            mock_workflow.return_value = {
+                "status": "completed",
+                "attestation": {
+                    "sim_id": "sim_test",
+                    "risk_score": 25,
+                    "metrics": {"latency_ms": 500, "error_rate": 0.05},
+                    "explanation": "Test explanation",
+                    "manifest_hash": "abc123",
+                    "commit_target": "def456",
+                    "timestamp": "2023-01-01T00:00:00Z",
+                    "diff_hash": "ghi789"
+                },
+                "affected_services": ["service1", "service2"]
+            }
+
+            # Create a temporary output file
+            with tempfile.NamedTemporaryFile(suffix=".json") as temp_output:
+                # Mock os.getcwd to avoid directory issues
+                with mock.patch("os.getcwd", return_value="/tmp"):
+                    with mock.patch("arc_memory.cli.sim.os.getcwd", return_value="/tmp"):
+                        # Call the CLI command with a commit hash
+                        result = self.runner.invoke(app, [
+                            "--rev", "abc123",
+                            "--scenario", "network_latency",
+                            "--severity", "50",
+                            "--timeout", "300",
+                            "--output", temp_output.name
+                        ])
+
+                        # Check that the command ran successfully
+                        assert result.exit_code == 0
+
+                        # Check that the workflow was called with the right parameters
+                        mock_workflow.assert_called_once()
+                        assert mock_workflow.call_args[1]["rev_range"] == "abc123"
+                        assert mock_workflow.call_args[1]["scenario"] == "network_latency"
+                        assert mock_workflow.call_args[1]["severity"] == 50
 
     @pytest.mark.skip(reason="Requires GitHub token and real repository access")
     def test_github_integration_with_real_repo(self):

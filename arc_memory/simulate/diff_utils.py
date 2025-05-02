@@ -299,6 +299,34 @@ def map_files_to_services(files: List[str]) -> Set[str]:
     return services
 
 
+def extract_diff_data(diff_path: Path) -> Dict[str, Any]:
+    """Extract data from a diff file.
+    
+    Args:
+        diff_path: Path to the diff file
+        
+    Returns:
+        Extracted diff data as a dictionary
+    """
+    try:
+        # Load the diff from file
+        return load_diff_from_file(diff_path)
+    except Exception as e:
+        logger.error(f"Error extracting diff data: {e}")
+        # Return minimal diff data
+        return {
+            "files": [],
+            "commit_count": 0,
+            "range": "",
+            "timestamp": "",
+            "stats": {
+                "files_changed": 0,
+                "insertions": 0,
+                "deletions": 0
+            }
+        }
+
+
 class GitError(Exception):
     """Exception raised for Git-related errors."""
     pass

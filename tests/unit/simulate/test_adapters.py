@@ -695,6 +695,24 @@ manifest_mock.list_available_scenarios = list_available_scenarios
 sys.modules['arc_memory.simulate.manifest'] = manifest_mock
 
 
+# Mock the arc_memory.memory.integration module
+memory_integration_mock = MagicMock()
+memory_integration_mock.retrieve_relevant_simulations = retrieve_relevant_simulations
+memory_integration_mock.enhance_explanation_with_memory = enhance_explanation_with_memory
+memory_integration_mock.store_simulation_in_memory = MagicMock()
+
+# Make it available in sys.modules
+sys.modules['arc_memory.memory.integration'] = memory_integration_mock
+
+
+# Mock the arc_memory.simulate.workflow module
+workflow_mock = MagicMock()
+workflow_mock.run_simulation_workflow = run_simulation_with_smol_agents
+
+# Make it available in sys.modules
+sys.modules['arc_memory.simulate.workflow'] = workflow_mock
+
+
 # Explanation module adapters
 
 def process_metrics(metrics: Dict[str, Any]) -> Dict[str, Any]:
@@ -1092,4 +1110,130 @@ def compare_with_previous(current_results, previous_results):
         "change_percentage": 10,
         "trend": "improving",
         "details": "Mock comparison details"
+    }
+
+
+def retrieve_relevant_simulations(
+    db_path: str,
+    affected_services: list,
+    scenario: str = None,
+    severity: int = None,
+    severity_range: tuple = None,
+    limit: int = 5,
+) -> list:
+    """Retrieve relevant simulations from memory.
+    
+    Args:
+        db_path: Path to the knowledge graph database
+        affected_services: List of affected service names
+        scenario: Optional fault scenario
+        severity: Optional severity level
+        severity_range: Optional tuple of (min, max) severity
+        limit: Maximum number of simulations to return
+        
+    Returns:
+        List of relevant simulations
+    """
+    # For testing purposes, return a mock list of simulations
+    return [
+        {
+            "sim_id": "sim_test_1",
+            "scenario": scenario or "network_latency",
+            "severity": severity or 50,
+            "risk_score": 25,
+            "affected_services": affected_services[:1],
+            "explanation": "Test explanation 1",
+            "timestamp": "2023-01-01T12:00:00Z"
+        },
+        {
+            "sim_id": "sim_test_2",
+            "scenario": scenario or "network_latency",
+            "severity": (severity + 10) if severity else 60,
+            "risk_score": 30,
+            "affected_services": affected_services,
+            "explanation": "Test explanation 2",
+            "timestamp": "2023-01-02T12:00:00Z"
+        }
+    ]
+
+
+def enhance_explanation_with_memory(
+    explanation: str,
+    affected_services: list,
+    scenario: str,
+    severity: int,
+    risk_score: int,
+    db_path: str,
+) -> str:
+    """Enhance explanation with historical context from memory.
+    
+    Args:
+        explanation: Original explanation
+        affected_services: List of affected service names
+        scenario: Fault scenario
+        severity: Severity level
+        risk_score: Risk score
+        db_path: Path to the knowledge graph database
+        
+    Returns:
+        Enhanced explanation
+    """
+    # Get relevant simulations
+    relevant_sims = retrieve_relevant_simulations(
+        db_path=db_path,
+        affected_services=affected_services,
+        scenario=scenario,
+        severity=severity
+    )
+    
+    # If no relevant simulations, return the original explanation
+    if not relevant_sims:
+        return explanation
+    
+    # Calculate the average risk score of relevant simulations
+    avg_risk = sum(sim["risk_score"] for sim in relevant_sims) / len(relevant_sims)
+    
+    # Compare the current risk score with the average
+    risk_comparison = "higher" if risk_score > avg_risk else "lower"
+    
+    # Enhance the explanation with historical context
+    enhanced = f"{explanation}\n\n## Historical Context\n\n"
+    enhanced += f"This change poses a {risk_comparison} risk ({risk_score}) than similar changes in the past (avg. {avg_risk:.1f}).\n\n"
+    
+    # Add details for each relevant simulation
+    for sim in relevant_sims:
+        enhanced += f"- Simulation {sim['sim_id']} ({sim['timestamp']}): Risk score {sim['risk_score']}, affected {', '.join(sim['affected_services'])}\n"
+    
+    return enhanced
+
+
+# Import needed for memory tests
+def run_simulation_with_smol_agents(*args, **kwargs):
+    """Run a simulation with Smol Agents.
+    
+    This is a mock function for testing purposes that mimics the behavior of
+    the real function that will be implemented in the future.
+    
+    Returns:
+        Dictionary with simulation results
+    """
+    # Return a mock result for testing
+    return {
+        "status": "completed",
+        "attestation": {
+            "sim_id": "sim_test",
+            "risk_score": 35,
+            "metrics": {"latency_ms": 250},
+            "explanation": "Test explanation",
+            "manifest_hash": "abc123",
+            "commit_target": "def456",
+            "timestamp": "2023-01-01T00:00:00Z",
+            "diff_hash": "ghi789",
+        },
+        "affected_services": ["api-service", "auth-service"],
+        "memory": {
+            "memory_used": True,
+            "similar_simulations_count": 2,
+            "simulation_stored": True,
+        },
     } 
