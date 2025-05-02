@@ -96,7 +96,9 @@ def generate_llm_explanation(
     causal_graph: Optional[Dict[str, Any]] = None,
     llm_provider: str = "openai",
     model_name: str = "gpt-4o",
-    progress_callback: Optional[Callable[[str, int], None]] = None
+    progress_callback: Optional[Callable[[str, int], None]] = None,
+    use_memory: bool = False,
+    db_path: Optional[str] = None
 ) -> str:
     """Generate a human-readable explanation of the simulation results using an LLM.
 
@@ -222,6 +224,31 @@ Your explanation should be technical but accessible to developers who are not re
 
         # Update progress
         report_progress("Successfully generated explanation", 80)
+
+        # Enhance the explanation with historical context if requested
+        if use_memory and db_path:
+            try:
+                # Import here to avoid circular imports
+                from arc_memory.simulate.memory import enhance_explanation
+
+                report_progress("Enhancing explanation with historical context", 85)
+
+                enhanced_explanation = enhance_explanation(
+                    explanation=explanation,
+                    affected_services=affected_services,
+                    scenario=scenario,
+                    severity=severity,
+                    risk_score=risk_score,
+                    db_path=db_path
+                )
+
+                # Update the explanation if it was enhanced
+                if enhanced_explanation != explanation:
+                    explanation = enhanced_explanation
+                    logger.info("Enhanced explanation with historical context")
+            except Exception as e:
+                logger.error(f"Error enhancing explanation with memory: {e}")
+                # Continue with the original explanation
 
         logger.info("Successfully generated explanation")
         return explanation

@@ -32,6 +32,7 @@ class TestSimCLI:
                 severity=50,
                 timeout=600,
                 output_path=None,
+                memory=False,
                 open_ui=False,
                 verbose=False,
                 debug=False,
@@ -55,6 +56,7 @@ class TestSimCLI:
                 severity=50,
                 timeout=600,
                 output_path=None,
+                memory=False,
                 open_ui=False,
                 verbose=False,
                 debug=False,
@@ -92,6 +94,7 @@ class TestSimCLI:
                     severity=50,
                     timeout=600,
                     output_path=None,
+                    memory=False,
                     open_ui=False,
                     verbose=False,
                     debug=False,
@@ -117,6 +120,7 @@ class TestSimCLI:
                     severity=50,
                     timeout=600,
                     output_path=Path(temp_file.name),
+                    memory=False,
                     open_ui=False,
                     verbose=False,
                     debug=False,
@@ -148,6 +152,7 @@ class TestSimCLI:
                 severity=75,
                 timeout=300,
                 output_path=None,
+                memory=False,
                 open_ui=True,
                 verbose=True,
                 debug=True,
@@ -222,7 +227,8 @@ class TestSimCLI:
                             timeout=600,
                             repo_path=os.getcwd(),
                             db_path=mock.ANY,
-                            diff_data=None
+                            diff_data=None,
+                            use_memory=False
                         )
 
                         # Verify sys.exit was not called (risk score < severity)

@@ -4,7 +4,7 @@ import json
 import sqlite3
 from datetime import date, datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, List, Optional, Union, Tuple
 
 # These imports are handled dynamically to support graceful degradation
 # when dependencies are missing
@@ -40,7 +40,7 @@ DEFAULT_COMPRESSED_DB_PATH = Path.home() / ".arc" / "graph.db.zst"
 DEFAULT_MANIFEST_PATH = Path.home() / ".arc" / "build.json"
 
 
-def get_connection(db_path: Optional[Path] = None, check_exists: bool = True) -> sqlite3.Connection:
+def get_connection(db_path: Optional[Union[Path, str]] = None, check_exists: bool = True) -> sqlite3.Connection:
     """Get a connection to the database.
 
     Args:
@@ -58,6 +58,10 @@ def get_connection(db_path: Optional[Path] = None, check_exists: bool = True) ->
 
     if db_path is None:
         db_path = DEFAULT_DB_PATH
+
+    # Convert string path to Path object if needed
+    if isinstance(db_path, str):
+        db_path = Path(db_path)
 
     # Check if the database exists
     if check_exists and not db_path.exists():
@@ -94,7 +98,7 @@ def get_connection(db_path: Optional[Path] = None, check_exists: bool = True) ->
             )
 
     try:
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(str(db_path))
         conn.row_factory = sqlite3.Row
         return conn
     except Exception as e:

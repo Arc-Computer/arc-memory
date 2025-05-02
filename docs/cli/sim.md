@@ -236,7 +236,22 @@ An explanation is generated to help you understand the simulation results. An at
 
 ### 9. Memory Integration (Optional)
 
-When the `--memory` flag is enabled, the simulation results are stored in the knowledge graph, creating a reinforcing flywheel where simulation results feed back into the knowledge graph, making future simulations more accurate and providing richer context for decision-making. The system also retrieves relevant past simulations to enhance the explanation with historical context.
+When the `--memory` flag is enabled, the simulation results are stored in the knowledge graph, creating a reinforcing flywheel where simulation results feed back into the knowledge graph, making future simulations more accurate and providing richer context for decision-making.
+
+The memory integration provides several benefits:
+
+1. **Historical Context**: The system retrieves relevant past simulations to enhance the explanation with historical context. This includes comparing the current risk score with historical averages and providing examples of similar simulations.
+
+2. **Risk Assessment Calibration**: The risk score is calibrated based on historical data, providing a more accurate assessment of the potential impact of the changes.
+
+3. **Pattern Recognition**: Arc Memory can recognize patterns in code changes that have led to specific types of failures in the past, helping you avoid similar issues in the future.
+
+4. **Service Impact History**: The system tracks how specific services respond to different types of changes, allowing it to provide more accurate predictions for those services.
+
+The enhanced explanation includes a "Historical Context" section that shows:
+- How the current risk score compares to similar changes in the past
+- A list of relevant historical simulations with their risk scores and brief summaries
+- Patterns or trends identified across simulations
 
 ## Integration with CI/CD
 

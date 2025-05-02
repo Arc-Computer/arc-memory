@@ -209,18 +209,24 @@ def analyze_diff(diff: Dict[str, Any], causal_db: str) -> List[str]:
     Returns:
         A list of affected service names
     """
-    from arc_memory.simulate.causal import derive_causal
-    from arc_memory.simulate.causal import get_affected_services
+    from arc_memory.simulate.causal_utils import build_causal_graph
 
     # Extract the list of changed files
     changed_files = [file["path"] for file in diff.get("files", [])]
 
     try:
-        # Derive the causal graph from the database
-        causal_graph = derive_causal(causal_db)
+        # Build the causal graph from the database
+        causal_graph = build_causal_graph(causal_db)
 
-        # Get affected services
-        affected_services = get_affected_services(causal_graph, changed_files)
+        # Get affected services from the causal graph
+        affected_services = []
+        file_to_services = causal_graph.get("file_to_services", {})
+
+        for file_path in changed_files:
+            services = file_to_services.get(file_path, [])
+            for service in services:
+                if service not in affected_services:
+                    affected_services.append(service)
 
         # If no services were found, fall back to the simple mapping
         if not affected_services:
