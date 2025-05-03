@@ -439,6 +439,7 @@ def exchange_code_for_token(
         # Log the request details (without sensitive information)
         logger.debug(f"Exchanging code for token with client_id: {config.client_id}")
         logger.debug(f"Redirect URI: {config.redirect_uri}")
+        logger.debug(f"Code length: {len(code)}")
 
         # Prepare the request data
         data = {
@@ -449,19 +450,30 @@ def exchange_code_for_token(
             "grant_type": "authorization_code",
         }
 
-        # Log the request URL
+        # Log the request URL and data (without sensitive information)
         logger.debug(f"POST request to: {OAUTH_TOKEN_URL}")
+        logger.debug(f"Request data: client_id={config.client_id}, redirect_uri={config.redirect_uri}, grant_type=authorization_code")
+
+        # Create headers
+        headers = {
+            "Accept": "application/json",
+            "Content-Type": "application/x-www-form-urlencoded",
+            "User-Agent": USER_AGENT,
+        }
+
+        # Log the request headers
+        logger.debug(f"Request headers: {headers}")
 
         # Make the request
-        response = requests.post(
-            OAUTH_TOKEN_URL,
-            headers={
-                "Accept": "application/json",
-                "Content-Type": "application/x-www-form-urlencoded",
-                "User-Agent": USER_AGENT,
-            },
-            data=data,
-        )
+        try:
+            response = requests.post(
+                OAUTH_TOKEN_URL,
+                headers=headers,
+                data=data,
+            )
+        except Exception as e:
+            logger.error(f"Exception during request: {e}")
+            raise
 
         # Log the response status and headers
         logger.debug(f"Response status: {response.status_code}")
