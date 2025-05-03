@@ -30,11 +30,12 @@ KEYRING_USERNAME = "linear-token"
 KEYRING_OAUTH_USERNAME = "linear-oauth-token"
 LINEAR_API_URL = "https://api.linear.app/graphql"
 LINEAR_URL = "https://linear.app"
+LINEAR_API_BASE_URL = "https://api.linear.app"
 DEVICE_CODE_URL = f"{LINEAR_URL}/oauth/device/code"
 DEVICE_TOKEN_URL = f"{LINEAR_URL}/oauth/token"
 OAUTH_AUTHORIZE_URL = f"{LINEAR_URL}/oauth/authorize"
-OAUTH_TOKEN_URL = f"{LINEAR_URL}/oauth/token"
-OAUTH_REVOKE_URL = f"{LINEAR_URL}/oauth/revoke"
+OAUTH_TOKEN_URL = f"{LINEAR_API_BASE_URL}/oauth/token"  # Note: This is api.linear.app, not linear.app
+OAUTH_REVOKE_URL = f"{LINEAR_API_BASE_URL}/oauth/revoke"
 USER_AGENT = "Arc-Memory/0.2.2"
 
 # Redirect URIs
@@ -459,7 +460,7 @@ def exchange_code_for_token(
         # Create headers
         headers = {
             "Accept": "application/json",
-            "Content-Type": "application/x-www-form-urlencoded",
+            "Content-Type": "application/json",  # Linear API expects JSON, not form data
             "User-Agent": USER_AGENT,
         }
 
@@ -468,10 +469,11 @@ def exchange_code_for_token(
 
         # Make the request
         try:
+            # Convert data to JSON since we're using application/json Content-Type
             response = requests.post(
                 OAUTH_TOKEN_URL,
                 headers=headers,
-                data=data,
+                json=data,  # Use json parameter instead of data for JSON content
             )
         except Exception as e:
             logger.error(f"Exception during request: {e}")
