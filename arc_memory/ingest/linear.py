@@ -1,13 +1,11 @@
 """Linear ingestion for Arc Memory."""
 
-import os
 import re
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 import requests
-from pydantic import BaseModel
 
 from arc_memory.auth.linear import get_linear_token
 from arc_memory.errors import IngestError, LinearAuthError
@@ -111,8 +109,8 @@ class LinearGraphQLClient:
             LinearAuthError: If there's an error with Linear authentication.
             IngestError: If there's an error executing the query.
         """
-        if variables is None:
-            variables = {}
+        # Ensure variables is a dictionary
+        variables = variables or {}
 
         try:
             logger.info(f"Executing Linear GraphQL query with variables: {variables}")
