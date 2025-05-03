@@ -69,6 +69,17 @@ query Issues($cursor: String) {
 }
 """
 
+# Alternative query to test basic connectivity
+VIEWER_QUERY = """
+query {
+  viewer {
+    id
+    name
+    email
+  }
+}
+"""
+
 
 class LinearGraphQLClient:
     """GraphQL client for Linear API."""
@@ -177,6 +188,15 @@ class LinearIngestor:
             logger.info(f"Initializing Linear client with token: {linear_token[:5]}...")
             client = LinearGraphQLClient(linear_token)
 
+            # First test connectivity with a simple viewer query
+            try:
+                logger.info("Testing Linear API connectivity with viewer query...")
+                viewer_data = client.execute_query(VIEWER_QUERY)
+                logger.info(f"Linear API connection successful. Authenticated as: {viewer_data.get('viewer', {}).get('name')}")
+            except Exception as e:
+                logger.error(f"Failed to connect to Linear API: {e}")
+                raise IngestError(f"Failed to connect to Linear API: {e}")
+
             # Fetch issues
             nodes = []
             edges = []
@@ -186,6 +206,7 @@ class LinearIngestor:
             while True:
                 # Fetch issues with pagination
                 variables = {"cursor": cursor} if cursor else {}
+                logger.info(f"Fetching Linear issues with cursor: {cursor}")
                 data = client.execute_query(ISSUES_QUERY, variables)
 
                 # Process issues
