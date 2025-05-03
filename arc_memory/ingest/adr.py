@@ -203,7 +203,7 @@ class ADRIngestor:
     def ingest(
         self,
         repo_path: Path,
-        glob_pattern: str = "**/adr/**/*.md",
+        glob_pattern: str = "docs/adr-*.md",
         last_processed: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[ADRNode], List[Edge], Dict[str, Any]]:
         """Ingest ADRs from a repository.
