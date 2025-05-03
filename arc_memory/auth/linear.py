@@ -460,7 +460,7 @@ def exchange_code_for_token(
         # Create headers
         headers = {
             "Accept": "application/json",
-            "Content-Type": "application/json",  # Linear API expects JSON, not form data
+            "Content-Type": "application/x-www-form-urlencoded",  # Linear OAuth token endpoint expects form data
             "User-Agent": USER_AGENT,
         }
 
@@ -469,11 +469,11 @@ def exchange_code_for_token(
 
         # Make the request
         try:
-            # Convert data to JSON since we're using application/json Content-Type
+            # Use form data as required by Linear OAuth token endpoint
             response = requests.post(
                 OAUTH_TOKEN_URL,
                 headers=headers,
-                json=data,  # Use json parameter instead of data for JSON content
+                data=data,  # Use data parameter for form content
             )
         except Exception as e:
             logger.error(f"Exception during request: {e}")
