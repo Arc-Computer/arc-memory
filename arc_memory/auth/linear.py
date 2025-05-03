@@ -768,6 +768,45 @@ def validate_client_id(client_id: str) -> bool:
     return bool(re.match(r'^[0-9a-f]{32}$', client_id))
 
 
+def validate_redirect_uri(redirect_uri: str) -> bool:
+    """Validate a redirect URI to prevent open redirect vulnerabilities.
+
+    Args:
+        redirect_uri: The redirect URI to validate.
+
+    Returns:
+        True if the redirect URI is valid, False otherwise.
+    """
+    # Check for None or empty string
+    if not redirect_uri:
+        return False
+
+    # Parse the URI
+    try:
+        parsed = urllib.parse.urlparse(redirect_uri)
+
+        # Check for required components
+        if not parsed.scheme or not parsed.netloc:
+            return False
+
+        # Check for allowed schemes
+        if parsed.scheme not in ["http", "https"]:
+            return False
+
+        # Check for allowed hosts
+        allowed_hosts = ["localhost", "127.0.0.1", "arc.computer"]
+        if not any(parsed.netloc == host or parsed.netloc.endswith(f".{host}") for host in allowed_hosts):
+            return False
+
+        # Check for allowed paths
+        if not parsed.path.startswith("/auth/linear/callback"):
+            return False
+
+        return True
+    except Exception:
+        return False
+
+
 class OAuthCallbackHandler(http.server.BaseHTTPRequestHandler):
     """HTTP request handler for OAuth callback."""
 
@@ -1061,6 +1100,14 @@ def start_oauth_flow(config: LinearAppConfig, timeout: int = 300) -> LinearOAuth
     # Generate a secure state parameter for CSRF protection
     state = generate_secure_state()
     logger.debug("Generated secure state parameter for CSRF protection")
+
+    # Validate the redirect URI
+    if not validate_redirect_uri(config.redirect_uri):
+        logger.error(f"Invalid redirect URI: {config.redirect_uri}")
+        raise LinearAuthError(
+            f"Invalid redirect URI: {config.redirect_uri}. "
+            "The redirect URI must be a valid HTTP or HTTPS URL with an allowed host and path."
+        )
 
     # Extract host, port, and path from redirect URI
     try:
