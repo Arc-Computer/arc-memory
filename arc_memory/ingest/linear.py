@@ -81,7 +81,7 @@ class LinearGraphQLClient:
         """
         self.token = token
         self.headers = {
-            "Authorization": f"Bearer {token}",
+            "Authorization": token,  # Linear API key should be used without "Bearer" prefix
             "Content-Type": "application/json",
             "User-Agent": USER_AGENT,
         }
