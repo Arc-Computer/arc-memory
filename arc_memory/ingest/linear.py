@@ -163,6 +163,8 @@ class LinearGraphQLClient:
                             logger.warning("OAuth token is expired. Attempting to refresh...")
                             # Linear tokens have a very long expiration time, so this is unlikely to happen
                             # In a real-world scenario, we would implement token refresh here
+                            # TODO: Implement token refresh functionality when Linear supports refresh tokens
+                            #       or when we need to handle expired tokens more gracefully.
                             # For now, we'll just raise an error
                             raise LinearAuthError("Linear OAuth token is expired. Please re-authenticate with 'arc auth linear'.")
                     except ImportError:
@@ -279,7 +281,8 @@ class LinearIngestor:
                     logger.info("Using OAuth token for Linear API")
 
             # Initialize Linear client with appropriate token type
-            logger.info(f"Initializing Linear client with token: {linear_token[:5]}... (OAuth: {is_oauth_token})")
+            # Avoid logging any part of the token for security
+            logger.info(f"Initializing Linear client (OAuth: {is_oauth_token})")
             client = LinearGraphQLClient(linear_token, is_oauth_token=is_oauth_token)
 
             # First test connectivity with a simple viewer query
