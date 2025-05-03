@@ -163,14 +163,14 @@ def validate_client_id(client_id: str) -> bool:
     return len(client_id) >= 10
 
 
-def start_device_flow(client_id: str) -> Tuple[str, str, int]:
+def start_device_flow(client_id: str) -> Tuple[str, str, str, int]:
     """Start the Linear device flow authentication.
 
     Args:
         client_id: The Linear OAuth client ID.
 
     Returns:
-        A tuple of (device_code, verification_uri, interval).
+        A tuple of (device_code, user_code, verification_uri, interval).
 
     Raises:
         LinearAuthError: If the device flow could not be started.
@@ -220,7 +220,7 @@ def start_device_flow(client_id: str) -> Tuple[str, str, int]:
         logger.info(f"Started device flow. User code: {user_code}")
         logger.info(f"Please visit {verification_uri} and enter code: {user_code}")
 
-        return device_code, verification_uri, interval
+        return device_code, user_code, verification_uri, interval
     except LinearAuthError:
         # Re-raise LinearAuthError
         raise

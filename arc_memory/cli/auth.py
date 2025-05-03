@@ -368,13 +368,13 @@ def linear_auth(
 
     try:
         # Start device flow
-        device_code, verification_uri, interval = start_linear_device_flow(client_id)
+        device_code, user_code, verification_uri, interval = start_linear_device_flow(client_id)
 
         console.print(
             f"[bold blue]Please visit: [link={verification_uri}]{verification_uri}[/link][/bold blue]"
         )
         console.print(
-            f"[bold]And enter the code: [green]{device_code}[/green][/bold]"
+            f"[bold]And enter the code: [green]{user_code}[/green][/bold]"
         )
 
         # Poll for token
