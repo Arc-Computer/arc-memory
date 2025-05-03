@@ -36,6 +36,12 @@ class GitHubAuthError(ArcError):
     pass
 
 
+class LinearAuthError(ArcError):
+    """Error raised when Linear authentication fails."""
+
+    pass
+
+
 class GraphBuildError(ArcError):
     """Error raised when building the graph fails."""
 

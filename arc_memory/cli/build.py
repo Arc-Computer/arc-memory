@@ -51,6 +51,9 @@ def callback(
     token: Optional[str] = typer.Option(
         None, "--token", help="GitHub token to use for API calls."
     ),
+    linear: bool = typer.Option(
+        False, "--linear", help="Include Linear issues in the graph."
+    ),
     debug: bool = typer.Option(
         False, "--debug", help="Enable debug logging."
     ),
@@ -75,6 +78,7 @@ def callback(
         incremental=incremental,
         pull=pull,
         token=token,
+        linear=linear,
         debug=debug,
     )
 
@@ -87,6 +91,7 @@ def build_graph(
     incremental: bool = False,
     pull: bool = False,
     token: Optional[str] = None,
+    linear: bool = False,
     debug: bool = False,
 ) -> None:
     """Build the knowledge graph from Git, GitHub, and ADRs."""
@@ -99,6 +104,7 @@ def build_graph(
         "days": days,
         "incremental": incremental,
         "pull": pull,
+        "linear": linear,
         "debug": debug,
     }
     # Note: We don't include token in telemetry for security reasons
@@ -154,6 +160,11 @@ def build_graph(
             # Discover plugins
             registry = discover_plugins()
             logger.info(f"Discovered plugins: {registry.list_plugins()}")
+
+            # Filter plugins based on flags
+            if not linear:
+                registry.remove_plugin("linear")
+                logger.info("Linear plugin disabled. Use --linear to enable.")
 
             # Initialize lists for all nodes and edges
             all_nodes = []
@@ -277,6 +288,9 @@ def build(
     token: Optional[str] = typer.Option(
         None, "--token", help="GitHub token to use for API calls."
     ),
+    linear: bool = typer.Option(
+        False, "--linear", help="Include Linear issues in the graph."
+    ),
     debug: bool = typer.Option(
         False, "--debug", help="Enable debug logging."
     ),
@@ -291,5 +305,6 @@ def build(
         incremental=incremental,
         pull=pull,
         token=token,
+        linear=linear,
         debug=debug,
     )
