@@ -1,11 +1,16 @@
 """Linear authentication for Arc Memory."""
 
+import http.server
 import json
 import os
 import secrets
+import socketserver
+import threading
 import time
+import urllib.parse
+import webbrowser
 from datetime import datetime
-from typing import List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import keyring
 import requests
@@ -29,8 +34,10 @@ OAUTH_TOKEN_URL = f"{LINEAR_URL}/oauth/token"
 OAUTH_REVOKE_URL = f"{LINEAR_URL}/oauth/revoke"
 USER_AGENT = "Arc-Memory/0.2.2"
 
-# Default redirect URI for local development
-DEFAULT_REDIRECT_URI = "http://localhost:8000/oauth/callback"
+# Redirect URIs
+PRODUCTION_REDIRECT_URI = "https://arc.computer/auth/linear/callback"
+LOCAL_REDIRECT_URI = "http://localhost:3000/auth/linear/callback"
+DEFAULT_REDIRECT_URI = LOCAL_REDIRECT_URI
 
 # Environment variable names
 ENV_CLIENT_ID = "ARC_LINEAR_CLIENT_ID"
@@ -513,3 +520,272 @@ def generate_secure_state() -> str:
         A secure random string.
     """
     return secrets.token_urlsafe(32)
+
+
+class OAuthCallbackHandler(http.server.BaseHTTPRequestHandler):
+    """HTTP request handler for OAuth callback."""
+
+    # Class variables to store the authorization code and state
+    authorization_code: Optional[str] = None
+    state: Optional[str] = None
+    error: Optional[str] = None
+    expected_state: Optional[str] = None
+    callback_received = threading.Event()
+
+    def do_GET(self) -> None:
+        """Handle GET requests to the callback URL."""
+        # Parse the query parameters
+        query = urllib.parse.urlparse(self.path).query
+        params = urllib.parse.parse_qs(query)
+
+        # Check for error
+        if "error" in params:
+            OAuthCallbackHandler.error = params["error"][0]
+            self.send_error_response()
+            return
+
+        # Check for code and state
+        if "code" in params and "state" in params:
+            OAuthCallbackHandler.authorization_code = params["code"][0]
+            OAuthCallbackHandler.state = params["state"][0]
+
+            # Verify state parameter
+            if OAuthCallbackHandler.state != OAuthCallbackHandler.expected_state:
+                OAuthCallbackHandler.error = "Invalid state parameter (CSRF attack prevention)"
+                self.send_error_response()
+                return
+
+            self.send_success_response()
+        else:
+            OAuthCallbackHandler.error = "Missing required parameters"
+            self.send_error_response()
+
+        # Signal that we've received the callback
+        OAuthCallbackHandler.callback_received.set()
+
+    def send_success_response(self) -> None:
+        """Send a success response to the browser."""
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+
+        html = """
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Arc Memory - Linear Authentication</title>
+            <style>
+                body {
+                    font-family: Arial, sans-serif;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    padding: 20px;
+                    text-align: center;
+                }
+                .success {
+                    color: green;
+                    font-weight: bold;
+                }
+                .info {
+                    margin-top: 20px;
+                    padding: 10px;
+                    background-color: #f0f0f0;
+                    border-radius: 5px;
+                }
+            </style>
+        </head>
+        <body>
+            <h1>Arc Memory - Linear Authentication</h1>
+            <p class="success">Authentication successful!</p>
+            <p>You have successfully authenticated with Linear.</p>
+            <p>You can now close this window and return to the Arc Memory CLI.</p>
+            <div class="info">
+                <p>This window will automatically close in 5 seconds.</p>
+            </div>
+            <script>
+                setTimeout(function() {
+                    window.close();
+                }, 5000);
+            </script>
+        </body>
+        </html>
+        """
+
+        self.wfile.write(html.encode())
+
+    def send_error_response(self) -> None:
+        """Send an error response to the browser."""
+        self.send_response(400)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+
+        html = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <title>Arc Memory - Linear Authentication Error</title>
+            <style>
+                body {{
+                    font-family: Arial, sans-serif;
+                    max-width: 600px;
+                    margin: 0 auto;
+                    padding: 20px;
+                    text-align: center;
+                }}
+                .error {{
+                    color: red;
+                    font-weight: bold;
+                }}
+                .info {{
+                    margin-top: 20px;
+                    padding: 10px;
+                    background-color: #f0f0f0;
+                    border-radius: 5px;
+                }}
+            </style>
+        </head>
+        <body>
+            <h1>Arc Memory - Linear Authentication</h1>
+            <p class="error">Authentication failed!</p>
+            <p>Error: {OAuthCallbackHandler.error}</p>
+            <p>Please try again or contact support if the issue persists.</p>
+            <div class="info">
+                <p>This window will automatically close in 10 seconds.</p>
+            </div>
+            <script>
+                setTimeout(function() {{
+                    window.close();
+                }}, 10000);
+            </script>
+        </body>
+        </html>
+        """
+
+        self.wfile.write(html.encode())
+
+    def log_message(self, format: str, *args) -> None:
+        """Override to use our logger instead of printing to stderr."""
+        logger.debug(f"OAuthCallbackHandler: {format % args}")
+
+    @classmethod
+    def reset(cls) -> None:
+        """Reset the handler state."""
+        cls.authorization_code = None
+        cls.state = None
+        cls.error = None
+        cls.expected_state = None
+        cls.callback_received.clear()
+
+
+class OAuthCallbackServer:
+    """Server to handle OAuth callbacks."""
+
+    def __init__(self, host: str = "localhost", port: int = 3000, path: str = "/auth/linear/callback"):
+        """Initialize the server.
+
+        Args:
+            host: The hostname to listen on.
+            port: The port to listen on.
+            path: The path to listen on.
+        """
+        self.host = host
+        self.port = port
+        self.path = path
+        self.server: Optional[socketserver.TCPServer] = None
+        self.server_thread: Optional[threading.Thread] = None
+
+    def start(self, expected_state: str) -> None:
+        """Start the server.
+
+        Args:
+            expected_state: The expected state parameter for CSRF protection.
+        """
+        # Reset the handler state
+        OAuthCallbackHandler.reset()
+        OAuthCallbackHandler.expected_state = expected_state
+
+        # Create and start the server
+        self.server = socketserver.TCPServer((self.host, self.port), OAuthCallbackHandler)
+        self.server_thread = threading.Thread(target=self.server.serve_forever)
+        self.server_thread.daemon = True  # Don't keep the process alive
+        self.server_thread.start()
+
+        logger.info(f"Started OAuth callback server on http://{self.host}:{self.port}{self.path}")
+
+    def stop(self) -> None:
+        """Stop the server."""
+        if self.server:
+            self.server.shutdown()
+            self.server.server_close()
+            logger.info("Stopped OAuth callback server")
+
+    def wait_for_callback(self, timeout: int = 300) -> Tuple[Optional[str], Optional[str]]:
+        """Wait for the callback to be received.
+
+        Args:
+            timeout: The timeout in seconds.
+
+        Returns:
+            A tuple of (authorization_code, error).
+        """
+        # Wait for the callback
+        if OAuthCallbackHandler.callback_received.wait(timeout):
+            return OAuthCallbackHandler.authorization_code, OAuthCallbackHandler.error
+        else:
+            return None, "Timeout waiting for authorization"
+
+
+def start_oauth_flow(config: LinearAppConfig, timeout: int = 300) -> LinearOAuthToken:
+    """Start the OAuth flow and wait for the callback.
+
+    Args:
+        config: The Linear App configuration.
+        timeout: The timeout in seconds.
+
+    Returns:
+        The OAuth token.
+
+    Raises:
+        LinearAuthError: If the OAuth flow failed.
+    """
+    # Generate a secure state parameter
+    state = generate_secure_state()
+
+    # Extract host, port, and path from redirect URI
+    parsed_uri = urllib.parse.urlparse(config.redirect_uri)
+    host = parsed_uri.hostname or "localhost"
+    port = parsed_uri.port or 3000
+    path = parsed_uri.path or "/auth/linear/callback"
+
+    # Start the callback server
+    server = OAuthCallbackServer(host=host, port=port, path=path)
+    server.start(expected_state=state)
+
+    try:
+        # Generate the authorization URL
+        auth_url = generate_oauth_url(config, state=state)
+
+        # Open the browser
+        logger.info(f"Opening browser to: {auth_url}")
+        webbrowser.open(auth_url)
+
+        # Wait for the callback
+        code, error = server.wait_for_callback(timeout=timeout)
+
+        if error:
+            raise LinearAuthError(f"OAuth flow failed: {error}")
+
+        if not code:
+            raise LinearAuthError("No authorization code received")
+
+        # Exchange the code for a token
+        token = exchange_code_for_token(config, code)
+
+        # Store the token
+        if not store_oauth_token_in_keyring(token):
+            logger.warning("Failed to store OAuth token in keyring")
+
+        return token
+    finally:
+        # Stop the server
+        server.stop()
