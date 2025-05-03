@@ -104,11 +104,13 @@ class LinearGraphQLClient:
             variables = {}
 
         try:
+            logger.info(f"Executing Linear GraphQL query with variables: {variables}")
             response = requests.post(
                 LINEAR_API_URL,
                 headers=self.headers,
                 json={"query": query, "variables": variables},
             )
+            logger.info(f"Linear API response status code: {response.status_code}")
             response.raise_for_status()
             data = response.json()
 
@@ -172,6 +174,7 @@ class LinearIngestor:
                 return [], [], {"issue_count": 0, "timestamp": datetime.now().isoformat()}
 
             # Initialize Linear client
+            logger.info(f"Initializing Linear client with token: {linear_token[:5]}...")
             client = LinearGraphQLClient(linear_token)
 
             # Fetch issues
