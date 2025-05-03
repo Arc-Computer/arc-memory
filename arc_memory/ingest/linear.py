@@ -166,6 +166,7 @@ class LinearIngestor:
         try:
             # Get Linear token
             linear_token = get_linear_token(token, allow_failure=True)
+            logger.info(f"Linear token found: {linear_token is not None}")
             if not linear_token:
                 logger.warning("No Linear token found. Skipping Linear ingestion.")
                 return [], [], {"issue_count": 0, "timestamp": datetime.now().isoformat()}
@@ -189,24 +190,24 @@ class LinearIngestor:
                 for issue in issues:
                     issue_id = f"linear:{issue['id']}"
                     issue_identifier = issue["identifier"]
-                    
+
                     # Create labels list
                     labels = []
                     if issue["labels"] and "nodes" in issue["labels"]:
                         for label in issue["labels"]["nodes"]:
                             labels.append(label["name"])
-                    
+
                     # Get state
                     state = "unknown"
                     if issue["state"]:
                         state = issue["state"]["name"]
-                    
+
                     # Parse timestamps
                     created_at = datetime.fromisoformat(issue["createdAt"].replace("Z", "+00:00"))
                     closed_at = None
                     if issue["archivedAt"]:
                         closed_at = datetime.fromisoformat(issue["archivedAt"].replace("Z", "+00:00"))
-                    
+
                     # Create issue node
                     issue_node = IssueNode(
                         id=issue_id,
@@ -228,11 +229,11 @@ class LinearIngestor:
                     )
                     nodes.append(issue_node)
                     issue_count += 1
-                    
+
                     # Create edges to commits and PRs based on branch naming or commit messages
                     # This will be done by scanning Git commits and PRs for references to the issue
                     # Format: TEAM-123 or team/TEAM-123
-                    
+
                     # For now, we'll just create a placeholder edge to the repo
                     edge = Edge(
                         src=issue_id,
@@ -248,7 +249,7 @@ class LinearIngestor:
                 page_info = data["issues"]["pageInfo"]
                 if not page_info["hasNextPage"]:
                     break
-                
+
                 cursor = page_info["endCursor"]
                 logger.info(f"Fetched {len(issues)} issues, continuing to next page")
 
