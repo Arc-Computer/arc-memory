@@ -51,8 +51,8 @@ def callback(
     token: Optional[str] = typer.Option(
         None, "--token", help="GitHub token to use for API calls."
     ),
-    with_linear: bool = typer.Option(
-        False, "--with-linear", help="Include Linear issues in the graph."
+    linear: bool = typer.Option(
+        False, "--linear", help="Include Linear issues in the graph."
     ),
     debug: bool = typer.Option(
         False, "--debug", help="Enable debug logging."
@@ -78,7 +78,7 @@ def callback(
         incremental=incremental,
         pull=pull,
         token=token,
-        with_linear=with_linear,
+        linear=linear,
         debug=debug,
     )
 
@@ -91,7 +91,7 @@ def build_graph(
     incremental: bool = False,
     pull: bool = False,
     token: Optional[str] = None,
-    with_linear: bool = False,
+    linear: bool = False,
     debug: bool = False,
 ) -> None:
     """Build the knowledge graph from Git, GitHub, and ADRs."""
@@ -104,7 +104,7 @@ def build_graph(
         "days": days,
         "incremental": incremental,
         "pull": pull,
-        "with_linear": with_linear,
+        "linear": linear,
         "debug": debug,
     }
     # Note: We don't include token in telemetry for security reasons
@@ -162,9 +162,9 @@ def build_graph(
             logger.info(f"Discovered plugins: {registry.list_plugins()}")
 
             # Filter plugins based on flags
-            if not with_linear:
+            if not linear:
                 registry.remove_plugin("linear")
-                logger.info("Linear plugin disabled. Use --with-linear to enable.")
+                logger.info("Linear plugin disabled. Use --linear to enable.")
 
             # Initialize lists for all nodes and edges
             all_nodes = []
@@ -288,8 +288,8 @@ def build(
     token: Optional[str] = typer.Option(
         None, "--token", help="GitHub token to use for API calls."
     ),
-    with_linear: bool = typer.Option(
-        False, "--with-linear", help="Include Linear issues in the graph."
+    linear: bool = typer.Option(
+        False, "--linear", help="Include Linear issues in the graph."
     ),
     debug: bool = typer.Option(
         False, "--debug", help="Enable debug logging."
@@ -305,6 +305,6 @@ def build(
         incremental=incremental,
         pull=pull,
         token=token,
-        with_linear=with_linear,
+        linear=linear,
         debug=debug,
     )
