@@ -819,12 +819,19 @@ def validate_redirect_uri(redirect_uri: str) -> bool:
             return False
 
         # Check for allowed hosts
-        # Include localhost with port numbers for testing
-        if parsed.netloc.startswith("localhost:"):
-            return True
-
         allowed_hosts = ["localhost", "127.0.0.1", "arc.computer"]
-        if not any(parsed.netloc == host or parsed.netloc.endswith(f".{host}") for host in allowed_hosts):
+
+        # Special case for localhost with port
+        if ":" in parsed.netloc:
+            host, port = parsed.netloc.rsplit(":", 1)
+            if host == "localhost" and port.isdigit():
+                return True
+
+        # Check for exact matches or proper subdomains
+        if not (parsed.netloc in allowed_hosts or
+                any(parsed.netloc.endswith(f".{host}") and
+                    not parsed.netloc.startswith(f".{host}")
+                    for host in allowed_hosts)):
             return False
 
         # Check for allowed paths
@@ -1155,24 +1162,48 @@ def start_oauth_flow(config: LinearAppConfig, timeout: int = 300) -> LinearOAuth
         server = OAuthCallbackServer(host=host, port=port, path=path)
         server.start(expected_state=state)
 
+        # Store the original redirect URI for reference
+        original_redirect_uri = config.redirect_uri
+
         # Check if the server is using a different port than the one in the redirect URI
         if server.port != port:
-            logger.warning(f"Using port {server.port} instead of {port} (which is in use)")
+            # Update the redirect URI in the config using urlsplit/urlunsplit for better IPv6 support
+            parsed = urllib.parse.urlsplit(config.redirect_uri)
+            netloc = parsed.netloc
 
-            # Update the redirect URI in the config
-            parsed = list(urllib.parse.urlparse(config.redirect_uri))
-            netloc_parts = parsed[1].split(':')
-            if len(netloc_parts) > 1:
-                # Replace the port in the netloc
-                netloc_parts[1] = str(server.port)
-                parsed[1] = ':'.join(netloc_parts)
+            # Handle IPv6 addresses correctly
+            if ']' in netloc:  # IPv6 address format is [ipv6]:port
+                # For IPv6, we need to handle the format [ipv6]:port
+                if ':' in netloc.split(']', 1)[1]:
+                    # If there's a port, split at the last colon after the closing bracket
+                    host = netloc.rsplit(':', 1)[0]
+                else:
+                    # No port in the original URI
+                    host = netloc
+                netloc = f"{host}:{server.port}"
             else:
-                # Add the port to the netloc
-                parsed[1] = f"{netloc_parts[0]}:{server.port}"
+                # For regular hostnames, just split at the first colon
+                if ':' in netloc:
+                    host = netloc.split(':', 1)[0]
+                else:
+                    host = netloc
+                netloc = f"{host}:{server.port}"
 
-            # Rebuild the URI
-            config.redirect_uri = urllib.parse.urlunparse(parsed)
-            logger.info(f"Updated redirect URI to: {config.redirect_uri}")
+            # Rebuild the URI with the new port
+            new_redirect_uri = urllib.parse.urlunsplit((
+                parsed.scheme, netloc, parsed.path, parsed.query, parsed.fragment
+            ))
+            config.redirect_uri = new_redirect_uri
+
+            # Provide a clear warning about the redirect URI mismatch
+            logger.warning(f"PORT MISMATCH DETECTED: Using port {server.port} instead of {port} (which is in use)")
+            logger.warning(f"Original redirect URI: {original_redirect_uri}")
+            logger.warning(f"Updated redirect URI: {new_redirect_uri}")
+            logger.warning("⚠️ IMPORTANT: This port change may cause authentication to fail if it doesn't match your Linear OAuth app settings.")
+            logger.warning("To fix this, either:")
+            logger.warning(f"  1. Update your Linear OAuth app settings to use the new redirect URI: {new_redirect_uri}")
+            logger.warning(f"  2. Free up port {port} and try again")
+            logger.warning(f"  3. Modify your configuration to use a different port that is available")
     except Exception as e:
         logger.error(f"Failed to start callback server: {e}")
         raise LinearAuthError(
@@ -1221,11 +1252,24 @@ def start_oauth_flow(config: LinearAppConfig, timeout: int = 300) -> LinearOAuth
             token = exchange_code_for_token(config, code)
             logger.info("Successfully exchanged authorization code for access token")
         except Exception as e:
-            logger.error(f"Failed to exchange code for token: {e}")
-            raise LinearAuthError(
-                f"Failed to exchange authorization code for access token: {e}. "
-                "Please check your Linear OAuth application configuration and try again."
-            )
+            error_msg = str(e)
+            if "redirect_uri" in error_msg.lower() and original_redirect_uri != config.redirect_uri:
+                # Provide specific guidance for redirect URI mismatch errors
+                logger.error(f"Failed to exchange code for token due to redirect URI mismatch: {e}")
+                raise LinearAuthError(
+                    f"Authentication failed due to redirect URI mismatch. The Linear OAuth app expected "
+                    f"{original_redirect_uri} but we used {config.redirect_uri}.\n\n"
+                    f"To fix this, either:\n"
+                    f"1. Update your Linear OAuth app settings to use: {config.redirect_uri}\n"
+                    f"2. Free up port {port} and try again\n"
+                    f"3. Modify your configuration to use a different port that is available"
+                )
+            else:
+                logger.error(f"Failed to exchange code for token: {e}")
+                raise LinearAuthError(
+                    f"Failed to exchange authorization code for access token: {e}. "
+                    "Please check your Linear OAuth application configuration and try again."
+                )
 
         # Store the token
         try:

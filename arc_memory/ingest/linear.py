@@ -271,14 +271,19 @@ class LinearIngestor:
                 return [], [], {"issue_count": 0, "timestamp": datetime.now().isoformat()}
 
             # Determine if this is an OAuth token
-            # We can check if the token was provided explicitly (API key) or obtained from OAuth storage
             is_oauth_token = False
-            if not token:  # Token wasn't provided explicitly, so it came from storage
+
+            # Check if the token matches an OAuth token from storage
+            try:
                 from arc_memory.auth.linear import get_oauth_token_from_keyring
                 oauth_token = get_oauth_token_from_keyring()
                 if oauth_token and oauth_token.access_token == linear_token:
                     is_oauth_token = True
                     logger.info("Using OAuth token for Linear API")
+            except ImportError:
+                logger.debug("Could not import OAuth functions, assuming API key")
+            except Exception as e:
+                logger.debug(f"Error checking OAuth token: {e}, assuming API key")
 
             # Initialize Linear client with appropriate token type
             # Avoid logging any part of the token for security
