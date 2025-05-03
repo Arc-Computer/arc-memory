@@ -12,6 +12,9 @@ from arc_memory.errors import IngestError, LinearAuthError
 from arc_memory.logging_conf import get_logger
 from arc_memory.schema.models import Edge, EdgeRel, IssueNode, Node, NodeType
 
+# Import these at runtime to avoid circular imports
+# from arc_memory.auth.linear import get_oauth_token_from_keyring, LinearOAuthToken
+
 logger = get_logger(__name__)
 
 # Constants
@@ -82,18 +85,42 @@ query {
 class LinearGraphQLClient:
     """GraphQL client for Linear API."""
 
-    def __init__(self, token: str):
+    def __init__(self, token: str, is_oauth_token: bool = False):
         """Initialize the GraphQL client.
 
         Args:
             token: Linear token to use for API calls.
+            is_oauth_token: Whether the token is an OAuth token (requires "Bearer" prefix).
         """
         self.token = token
+        self.is_oauth_token = is_oauth_token
+        self._setup_headers()
+
+    def _setup_headers(self):
+        """Set up the headers for API requests based on token type."""
+        # Set up headers based on token type
+        if self.is_oauth_token:
+            # OAuth tokens require the "Bearer" prefix
+            auth_header = f"Bearer {self.token}"
+        else:
+            # API keys are used directly without a prefix
+            auth_header = self.token
+
         self.headers = {
-            "Authorization": token,  # Linear API key should be used without "Bearer" prefix
+            "Authorization": auth_header,
             "Content-Type": "application/json",
             "User-Agent": USER_AGENT,
         }
+
+    def update_token(self, new_token: str):
+        """Update the token used for API requests.
+
+        Args:
+            new_token: The new token to use.
+        """
+        self.token = new_token
+        self._setup_headers()
+        logger.info("Updated Linear API token")
 
     def execute_query(self, query: str, variables: Dict[str, Any] = None) -> Dict[str, Any]:
         """Execute a GraphQL query.
@@ -120,19 +147,78 @@ class LinearGraphQLClient:
                 json={"query": query, "variables": variables},
             )
             logger.info(f"Linear API response status code: {response.status_code}")
+
+            # Handle specific HTTP status codes
+            if response.status_code == 401:
+                token_type = "OAuth token" if self.is_oauth_token else "API key"
+                logger.error(f"Linear authentication failed: Unauthorized (401). Invalid {token_type}.")
+
+                # If using OAuth, try to refresh the token
+                if self.is_oauth_token:
+                    try:
+                        from arc_memory.auth.linear import get_oauth_token_from_keyring
+                        oauth_token = get_oauth_token_from_keyring()
+
+                        if oauth_token and oauth_token.is_expired():
+                            logger.warning("OAuth token is expired. Attempting to refresh...")
+                            # Linear tokens have a very long expiration time, so this is unlikely to happen
+                            # In a real-world scenario, we would implement token refresh here
+                            # For now, we'll just raise an error
+                            raise LinearAuthError("Linear OAuth token is expired. Please re-authenticate with 'arc auth linear'.")
+                    except ImportError:
+                        # If we can't import the OAuth functions, just continue with the regular error
+                        pass
+
+                raise LinearAuthError(f"Linear authentication failed: Unauthorized. Invalid {token_type}.")
+
+            if response.status_code == 403:
+                token_type = "OAuth token" if self.is_oauth_token else "API key"
+                logger.error(f"Linear authentication failed: Forbidden (403). {token_type} lacks required permissions.")
+
+                # If using OAuth, provide more specific error message about scopes
+                if self.is_oauth_token:
+                    raise LinearAuthError(
+                        f"Linear authentication failed: Forbidden. Your OAuth token lacks required permissions. "
+                        f"Please re-authenticate with 'arc auth linear' to grant the necessary scopes."
+                    )
+
+                raise LinearAuthError(f"Linear authentication failed: Forbidden. {token_type} lacks required permissions.")
+
             response.raise_for_status()
             data = response.json()
 
             if "errors" in data:
                 error_message = data["errors"][0]["message"]
                 logger.error(f"Linear GraphQL error: {error_message}")
-                if "authentication" in error_message.lower():
-                    raise LinearAuthError(f"Linear authentication failed: {error_message}")
+
+                # Handle specific GraphQL errors
+                if "authentication" in error_message.lower() or "unauthorized" in error_message.lower():
+                    token_type = "OAuth token" if self.is_oauth_token else "API key"
+                    raise LinearAuthError(f"Linear authentication failed: {error_message}. Please check your {token_type}.")
+
+                if "permission" in error_message.lower() or "access" in error_message.lower():
+                    token_type = "OAuth token" if self.is_oauth_token else "API key"
+                    scopes = "scopes" if self.is_oauth_token else "permissions"
+                    raise LinearAuthError(f"Linear permission error: {error_message}. Your {token_type} may not have the required {scopes}.")
+
+                if "rate limit" in error_message.lower():
+                    raise IngestError(f"Linear rate limit exceeded: {error_message}. Please try again later.")
+
                 raise IngestError(f"Linear GraphQL error: {error_message}")
 
             return data["data"]
         except requests.exceptions.RequestException as e:
             logger.error(f"Linear API request failed: {e}")
+
+            # Handle connection errors
+            if isinstance(e, requests.exceptions.ConnectionError):
+                raise IngestError(f"Failed to connect to Linear API: {e}. Please check your internet connection.")
+
+            # Handle timeout errors
+            if isinstance(e, requests.exceptions.Timeout):
+                raise IngestError(f"Linear API request timed out: {e}. Please try again later.")
+
+            # Handle other request errors
             raise IngestError(f"Linear API request failed: {e}")
 
 
@@ -182,9 +268,19 @@ class LinearIngestor:
                 logger.warning("No Linear token found. Skipping Linear ingestion.")
                 return [], [], {"issue_count": 0, "timestamp": datetime.now().isoformat()}
 
-            # Initialize Linear client
-            logger.info(f"Initializing Linear client with token: {linear_token[:5]}...")
-            client = LinearGraphQLClient(linear_token)
+            # Determine if this is an OAuth token
+            # We can check if the token was provided explicitly (API key) or obtained from OAuth storage
+            is_oauth_token = False
+            if not token:  # Token wasn't provided explicitly, so it came from storage
+                from arc_memory.auth.linear import get_oauth_token_from_keyring
+                oauth_token = get_oauth_token_from_keyring()
+                if oauth_token and oauth_token.access_token == linear_token:
+                    is_oauth_token = True
+                    logger.info("Using OAuth token for Linear API")
+
+            # Initialize Linear client with appropriate token type
+            logger.info(f"Initializing Linear client with token: {linear_token[:5]}... (OAuth: {is_oauth_token})")
+            client = LinearGraphQLClient(linear_token, is_oauth_token=is_oauth_token)
 
             # First test connectivity with a simple viewer query
             try:
