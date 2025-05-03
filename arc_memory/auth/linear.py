@@ -523,6 +523,20 @@ def generate_secure_state() -> str:
     return secrets.token_urlsafe(32)
 
 
+def validate_client_id(client_id: str) -> bool:
+    """Validate a Linear client ID.
+
+    Args:
+        client_id: The client ID to validate.
+
+    Returns:
+        True if the client ID is valid, False otherwise.
+    """
+    # Linear client IDs are 32-character hexadecimal strings
+    import re
+    return bool(re.match(r'^[0-9a-f]{32}$', client_id))
+
+
 class OAuthCallbackHandler(http.server.BaseHTTPRequestHandler):
     """HTTP request handler for OAuth callback."""
 

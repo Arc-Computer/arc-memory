@@ -7,7 +7,11 @@ from typing import Optional
 import typer
 from rich.console import Console
 
-from arc_memory.auth.default_credentials import DEFAULT_GITHUB_CLIENT_ID, DEFAULT_LINEAR_CLIENT_ID
+from arc_memory.auth.default_credentials import (
+    DEFAULT_GITHUB_CLIENT_ID,
+    DEFAULT_LINEAR_CLIENT_ID,
+    DEFAULT_LINEAR_CLIENT_SECRET,
+)
 from arc_memory.auth.github import (
     GitHubAppConfig,
     get_github_app_config_from_env,
@@ -292,10 +296,10 @@ def github_app_auth(
 @app.command("linear")
 def linear_auth(
     client_id: str = typer.Option(
-        None, help="Linear OAuth client ID."
+        None, help="Linear OAuth client ID. Only needed for custom OAuth apps."
     ),
     client_secret: str = typer.Option(
-        None, help="Linear OAuth client secret."
+        None, help="Linear OAuth client secret. Only needed for custom OAuth apps."
     ),
     use_api_key: bool = typer.Option(
         False, "--api-key", help="Use API key authentication instead of OAuth."
@@ -378,6 +382,19 @@ def linear_auth(
                 "[green]Using Arc Memory's Linear OAuth app for authentication.[/green]"
             )
 
+    # Use default client secret if not provided
+    if not client_secret:
+        # First try environment variables (for development or custom overrides)
+        env_client_secret = os.environ.get("ARC_LINEAR_CLIENT_SECRET")
+
+        if env_client_secret:
+            logger.debug("Using Linear OAuth Client Secret from environment variables")
+            client_secret = env_client_secret
+        else:
+            # Use the default embedded Client Secret
+            logger.debug("Using default embedded Linear OAuth Client Secret")
+            client_secret = DEFAULT_LINEAR_CLIENT_SECRET
+
     try:
         if use_api_key:
             # API Key authentication (Device Flow)
@@ -409,18 +426,6 @@ def linear_auth(
             )
         else:
             # OAuth 2.0 authentication
-            if not client_secret:
-                console.print(
-                    "[red]Missing required parameter for Linear OAuth authentication.[/red]"
-                )
-                console.print(
-                    "Please provide --client-secret."
-                )
-                console.print(
-                    "You can find your client secret in your Linear account settings under Developer > API > OAuth Applications."
-                )
-                sys.exit(1)
-
             # Create app config
             config = LinearAppConfig(
                 client_id=client_id,
