@@ -559,20 +559,37 @@ def secure_clear_memory(sensitive_data: str) -> None:
     This function attempts to securely clear sensitive data from memory
     to prevent it from being exposed in memory dumps or swap files.
 
+    Note: This function has limitations due to Python's memory management.
+    It may not completely remove all traces of sensitive data from memory
+    due to string immutability, memory copying, and garbage collection behavior.
+
     Args:
         sensitive_data: The sensitive data to clear.
     """
-    # In Python, strings are immutable, so we can't directly overwrite them.
-    # However, we can try to ensure the string is garbage collected.
+    if not sensitive_data:
+        return
 
-    # 1. Overwrite the reference
+    # Use ctypes to directly access and zero the memory
+    import ctypes
+
+    # Get the memory location and size
+    location = id(sensitive_data) + 20  # CPython string header size (implementation-specific)
+    size = len(sensitive_data)
+
+    # Attempt to zero the memory
+    try:
+        ctypes.memset(location, 0, size)
+    except Exception:
+        # Fall back to the reference replacement method if direct memory access fails
+        pass
+
+    # Overwrite the reference
     sensitive_data = "0" * len(sensitive_data)
 
-    # 2. Delete the reference
+    # Delete the reference
     del sensitive_data
 
-    # 3. Suggest garbage collection
-    # This doesn't guarantee immediate collection, but it helps
+    # Suggest garbage collection
     import gc
     gc.collect()
 
