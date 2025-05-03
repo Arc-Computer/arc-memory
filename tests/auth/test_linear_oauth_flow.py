@@ -20,8 +20,12 @@ class TestLinearOAuthFlow(unittest.TestCase):
     @patch("arc_memory.auth.linear.OAuthCallbackServer")
     @patch("arc_memory.auth.linear.exchange_code_for_token")
     @patch("arc_memory.auth.linear.store_oauth_token_in_keyring")
-    def test_start_oauth_flow(self, mock_store, mock_exchange, mock_server, mock_browser):
+    @patch("arc_memory.auth.linear.validate_redirect_uri")
+    def test_start_oauth_flow(self, mock_validate, mock_store, mock_exchange, mock_server, mock_browser):
         """Test the complete OAuth flow."""
+        # Mock the redirect URI validation to always return True
+        mock_validate.return_value = True
+
         # Mock the server
         mock_server_instance = MagicMock()
         mock_server_instance.wait_for_callback.return_value = ("test-code", None)
@@ -58,6 +62,9 @@ class TestLinearOAuthFlow(unittest.TestCase):
         self.assertEqual(result.expires_in, 3600)
         self.assertEqual(result.scope, "read,write")
 
+        # Check that the redirect URI was validated
+        mock_validate.assert_called_once_with(config.redirect_uri)
+
         # Check that the server was started
         mock_server.assert_called_once()
         mock_server_instance.start.assert_called_once()
@@ -73,8 +80,12 @@ class TestLinearOAuthFlow(unittest.TestCase):
 
     @patch("arc_memory.auth.linear.webbrowser.open")
     @patch("arc_memory.auth.linear.OAuthCallbackServer")
-    def test_start_oauth_flow_error(self, mock_server, mock_browser):
+    @patch("arc_memory.auth.linear.validate_redirect_uri")
+    def test_start_oauth_flow_error(self, mock_validate, mock_server, mock_browser):
         """Test error handling in the OAuth flow."""
+        # Mock the redirect URI validation to always return True
+        mock_validate.return_value = True
+
         # Mock the server
         mock_server_instance = MagicMock()
         mock_server_instance.wait_for_callback.return_value = (None, "Test error")

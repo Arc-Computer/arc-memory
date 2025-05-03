@@ -105,7 +105,7 @@ class TestLinearAuth(unittest.TestCase):
         state = generate_secure_state()
         self.assertIsNotNone(state)
         self.assertGreaterEqual(len(state), 32)  # Should be at least 32 characters
-        
+
         # Generate another state and ensure it's different
         state2 = generate_secure_state()
         self.assertNotEqual(state, state2)
@@ -119,9 +119,9 @@ class TestLinearAuth(unittest.TestCase):
             scopes=["read", "write"]
         )
         state = "test-state"
-        
+
         url = generate_oauth_url(config, state=state)
-        
+
         # Check that the URL contains all required parameters
         self.assertIn("client_id=test-client-id", url)
         self.assertIn("redirect_uri=http://localhost:3000/callback", url)
@@ -198,8 +198,13 @@ class TestLinearAuth(unittest.TestCase):
         self.assertEqual(result, "api-key")
 
     @patch("keyring.set_password")
-    def test_store_oauth_token_in_keyring(self, mock_set_password):
+    @patch("arc_memory.auth.linear.encrypt_token")
+    def test_store_oauth_token_in_keyring(self, mock_encrypt, mock_set_password):
         """Test storing an OAuth token in the keyring."""
+        # Mock the encryption function to return the original string
+        # This allows us to test the token serialization without encryption
+        mock_encrypt.side_effect = lambda x: x
+
         token = LinearOAuthToken(
             access_token="test-token",
             token_type="Bearer",
@@ -207,17 +212,18 @@ class TestLinearAuth(unittest.TestCase):
             scope="read,write",
             created_at=datetime.now()
         )
-        
+
         result = store_oauth_token_in_keyring(token)
-        
+
         self.assertTrue(result)
         mock_set_password.assert_called_once()
-        
+        mock_encrypt.assert_called_once()
+
         # Check that the token was serialized correctly
         args = mock_set_password.call_args[0]
         self.assertEqual(args[0], "arc-memory")  # service name
         self.assertEqual(args[1], "linear-oauth-token")  # username
-        
+
         # Parse the JSON to check the token data
         token_data = json.loads(args[2])
         self.assertEqual(token_data["access_token"], "test-token")

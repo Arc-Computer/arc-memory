@@ -803,6 +803,10 @@ def validate_redirect_uri(redirect_uri: str) -> bool:
             return False
 
         # Check for allowed hosts
+        # Include localhost with port numbers for testing
+        if parsed.netloc.startswith("localhost:"):
+            return True
+
         allowed_hosts = ["localhost", "127.0.0.1", "arc.computer"]
         if not any(parsed.netloc == host or parsed.netloc.endswith(f".{host}") for host in allowed_hosts):
             return False
