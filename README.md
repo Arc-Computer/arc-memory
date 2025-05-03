@@ -65,7 +65,7 @@ Before you begin, ensure you have:
 - E2B API key (for simulation features)
 - OpenAI API key (for explanation generation)
 
-Note: GitHub authentication is built into the CLI with the `arc auth gh` command. You don't need to provide your own GitHub token unless you're contributing to this project.
+Note: GitHub and Linear authentication are built into the CLI with the `arc auth gh` and `arc auth linear` commands. You don't need to provide your own tokens unless you're contributing to this project.
 
 ### Environment Setup
 
@@ -105,7 +105,15 @@ uv pip install arc-memory
 
    This will guide you through authenticating with GitHub. You'll see a success message when complete.
 
-2. **Build your knowledge graph**
+2. **Authenticate with Linear (Optional)**
+
+   ```bash
+   arc auth linear
+   ```
+
+   This will guide you through authenticating with Linear using OAuth 2.0. A browser window will open for you to authorize Arc Memory to access your Linear data. This step is optional but recommended if you want to include Linear issues in your knowledge graph.
+
+3. **Build your knowledge graph**
 
    ```bash
    arc build
@@ -113,7 +121,15 @@ uv pip install arc-memory
 
    This will analyze your repository and build a local knowledge graph. You'll see progress indicators and a summary of ingested entities when complete.
 
-3. **Understand the why behind your code**
+   To include Linear issues in your knowledge graph:
+
+   ```bash
+   arc build --linear
+   ```
+
+   This requires Linear authentication (step 2).
+
+4. **Understand the why behind your code**
 
    ```bash
    arc why file path/to/file.py 42
@@ -121,7 +137,7 @@ uv pip install arc-memory
 
    This will show you the decision trail for line 42 in file.py, including related commits, PRs, and issues that explain why this code exists.
 
-4. **Simulate the impact of your changes**
+5. **Simulate the impact of your changes**
 
    ```bash
    arc sim
@@ -129,7 +145,7 @@ uv pip install arc-memory
 
    This will analyze your latest commit, run a simulation in an isolated sandbox, and output a risk assessment with metrics and explanation.
 
-5. **Serve your knowledge graph to LLMs**
+6. **Serve your knowledge graph to LLMs**
 
    ```bash
    arc serve start
@@ -178,8 +194,14 @@ Build a comprehensive temporal knowledge graph:
 # Build the full knowledge graph
 arc build
 
+# Include Linear issues (requires Linear authentication)
+arc build --linear
+
 # Update incrementally
 arc build --incremental
+
+# Combine options
+arc build --linear --incremental
 ```
 
 [Learn more about building graphs →](./docs/cli/build.md)
@@ -253,7 +275,9 @@ This creates a reinforcing flywheel where each component makes the others more p
 
 Here are solutions to common issues you might encounter:
 
-- **GitHub Authentication Issues**: If you encounter GitHub authentication problems, try running `arc auth gh` again to refresh your authentication.
+- **Authentication Issues**:
+  - For GitHub authentication problems, try running `arc auth gh` again to refresh your authentication.
+  - For Linear authentication problems, try running `arc auth linear` again to refresh your authentication. If you encounter port issues during OAuth flow, follow the instructions provided by the CLI.
 
 - **Empty Knowledge Graph**: If `arc build` completes but doesn't find any entities, check that your repository has commit history and that you're in the correct directory.
 
