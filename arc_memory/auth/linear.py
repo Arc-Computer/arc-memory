@@ -1195,6 +1195,7 @@ def start_oauth_flow(config: LinearAppConfig, timeout: int = 300) -> LinearOAuth
             ))
             config.redirect_uri = new_redirect_uri
 
+
             # Provide a clear warning about the redirect URI mismatch
             logger.warning(f"PORT MISMATCH DETECTED: Using port {server.port} instead of {port} (which is in use)")
             logger.warning(f"Original redirect URI: {original_redirect_uri}")
@@ -1205,6 +1206,7 @@ def start_oauth_flow(config: LinearAppConfig, timeout: int = 300) -> LinearOAuth
             logger.warning(f"  2. Free up port {port} and try again")
             logger.warning(f"  3. Modify your configuration to use a different port that is available")
     except Exception as e:
+
         logger.error(f"Failed to start callback server: {e}")
         raise LinearAuthError(
             f"Failed to start callback server on {host}:{port}: {e}. "
