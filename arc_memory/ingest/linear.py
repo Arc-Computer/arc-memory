@@ -232,6 +232,13 @@ class LinearIngestor:
                     if issue["archivedAt"]:
                         closed_at = datetime.fromisoformat(issue["archivedAt"].replace("Z", "+00:00"))
 
+                    # Extract numeric part from issue identifier (e.g., "ARC-10" -> 10)
+                    try:
+                        issue_number = int(issue_identifier.split('-')[-1])
+                    except (ValueError, IndexError):
+                        logger.warning(f"Could not parse issue number from identifier: {issue_identifier}, using 0")
+                        issue_number = 0
+
                     # Create issue node
                     issue_node = IssueNode(
                         id=issue_id,
@@ -239,13 +246,14 @@ class LinearIngestor:
                         title=issue["title"],
                         body=issue["description"],
                         ts=created_at,
-                        number=issue_identifier,
+                        number=issue_number,  # Use the extracted numeric part
                         state=state,
                         closed_at=closed_at,
                         labels=labels,
                         url=issue["url"],
                         extra={
                             "source": "linear",
+                            "identifier": issue_identifier,  # Store the original identifier
                             "team": issue["team"]["key"] if issue["team"] else None,
                             "assignee": issue["assignee"]["name"] if issue["assignee"] else None,
                             "creator": issue["creator"]["name"] if issue["creator"] else None,
