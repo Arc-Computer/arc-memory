@@ -218,7 +218,7 @@ def start_device_flow(client_id: str) -> Tuple[str, str, int]:
         interval = data["interval"]
 
         logger.info(f"Started device flow. User code: {user_code}")
-        print(f"Please visit {verification_uri} and enter code: {user_code}")
+        logger.info(f"Please visit {verification_uri} and enter code: {user_code}")
 
         return device_code, verification_uri, interval
     except LinearAuthError:
