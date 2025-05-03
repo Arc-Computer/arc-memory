@@ -436,6 +436,23 @@ def exchange_code_for_token(
         LinearAuthError: If the token exchange failed.
     """
     try:
+        # Log the request details (without sensitive information)
+        logger.debug(f"Exchanging code for token with client_id: {config.client_id}")
+        logger.debug(f"Redirect URI: {config.redirect_uri}")
+
+        # Prepare the request data
+        data = {
+            "client_id": config.client_id,
+            "client_secret": config.client_secret,
+            "code": code,
+            "redirect_uri": config.redirect_uri,
+            "grant_type": "authorization_code",
+        }
+
+        # Log the request URL
+        logger.debug(f"POST request to: {OAUTH_TOKEN_URL}")
+
+        # Make the request
         response = requests.post(
             OAUTH_TOKEN_URL,
             headers={
@@ -443,19 +460,27 @@ def exchange_code_for_token(
                 "Content-Type": "application/x-www-form-urlencoded",
                 "User-Agent": USER_AGENT,
             },
-            data={
-                "client_id": config.client_id,
-                "client_secret": config.client_secret,
-                "code": code,
-                "redirect_uri": config.redirect_uri,
-                "grant_type": "authorization_code",
-            },
+            data=data,
         )
+
+        # Log the response status and headers
+        logger.debug(f"Response status: {response.status_code}")
+        logger.debug(f"Response headers: {response.headers}")
+
+        # Log the response content (for debugging)
+        logger.debug(f"Response content: {response.text}")
+
+        # Check for HTTP errors
         response.raise_for_status()
+
+        # Parse the JSON response
         data = response.json()
 
+        # Check for OAuth errors
         if "error" in data:
-            raise LinearAuthError(f"Token exchange error: {data.get('error_description', data['error'])}")
+            error_msg = f"Token exchange error: {data.get('error_description', data['error'])}"
+            logger.error(error_msg)
+            raise LinearAuthError(error_msg)
 
         # Create and return the token
         token = LinearOAuthToken(
@@ -468,6 +493,15 @@ def exchange_code_for_token(
 
         logger.info("Successfully exchanged code for access token")
         return token
+    except requests.exceptions.HTTPError as e:
+        logger.error(f"HTTP error during token exchange: {e}")
+        raise LinearAuthError(f"HTTP error during token exchange: {e}")
+    except requests.exceptions.RequestException as e:
+        logger.error(f"Request error during token exchange: {e}")
+        raise LinearAuthError(f"Request error during token exchange: {e}")
+    except ValueError as e:
+        logger.error(f"Invalid JSON response: {e}")
+        raise LinearAuthError(f"Invalid JSON response: {e}")
     except LinearAuthError:
         # Re-raise LinearAuthError
         raise
