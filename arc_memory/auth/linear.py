@@ -569,21 +569,10 @@ def secure_clear_memory(sensitive_data: str) -> None:
     if not sensitive_data:
         return
 
-    # Use ctypes to directly access and zero the memory
-    import ctypes
+    # For CI environments and safety, we'll use the reference replacement method
+    # Direct memory access with ctypes can cause segmentation faults in some environments
 
-    # Get the memory location and size
-    location = id(sensitive_data) + 20  # CPython string header size (implementation-specific)
-    size = len(sensitive_data)
-
-    # Attempt to zero the memory
-    try:
-        ctypes.memset(location, 0, size)
-    except Exception:
-        # Fall back to the reference replacement method if direct memory access fails
-        pass
-
-    # Overwrite the reference
+    # Overwrite the reference with zeros
     sensitive_data = "0" * len(sensitive_data)
 
     # Delete the reference
@@ -592,6 +581,16 @@ def secure_clear_memory(sensitive_data: str) -> None:
     # Suggest garbage collection
     import gc
     gc.collect()
+
+    # Note: A more secure approach would be to use ctypes to directly access and zero memory,
+    # but this can cause segmentation faults in some environments:
+    #
+    # import ctypes
+    # location = id(sensitive_data) + 20  # CPython string header size
+    # size = len(sensitive_data)
+    # ctypes.memset(location, 0, size)
+    #
+    # This is left as a comment for documentation purposes.
 
 
 def exchange_code_for_token(
