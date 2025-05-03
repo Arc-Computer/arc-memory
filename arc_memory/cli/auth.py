@@ -12,14 +12,21 @@ from arc_memory.auth.github import (
     GitHubAppConfig,
     get_github_app_config_from_env,
     get_github_app_config_from_keyring,
-    get_token_from_env,
-    get_token_from_keyring,
-    poll_device_flow,
-    start_device_flow,
+    get_token_from_env as get_github_token_from_env,
+    get_token_from_keyring as get_github_token_from_keyring,
+    poll_device_flow as poll_github_device_flow,
+    start_device_flow as start_github_device_flow,
     store_github_app_config_in_keyring,
-    store_token_in_keyring,
+    store_token_in_keyring as store_github_token_in_keyring,
 )
-from arc_memory.errors import GitHubAuthError
+from arc_memory.auth.linear import (
+    get_token_from_env as get_linear_token_from_env,
+    get_token_from_keyring as get_linear_token_from_keyring,
+    poll_device_flow as poll_linear_device_flow,
+    start_device_flow as start_linear_device_flow,
+    store_token_in_keyring as store_linear_token_in_keyring,
+)
+from arc_memory.errors import GitHubAuthError, LinearAuthError
 from arc_memory.logging_conf import configure_logging, get_logger, is_debug_mode
 from arc_memory.telemetry import track_cli_command
 
@@ -57,13 +64,13 @@ def github_auth(
     track_cli_command("auth", subcommand="gh", args={"timeout": timeout, "debug": debug})
 
     # Check if we already have a token
-    env_token = get_token_from_env()
+    env_token = get_github_token_from_env()
     if env_token:
         console.print(
             "[green]GitHub token found in environment variables.[/green]"
         )
         if typer.confirm("Do you want to store this token in the system keyring?"):
-            if store_token_in_keyring(env_token):
+            if store_github_token_in_keyring(env_token):
                 console.print(
                     "[green]Token stored in system keyring.[/green]"
                 )
@@ -74,7 +81,7 @@ def github_auth(
                 )
         return
 
-    keyring_token = get_token_from_keyring()
+    keyring_token = get_github_token_from_keyring()
     if keyring_token:
         console.print(
             "[green]GitHub token found in system keyring.[/green]"
@@ -132,7 +139,7 @@ def github_auth(
 
     try:
         # Start device flow (only requires Client ID)
-        device_code, verification_uri, interval = start_device_flow(client_id)
+        device_code, verification_uri, interval = start_github_device_flow(client_id)
 
         console.print(
             f"[bold blue]Please visit: [link={verification_uri}]{verification_uri}[/link][/bold blue]"
@@ -142,12 +149,12 @@ def github_auth(
         )
 
         # Poll for token (Client Secret not required for Device Flow)
-        token = poll_device_flow(
+        token = poll_github_device_flow(
             client_id, device_code, interval, timeout
         )
 
         # Store token in keyring
-        if store_token_in_keyring(token):
+        if store_github_token_in_keyring(token):
             console.print(
                 "[green]Authentication successful! Token stored in system keyring.[/green]"
             )
@@ -290,3 +297,119 @@ def github_app_auth(
 
 
 # The github_auth implementation is now directly in the function body
+
+
+@app.command("linear")
+def linear_auth(
+    client_id: str = typer.Option(
+        None, help="Linear OAuth client ID."
+    ),
+    client_secret: str = typer.Option(
+        None, help="Linear OAuth client secret."
+    ),
+    timeout: int = typer.Option(
+        300, help="Timeout in seconds for the device flow."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="Enable debug logging."
+    ),
+) -> None:
+    """Authenticate with Linear using device flow.
+
+    This command uses Linear's Device Flow for CLI applications.
+    It will display a code and URL for you to visit in your browser to complete authentication.
+    """
+    configure_logging(debug=debug)
+
+    # Track command usage (don't include client_id in telemetry)
+    track_cli_command("auth", subcommand="linear", args={"timeout": timeout, "debug": debug})
+
+    # Check if we already have a token
+    env_token = get_linear_token_from_env()
+    if env_token:
+        console.print(
+            "[green]Linear token found in environment variables.[/green]"
+        )
+        if typer.confirm("Do you want to store this token in the system keyring?"):
+            if store_linear_token_in_keyring(env_token):
+                console.print(
+                    "[green]Token stored in system keyring.[/green]"
+                )
+            else:
+                console.print(
+                    "[yellow]Failed to store token in system keyring. "
+                    "You can still use the token from environment variables.[/yellow]"
+                )
+        return
+
+    keyring_token = get_linear_token_from_keyring()
+    if keyring_token:
+        console.print(
+            "[green]Linear token found in system keyring.[/green]"
+        )
+        if typer.confirm("Do you want to use this token?"):
+            console.print(
+                "[green]Using existing token from system keyring.[/green]"
+            )
+            return
+
+    # Check if client_id and client_secret are provided
+    if not client_id or not client_secret:
+        console.print(
+            "[red]Missing required parameters for Linear OAuth.[/red]"
+        )
+        console.print(
+            "Please provide --client-id and --client-secret."
+        )
+        console.print(
+            "You can create these in your Linear account settings under Developer > API > OAuth Applications."
+        )
+        sys.exit(1)
+
+    try:
+        # Start device flow
+        device_code, verification_uri, interval = start_linear_device_flow(client_id)
+
+        console.print(
+            f"[bold blue]Please visit: [link={verification_uri}]{verification_uri}[/link][/bold blue]"
+        )
+        console.print(
+            f"[bold]And enter the code: [green]{device_code}[/green][/bold]"
+        )
+
+        # Poll for token
+        token = poll_linear_device_flow(
+            client_id, client_secret, device_code, interval, timeout
+        )
+
+        # Store token in keyring
+        if store_linear_token_in_keyring(token):
+            console.print(
+                "[green]Authentication successful! Token stored in system keyring.[/green]"
+            )
+            # Track successful authentication
+            track_cli_command("auth", subcommand="linear", success=True)
+        else:
+            console.print(
+                "[yellow]Authentication successful, but failed to store token in system keyring.[/yellow]"
+            )
+            console.print(
+                f"Your token is: {token}"
+            )
+            console.print(
+                "You can set this as an environment variable: export LINEAR_API_KEY=<token>"
+            )
+            # Track partial success
+            track_cli_command("auth", subcommand="linear",
+                             args={"keyring_error": True}, success=True)
+    except LinearAuthError as e:
+        console.print(f"[red]Authentication failed: {e}[/red]")
+        # Track authentication failure
+        track_cli_command("auth", subcommand="linear", success=False, error=e)
+        sys.exit(1)
+    except Exception as e:
+        logger.exception("Unexpected error during authentication")
+        console.print(f"[red]Unexpected error: {e}[/red]")
+        # Track unexpected error
+        track_cli_command("auth", subcommand="linear", success=False, error=e)
+        sys.exit(1)
