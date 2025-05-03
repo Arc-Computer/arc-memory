@@ -591,6 +591,10 @@ def validate_client_id(client_id: str) -> bool:
     Returns:
         True if the client ID is valid, False otherwise.
     """
+    # Check for None or empty string
+    if not client_id:
+        return False
+
     # Linear client IDs are 32-character hexadecimal strings
     import re
     return bool(re.match(r'^[0-9a-f]{32}$', client_id))

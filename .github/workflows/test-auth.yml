@@ -27,7 +27,7 @@ jobs:
 
     - name: Run authentication tests
       run: |
-        python -m pytest tests/auth/test_github_auth.py -v
+        python -m pytest tests/auth/test_github_auth.py tests/auth/test_linear_auth.py tests/auth/test_linear_oauth_flow.py -v
 
     - name: Test device flow initialization
       run: |
@@ -65,6 +65,35 @@ jobs:
         EOF
         python test_device_flow.py
 
+    - name: Test Linear OAuth flow initialization
+      run: |
+        cat > test_linear_oauth_flow.py << 'EOF'
+        import sys
+        from unittest.mock import patch
+        from arc_memory.auth.linear import generate_oauth_url, LinearAppConfig
+
+        # Create a test config
+        config = LinearAppConfig(
+            client_id="test-client-id",
+            client_secret="test-client-secret",
+            redirect_uri="http://localhost:3000/auth/linear/callback",
+            scopes=["read", "write"]
+        )
+
+        # Generate an OAuth URL
+        url = generate_oauth_url(config, state="test-state")
+
+        # Verify the URL contains all required parameters
+        assert "client_id=test-client-id" in url
+        assert "redirect_uri=http://localhost:3000/auth/linear/callback" in url
+        assert "response_type=code" in url
+        assert "scope=read,write" in url
+        assert "state=test-state" in url
+
+        print('Linear OAuth flow initialization test passed!')
+        EOF
+        python test_linear_oauth_flow.py
+
     - name: Verify documentation
       run: |
         # Check that the documentation doesn't mention client_secret
@@ -82,6 +111,22 @@ jobs:
           echo "Documentation mentions Device Flow"
         else
           echo "Documentation doesn't mention Device Flow"
+          exit 1
+        fi
+
+        # Check that the documentation mentions OAuth 2.0
+        if grep -q "OAuth 2.0" docs/cli/auth.md; then
+          echo "Documentation mentions OAuth 2.0"
+        else
+          echo "Documentation doesn't mention OAuth 2.0"
+          exit 1
+        fi
+
+        # Check that the documentation mentions Linear
+        if grep -q "Linear" docs/cli/auth.md; then
+          echo "Documentation mentions Linear"
+        else
+          echo "Documentation doesn't mention Linear"
           exit 1
         fi
 
