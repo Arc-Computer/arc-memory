@@ -37,7 +37,7 @@ USER_AGENT = "Arc-Memory/0.2.2"
 
 # Redirect URIs
 PRODUCTION_REDIRECT_URI = "https://arc.computer/auth/linear/callback"
-LOCAL_REDIRECT_URI = "http://localhost:3000/auth/linear/callback"
+LOCAL_REDIRECT_URI = "http://localhost:8000/auth/linear/callback"
 DEFAULT_REDIRECT_URI = LOCAL_REDIRECT_URI
 
 # Environment variable names
