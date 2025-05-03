@@ -739,6 +739,13 @@ class OAuthCallbackServer:
 def start_oauth_flow(config: LinearAppConfig, timeout: int = 300) -> LinearOAuthToken:
     """Start the OAuth flow and wait for the callback.
 
+    This function handles the complete OAuth 2.0 flow:
+    1. Starts a local server to receive the callback
+    2. Opens a browser for the user to authenticate
+    3. Waits for the callback with the authorization code
+    4. Exchanges the code for an access token
+    5. Stores the token securely
+
     Args:
         config: The Linear App configuration.
         timeout: The timeout in seconds.
@@ -749,44 +756,97 @@ def start_oauth_flow(config: LinearAppConfig, timeout: int = 300) -> LinearOAuth
     Raises:
         LinearAuthError: If the OAuth flow failed.
     """
-    # Generate a secure state parameter
+    # Generate a secure state parameter for CSRF protection
     state = generate_secure_state()
+    logger.debug("Generated secure state parameter for CSRF protection")
 
     # Extract host, port, and path from redirect URI
-    parsed_uri = urllib.parse.urlparse(config.redirect_uri)
-    host = parsed_uri.hostname or "localhost"
-    port = parsed_uri.port or 3000
-    path = parsed_uri.path or "/auth/linear/callback"
+    try:
+        parsed_uri = urllib.parse.urlparse(config.redirect_uri)
+        host = parsed_uri.hostname or "localhost"
+        port = parsed_uri.port or 3000
+        path = parsed_uri.path or "/auth/linear/callback"
+        logger.debug(f"Using callback server at {host}:{port}{path}")
+    except Exception as e:
+        logger.error(f"Failed to parse redirect URI: {e}")
+        raise LinearAuthError(f"Invalid redirect URI: {config.redirect_uri}. Error: {e}")
 
     # Start the callback server
-    server = OAuthCallbackServer(host=host, port=port, path=path)
-    server.start(expected_state=state)
+    server = None
+    try:
+        server = OAuthCallbackServer(host=host, port=port, path=path)
+        server.start(expected_state=state)
+        logger.info(f"Started OAuth callback server on http://{host}:{port}{path}")
+    except Exception as e:
+        logger.error(f"Failed to start callback server: {e}")
+        raise LinearAuthError(
+            f"Failed to start callback server on {host}:{port}: {e}. "
+            "This may be due to the port being in use. Try again or use a different port."
+        )
 
     try:
         # Generate the authorization URL
-        auth_url = generate_oauth_url(config, state=state)
+        try:
+            auth_url = generate_oauth_url(config, state=state)
+            logger.debug(f"Generated authorization URL: {auth_url}")
+        except Exception as e:
+            logger.error(f"Failed to generate authorization URL: {e}")
+            raise LinearAuthError(f"Failed to generate authorization URL: {e}")
 
         # Open the browser
         logger.info(f"Opening browser to: {auth_url}")
-        webbrowser.open(auth_url)
+        if not webbrowser.open(auth_url):
+            logger.warning("Failed to open browser automatically")
+            logger.info("Please open this URL manually in your browser:")
+            logger.info(auth_url)
 
         # Wait for the callback
+        logger.info(f"Waiting for callback (timeout: {timeout} seconds)...")
         code, error = server.wait_for_callback(timeout=timeout)
 
         if error:
-            raise LinearAuthError(f"OAuth flow failed: {error}")
+            logger.error(f"OAuth flow error: {error}")
+            raise LinearAuthError(
+                f"OAuth flow failed: {error}. "
+                "Please check your Linear OAuth application configuration and try again."
+            )
 
         if not code:
-            raise LinearAuthError("No authorization code received")
+            logger.error("No authorization code received")
+            raise LinearAuthError(
+                "No authorization code received. "
+                "The authentication flow timed out or was cancelled. Please try again."
+            )
+
+        logger.info("Received authorization code, exchanging for token...")
 
         # Exchange the code for a token
-        token = exchange_code_for_token(config, code)
+        try:
+            token = exchange_code_for_token(config, code)
+            logger.info("Successfully exchanged authorization code for access token")
+        except Exception as e:
+            logger.error(f"Failed to exchange code for token: {e}")
+            raise LinearAuthError(
+                f"Failed to exchange authorization code for access token: {e}. "
+                "Please check your Linear OAuth application configuration and try again."
+            )
 
         # Store the token
-        if not store_oauth_token_in_keyring(token):
-            logger.warning("Failed to store OAuth token in keyring")
+        try:
+            if store_oauth_token_in_keyring(token):
+                logger.info("Successfully stored OAuth token in keyring")
+            else:
+                logger.warning("Failed to store OAuth token in keyring")
+        except Exception as e:
+            logger.warning(f"Failed to store OAuth token in keyring: {e}")
 
         return token
     finally:
         # Stop the server
-        server.stop()
+        if server:
+            try:
+                server.stop()
+                logger.debug("Stopped OAuth callback server")
+            except Exception as e:
+                logger.warning(f"Failed to stop callback server: {e}")
+                # Don't raise an exception here, as we want to return the token if we have it
