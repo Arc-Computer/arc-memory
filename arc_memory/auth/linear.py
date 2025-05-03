@@ -16,6 +16,7 @@ import keyring
 import requests
 from pydantic import BaseModel, Field
 
+from arc_memory.auth.default_credentials import DEFAULT_LINEAR_CLIENT_ID
 from arc_memory.errors import LinearAuthError
 from arc_memory.logging_conf import get_logger
 
