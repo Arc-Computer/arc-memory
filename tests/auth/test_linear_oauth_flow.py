@@ -29,6 +29,8 @@ class TestLinearOAuthFlow(unittest.TestCase):
         # Mock the server
         mock_server_instance = MagicMock()
         mock_server_instance.wait_for_callback.return_value = ("test-code", None)
+        # Set the port to match the one in the config to avoid redirect URI changes
+        mock_server_instance.port = 3000
         mock_server.return_value = mock_server_instance
 
         # Mock the token exchange
@@ -89,6 +91,8 @@ class TestLinearOAuthFlow(unittest.TestCase):
         # Mock the server
         mock_server_instance = MagicMock()
         mock_server_instance.wait_for_callback.return_value = (None, "Test error")
+        # Set the port to match the one in the config to avoid redirect URI changes
+        mock_server_instance.port = 3000
         mock_server.return_value = mock_server_instance
 
         # Mock the browser
