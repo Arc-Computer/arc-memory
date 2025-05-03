@@ -48,7 +48,16 @@ USER_AGENT = "Arc-Memory/0.2.2"
 # This is acceptable since we're only adding an extra layer of security on top of the system keyring
 ENCRYPTION_SALT = b'arc_memory_linear_oauth'
 # Derive a key from the machine's hostname and username for added security
-MACHINE_IDENTIFIER = f"{os.uname().nodename}:{os.getlogin()}".encode()
+# Use a more robust way to get machine identifier that works in CI environments
+try:
+    # Try to get username in a way that works in most environments
+    username = os.environ.get('USER') or os.environ.get('USERNAME') or 'unknown'
+    # Get hostname in a way that works in most environments
+    hostname = os.uname().nodename if hasattr(os, 'uname') else 'unknown'
+    MACHINE_IDENTIFIER = f"{hostname}:{username}".encode()
+except Exception:
+    # Fallback for environments where the above doesn't work (like CI)
+    MACHINE_IDENTIFIER = b'arc_memory_default_machine'
 
 # Redirect URIs
 PRODUCTION_REDIRECT_URI = "https://arc.computer/auth/linear/callback"
