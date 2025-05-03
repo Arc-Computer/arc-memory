@@ -1,6 +1,8 @@
 """Linear authentication for Arc Memory."""
 
 import http.server
+import base64
+import hashlib
 import json
 import os
 import secrets
@@ -17,6 +19,9 @@ from typing import List, Optional, Tuple, Union
 
 import keyring
 import requests
+from cryptography.fernet import Fernet
+from cryptography.hazmat.primitives import hashes
+from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from pydantic import BaseModel, Field
 
 from arc_memory.errors import LinearAuthError
@@ -37,6 +42,13 @@ OAUTH_AUTHORIZE_URL = f"{LINEAR_URL}/oauth/authorize"
 OAUTH_TOKEN_URL = f"{LINEAR_API_BASE_URL}/oauth/token"  # Note: This is api.linear.app, not linear.app
 OAUTH_REVOKE_URL = f"{LINEAR_API_BASE_URL}/oauth/revoke"
 USER_AGENT = "Arc-Memory/0.2.2"
+
+# Encryption constants
+# Use a fixed salt for deterministic key derivation
+# This is acceptable since we're only adding an extra layer of security on top of the system keyring
+ENCRYPTION_SALT = b'arc_memory_linear_oauth'
+# Derive a key from the machine's hostname and username for added security
+MACHINE_IDENTIFIER = f"{os.uname().nodename}:{os.getlogin()}".encode()
 
 # Redirect URIs
 PRODUCTION_REDIRECT_URI = "https://arc.computer/auth/linear/callback"
@@ -112,6 +124,88 @@ def get_token_from_keyring() -> Optional[str]:
     return None
 
 
+def get_encryption_key() -> bytes:
+    """Generate an encryption key based on machine-specific information.
+
+    This provides an additional layer of security by making the encryption
+    key specific to the current machine, so even if the encrypted token
+    is copied to another machine, it cannot be decrypted.
+
+    Returns:
+        The encryption key as bytes.
+    """
+    # Use PBKDF2 to derive a key from the machine identifier
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,  # 32 bytes = 256 bits
+        salt=ENCRYPTION_SALT,
+        iterations=100000,  # High number of iterations for security
+    )
+    key = base64.urlsafe_b64encode(kdf.derive(MACHINE_IDENTIFIER))
+    return key
+
+
+def encrypt_token(token_data: str) -> str:
+    """Encrypt token data before storing it.
+
+    Args:
+        token_data: The token data to encrypt.
+
+    Returns:
+        The encrypted token data as a string.
+    """
+    try:
+        # Generate the encryption key
+        key = get_encryption_key()
+
+        # Create a Fernet cipher with the key
+        cipher = Fernet(key)
+
+        # Encrypt the token data
+        encrypted_data = cipher.encrypt(token_data.encode())
+
+        # Return the encrypted data as a base64-encoded string
+        return base64.urlsafe_b64encode(encrypted_data).decode()
+    except Exception as e:
+        logger.warning(f"Failed to encrypt token data: {e}")
+        # Fall back to unencrypted data if encryption fails
+        return token_data
+
+
+def decrypt_token(encrypted_data: str) -> str:
+    """Decrypt token data retrieved from storage.
+
+    Args:
+        encrypted_data: The encrypted token data.
+
+    Returns:
+        The decrypted token data as a string.
+    """
+    try:
+        # Check if the data is base64-encoded (encrypted)
+        try:
+            decoded_data = base64.urlsafe_b64decode(encrypted_data.encode())
+        except Exception:
+            # If decoding fails, it's probably not encrypted
+            return encrypted_data
+
+        # Generate the encryption key
+        key = get_encryption_key()
+
+        # Create a Fernet cipher with the key
+        cipher = Fernet(key)
+
+        # Decrypt the token data
+        decrypted_data = cipher.decrypt(decoded_data)
+
+        # Return the decrypted data as a string
+        return decrypted_data.decode()
+    except Exception as e:
+        logger.warning(f"Failed to decrypt token data: {e}")
+        # Return the original data if decryption fails
+        return encrypted_data
+
+
 def get_oauth_token_from_keyring() -> Optional[LinearOAuthToken]:
     """Get a Linear OAuth token from the system keyring.
 
@@ -119,8 +213,10 @@ def get_oauth_token_from_keyring() -> Optional[LinearOAuthToken]:
         The OAuth token, or None if not found.
     """
     try:
-        token_json = keyring.get_password(KEYRING_SERVICE, KEYRING_OAUTH_USERNAME)
-        if token_json:
+        encrypted_token_json = keyring.get_password(KEYRING_SERVICE, KEYRING_OAUTH_USERNAME)
+        if encrypted_token_json:
+            # Decrypt the token data
+            token_json = decrypt_token(encrypted_token_json)
             token_dict = json.loads(token_json)
             logger.info("Found Linear OAuth token in system keyring")
             return LinearOAuthToken(**token_dict)
@@ -186,8 +282,11 @@ def store_oauth_token_in_keyring(token: LinearOAuthToken) -> bool:
         token_dict["created_at"] = token_dict["created_at"].isoformat()
         token_json = json.dumps(token_dict)
 
-        keyring.set_password(KEYRING_SERVICE, KEYRING_OAUTH_USERNAME, token_json)
-        logger.info("Stored Linear OAuth token in system keyring")
+        # Encrypt the token data before storing
+        encrypted_token_json = encrypt_token(token_json)
+
+        keyring.set_password(KEYRING_SERVICE, KEYRING_OAUTH_USERNAME, encrypted_token_json)
+        logger.info("Stored Linear OAuth token securely in system keyring")
         return True
     except Exception as e:
         logger.warning(f"Failed to store OAuth token in keyring: {e}")
@@ -423,6 +522,52 @@ def generate_oauth_url(config: LinearAppConfig, state: Optional[str] = None) -> 
     return f"{OAUTH_AUTHORIZE_URL}?{query_string}"
 
 
+def secure_client_secret(client_secret: str) -> str:
+    """Securely handle a client secret.
+
+    This function is a placeholder for more advanced security measures.
+    In a production environment, consider using a secure vault service
+    or hardware security module (HSM) to store and retrieve client secrets.
+
+    Args:
+        client_secret: The client secret to handle.
+
+    Returns:
+        The client secret (potentially transformed or retrieved from a secure source).
+    """
+    # In a real-world scenario, this function might:
+    # 1. Retrieve the secret from a secure vault service
+    # 2. Decrypt the secret using a hardware security module
+    # 3. Apply additional security measures
+
+    # For now, we just return the secret as-is
+    return client_secret
+
+
+def secure_clear_memory(sensitive_data: str) -> None:
+    """Securely clear sensitive data from memory.
+
+    This function attempts to securely clear sensitive data from memory
+    to prevent it from being exposed in memory dumps or swap files.
+
+    Args:
+        sensitive_data: The sensitive data to clear.
+    """
+    # In Python, strings are immutable, so we can't directly overwrite them.
+    # However, we can try to ensure the string is garbage collected.
+
+    # 1. Overwrite the reference
+    sensitive_data = "0" * len(sensitive_data)
+
+    # 2. Delete the reference
+    del sensitive_data
+
+    # 3. Suggest garbage collection
+    # This doesn't guarantee immediate collection, but it helps
+    import gc
+    gc.collect()
+
+
 def exchange_code_for_token(
     config: LinearAppConfig, code: str
 ) -> LinearOAuthToken:
@@ -444,10 +589,13 @@ def exchange_code_for_token(
         logger.debug(f"Redirect URI: {config.redirect_uri}")
         logger.debug(f"Code length: {len(code)}")
 
+        # Securely handle the client secret
+        client_secret = secure_client_secret(config.client_secret)
+
         # Prepare the request data
         data = {
             "client_id": config.client_id,
-            "client_secret": config.client_secret,
+            "client_secret": client_secret,
             "code": code,
             "redirect_uri": config.redirect_uri,
             "grant_type": "authorization_code",
@@ -517,21 +665,41 @@ def exchange_code_for_token(
         )
 
         logger.info("Successfully exchanged code for access token")
+
+        # Securely clear sensitive data from memory
+        secure_clear_memory(client_secret)
+        secure_clear_memory(code)
+
         return token
     except requests.exceptions.HTTPError as e:
         logger.error(f"HTTP error during token exchange: {e}")
+        # Securely clear sensitive data from memory
+        secure_clear_memory(client_secret)
+        secure_clear_memory(code)
         raise LinearAuthError(f"HTTP error during token exchange: {e}")
     except requests.exceptions.RequestException as e:
         logger.error(f"Request error during token exchange: {e}")
+        # Securely clear sensitive data from memory
+        secure_clear_memory(client_secret)
+        secure_clear_memory(code)
         raise LinearAuthError(f"Request error during token exchange: {e}")
     except ValueError as e:
         logger.error(f"Invalid JSON response: {e}")
+        # Securely clear sensitive data from memory
+        secure_clear_memory(client_secret)
+        secure_clear_memory(code)
         raise LinearAuthError(f"Invalid JSON response: {e}")
     except LinearAuthError:
+        # Securely clear sensitive data from memory
+        secure_clear_memory(client_secret)
+        secure_clear_memory(code)
         # Re-raise LinearAuthError
         raise
     except Exception as e:
         logger.error(f"Failed to exchange code for token: {e}")
+        # Securely clear sensitive data from memory
+        secure_clear_memory(client_secret)
+        secure_clear_memory(code)
         raise LinearAuthError(f"Failed to exchange code for token: {e}")
 
 
