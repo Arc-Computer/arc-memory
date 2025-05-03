@@ -4,19 +4,21 @@ import http.server
 import json
 import os
 import secrets
+import socket
 import socketserver
+import subprocess
+import sys
 import threading
 import time
 import urllib.parse
 import webbrowser
 from datetime import datetime
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import List, Optional, Tuple, Union
 
 import keyring
 import requests
 from pydantic import BaseModel, Field
 
-from arc_memory.auth.default_credentials import DEFAULT_LINEAR_CLIENT_ID
 from arc_memory.errors import LinearAuthError
 from arc_memory.logging_conf import get_logger
 
@@ -37,7 +39,7 @@ USER_AGENT = "Arc-Memory/0.2.2"
 
 # Redirect URIs
 PRODUCTION_REDIRECT_URI = "https://arc.computer/auth/linear/callback"
-LOCAL_REDIRECT_URI = "http://localhost:8000/auth/linear/callback"
+LOCAL_REDIRECT_URI = "http://localhost:3000/auth/linear/callback"
 DEFAULT_REDIRECT_URI = LOCAL_REDIRECT_URI
 
 # Environment variable names
@@ -738,6 +740,35 @@ class OAuthCallbackHandler(http.server.BaseHTTPRequestHandler):
         cls.callback_received.clear()
 
 
+def is_port_in_use(port: int) -> bool:
+    """Check if a port is in use.
+
+    Args:
+        port: The port to check.
+
+    Returns:
+        True if the port is in use, False otherwise.
+    """
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        return s.connect_ex(('localhost', port)) == 0
+
+
+def find_free_port(start_port: int = 3000, max_attempts: int = 10) -> int:
+    """Find a free port starting from the given port.
+
+    Args:
+        start_port: The port to start searching from.
+        max_attempts: The maximum number of ports to check.
+
+    Returns:
+        A free port, or -1 if no free port was found.
+    """
+    for port in range(start_port, start_port + max_attempts):
+        if not is_port_in_use(port):
+            return port
+    return -1
+
+
 class OAuthCallbackServer:
     """Server to handle OAuth callbacks."""
 
@@ -760,25 +791,53 @@ class OAuthCallbackServer:
 
         Args:
             expected_state: The expected state parameter for CSRF protection.
+
+        Raises:
+            LinearAuthError: If the server could not be started.
         """
         # Reset the handler state
         OAuthCallbackHandler.reset()
         OAuthCallbackHandler.expected_state = expected_state
 
-        # Create and start the server
-        self.server = socketserver.TCPServer((self.host, self.port), OAuthCallbackHandler)
-        self.server_thread = threading.Thread(target=self.server.serve_forever)
-        self.server_thread.daemon = True  # Don't keep the process alive
-        self.server_thread.start()
+        # Check if the port is in use
+        if is_port_in_use(self.port):
+            logger.warning(f"Port {self.port} is already in use")
 
-        logger.info(f"Started OAuth callback server on http://{self.host}:{self.port}{self.path}")
+            # Try to find a free port
+            free_port = find_free_port(self.port + 1)
+            if free_port != -1:
+                logger.info(f"Found free port: {free_port}")
+                self.port = free_port
+            else:
+                raise LinearAuthError(
+                    f"Port {self.port} is already in use and no free ports were found. "
+                    "Please close any applications that might be using this port and try again."
+                )
+
+        # Create and start the server
+        try:
+            # Allow reuse of the address to avoid "Address already in use" errors
+            socketserver.TCPServer.allow_reuse_address = True
+
+            self.server = socketserver.TCPServer((self.host, self.port), OAuthCallbackHandler)
+            self.server_thread = threading.Thread(target=self.server.serve_forever)
+            self.server_thread.daemon = True  # Don't keep the process alive
+            self.server_thread.start()
+
+            logger.info(f"Started OAuth callback server on http://{self.host}:{self.port}{self.path}")
+        except Exception as e:
+            logger.error(f"Failed to start server: {e}")
+            raise LinearAuthError(f"Failed to start server on {self.host}:{self.port}: {e}")
 
     def stop(self) -> None:
         """Stop the server."""
         if self.server:
-            self.server.shutdown()
-            self.server.server_close()
-            logger.info("Stopped OAuth callback server")
+            try:
+                self.server.shutdown()
+                self.server.server_close()
+                logger.info("Stopped OAuth callback server")
+            except Exception as e:
+                logger.warning(f"Failed to stop server: {e}")
 
     def wait_for_callback(self, timeout: int = 300) -> Tuple[Optional[str], Optional[str]]:
         """Wait for the callback to be received.
@@ -836,7 +895,25 @@ def start_oauth_flow(config: LinearAppConfig, timeout: int = 300) -> LinearOAuth
     try:
         server = OAuthCallbackServer(host=host, port=port, path=path)
         server.start(expected_state=state)
-        logger.info(f"Started OAuth callback server on http://{host}:{port}{path}")
+
+        # Check if the server is using a different port than the one in the redirect URI
+        if server.port != port:
+            logger.warning(f"Using port {server.port} instead of {port} (which is in use)")
+
+            # Update the redirect URI in the config
+            parsed = list(urllib.parse.urlparse(config.redirect_uri))
+            netloc_parts = parsed[1].split(':')
+            if len(netloc_parts) > 1:
+                # Replace the port in the netloc
+                netloc_parts[1] = str(server.port)
+                parsed[1] = ':'.join(netloc_parts)
+            else:
+                # Add the port to the netloc
+                parsed[1] = f"{netloc_parts[0]}:{server.port}"
+
+            # Rebuild the URI
+            config.redirect_uri = urllib.parse.urlunparse(parsed)
+            logger.info(f"Updated redirect URI to: {config.redirect_uri}")
     except Exception as e:
         logger.error(f"Failed to start callback server: {e}")
         raise LinearAuthError(
