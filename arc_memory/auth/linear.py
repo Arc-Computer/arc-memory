@@ -486,6 +486,15 @@ def exchange_code_for_token(
         # Log the response content (for debugging)
         logger.debug(f"Response content: {response.text}")
 
+        # If we got a 400 error, log more details
+        if response.status_code == 400:
+            logger.error(f"400 Bad Request error: {response.text}")
+            try:
+                error_data = response.json()
+                logger.error(f"Error details: {error_data}")
+            except Exception:
+                logger.error("Could not parse error response as JSON")
+
         # Check for HTTP errors
         response.raise_for_status()
 
