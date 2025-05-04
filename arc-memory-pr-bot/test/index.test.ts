@@ -65,14 +65,24 @@ describe("Arc Memory PR Bot", () => {
   });
 
   test("creates a comment when a pull request is opened", async () => {
-    // Mock the configuration endpoint
+    // Mock the repository-specific configuration
     nock("https://api.github.com")
       .get("/repos/Arc-Computer/arc-memory/contents/.github%2Farc-pr-bot.yml")
       .reply(404);
 
-    // Mock the default configuration
+    // Mock the repository-specific default configuration
     nock("https://api.github.com")
       .get("/repos/Arc-Computer/arc-memory/contents/.github%2F.arc-pr-bot.yml")
+      .reply(404);
+
+    // Mock the organization-level configuration
+    nock("https://api.github.com")
+      .get("/repos/Arc-Computer/.github/contents/.github%2Farc-pr-bot.yml")
+      .reply(404);
+
+    // Mock the organization-level default configuration
+    nock("https://api.github.com")
+      .get("/repos/Arc-Computer/.github/contents/.github%2F.arc-pr-bot.yml")
       .reply(404);
 
     // Mock the files API
