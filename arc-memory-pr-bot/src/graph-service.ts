@@ -1,10 +1,12 @@
-import * as sqlite3 from 'sqlite3';
-import { open, Database } from 'sqlite';
-import * as path from 'path';
-import * as os from 'os';
+
 import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
 import NodeCache from 'node-cache';
 import { Logger } from 'probot';
+import { open, Database } from 'sqlite';
+import * as sqlite3 from 'sqlite3';
+
 
 /**
  * Node types in the knowledge graph
