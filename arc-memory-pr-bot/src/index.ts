@@ -1,5 +1,32 @@
 import { Probot } from "probot";
-import { getConfig } from "./config";
+import { getConfig, BotConfig } from "./config";
+
+/**
+ * Generates the comment body for the PR based on the configuration.
+ * @param {BotConfig} config - The configuration object.
+ * @returns {string} - The constructed comment body.
+ */
+function generateCommentBody(config: BotConfig): string {
+  const features = [];
+  if (config.features.designDecisions) {
+    features.push('- Original design decisions behind the code');
+  }
+  if (config.features.impactAnalysis) {
+    features.push('- Predicted impact of changes');
+  }
+  if (config.features.testVerification) {
+    features.push('- Proof that changes were properly tested');
+  }
+
+  return `## Arc Memory PR Bot
+
+👋 Thanks for the PR! I'm analyzing this change to provide context from the Arc Memory knowledge graph.
+
+In the future, I'll provide information about:
+${features.join('\n')}
+
+Stay tuned for more insights!`;
+}
 
 /**
  * Arc Memory PR Bot - Enhances pull requests with contextual information from the knowledge graph
@@ -20,13 +47,7 @@ export default (app: Probot) => {
 
       // Add a comment to the PR
       const comment = context.issue({
-        body: `## Arc Memory PR Bot
-
-👋 Thanks for the PR! I'm analyzing this change to provide context from the Arc Memory knowledge graph.
-
-In the future, I'll provide information about:
-${config.features.designDecisions ? '- Original design decisions behind the code\n' : ''}${config.features.impactAnalysis ? '- Predicted impact of changes\n' : ''}${config.features.testVerification ? '- Proof that changes were properly tested\n' : ''}
-Stay tuned for more insights!`,
+        body: generateCommentBody(config),
       });
 
       await context.octokit.issues.createComment(comment);
