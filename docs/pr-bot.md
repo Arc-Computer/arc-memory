@@ -84,6 +84,45 @@ comment:
 
 The PR Bot uses the Arc Memory knowledge graph to find relevant context for the code changes. It connects to the same SQLite database that the Arc CLI builds, allowing it to access the full history of decisions, PRs, issues, and ADRs.
 
+### Integration Architecture
+
+The PR Bot integrates with the Arc Memory knowledge graph through the following components:
+
+1. **Database Access Layer**: The PR Bot connects directly to the SQLite database created by the Arc CLI (`~/.arc/graph.db`), using a read-only connection to ensure data integrity.
+
+2. **Entity Extraction**: When a PR is opened or updated, the bot:
+   - Analyzes the changed files and their history
+   - Queries the knowledge graph for related entities (ADRs, Linear tickets, PRs)
+   - Extracts design decisions, impact information, and test verification data
+
+3. **Multi-hop Reasoning**: The bot uses graph traversal algorithms to:
+   - Connect seemingly unrelated entities through intermediate relationships
+   - Discover the original design decisions that influenced the code
+   - Identify potential impacts across the codebase
+
+4. **LLM Integration**: The bot uses an LLM to:
+   - Generate natural language explanations of the technical context
+   - Analyze the potential impact of changes
+   - Evaluate the completeness of testing
+
+### Data Flow
+
+1. GitHub webhook event → PR Bot
+2. PR Bot extracts changed files → Knowledge Graph query
+3. Knowledge Graph returns related entities → LLM analysis
+4. LLM generates insights → PR comment
+
+### Integration Points
+
+The PR Bot integrates with several Arc Memory components:
+
+- **Git Ingestor**: Uses commit history data ingested by the Git Ingestor
+- **GitHub Ingestor**: Uses PR and issue data ingested by the GitHub Ingestor
+- **Linear Ingestor**: Uses ticket data ingested by the Linear Ingestor
+- **ADR Scanner**: Uses architectural decision records parsed by the ADR Scanner
+
+This integration allows the PR Bot to provide a comprehensive view of the context behind code changes, connecting technical decisions to business requirements and architectural principles.
+
 ## Development
 
 For information on developing or contributing to the PR Bot, see the [PR Bot README](../arc-memory-pr-bot/README.md).

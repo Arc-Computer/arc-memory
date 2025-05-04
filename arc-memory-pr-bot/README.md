@@ -155,6 +155,35 @@ comment:
   includeTestCoverage: true
 ```
 
+## Security Considerations
+
+When deploying the Arc Memory PR Bot, it's important to handle GitHub App credentials securely:
+
+### Credential Storage
+
+- **Never commit credentials to version control**
+- Store the `PRIVATE_KEY`, `APP_ID`, and `WEBHOOK_SECRET` as environment variables or in a secure secrets manager
+- For local development, use a `.env` file that is listed in `.gitignore`
+- For production, use environment variables or a secrets manager like AWS Secrets Manager, HashiCorp Vault, or GitHub Secrets
+
+### Private Key Handling
+
+- Keep the GitHub App's private key secure and rotate it periodically
+- Consider encoding the private key as base64 when storing it in environment variables
+- Limit access to the private key to only those who need it
+
+### Webhook Secret
+
+- Use a strong, randomly generated string for the webhook secret
+- This secret is used to verify that webhook requests come from GitHub
+- Rotate the webhook secret periodically
+
+### Permissions
+
+- Follow the principle of least privilege
+- Only request the permissions that the bot actually needs
+- Regularly review and audit the bot's permissions
+
 ## Docker Deployment
 
 ```sh
@@ -164,6 +193,15 @@ docker build -t arc-memory-pr-bot .
 # 2. Start container
 docker run -e APP_ID=<app-id> -e PRIVATE_KEY=<pem-value> -e WEBHOOK_SECRET=<webhook-secret> arc-memory-pr-bot
 ```
+
+### Secure Docker Deployment
+
+For a more secure Docker deployment, consider:
+
+- Using Docker secrets or environment files instead of passing credentials directly in the command line
+- Setting up a non-root user in the container
+- Using a multi-stage build to minimize the attack surface
+- Scanning the container for vulnerabilities before deployment
 
 ## Contributing
 
