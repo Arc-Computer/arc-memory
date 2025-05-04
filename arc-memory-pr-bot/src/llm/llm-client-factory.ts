@@ -1,6 +1,6 @@
 /**
  * LLM Client Factory for the Arc Memory PR Bot
- * 
+ *
  * This factory creates LLM clients based on configuration.
  * It supports different LLM providers like OpenAI and Anthropic.
  */
@@ -25,18 +25,18 @@ export interface LLMClientFactoryConfig {
    * The LLM provider to use
    */
   provider: LLMProvider;
-  
+
   /**
    * OpenAI configuration (required if provider is OPENAI)
    */
   openai?: OpenAIClientConfig;
-  
+
   /**
    * Anthropic configuration (required if provider is ANTHROPIC)
    * To be implemented later
    */
   // anthropic?: AnthropicClientConfig;
-  
+
   /**
    * The cache TTL in seconds (default: 3600)
    */
@@ -63,7 +63,7 @@ export class LLMClientFactory {
           ...config.openai,
           cacheTTL: config.cacheTTL || config.openai.cacheTTL,
         });
-      
+
       // To be implemented later
       // case LLMProvider.ANTHROPIC:
       //   if (!config.anthropic) {
@@ -73,12 +73,12 @@ export class LLMClientFactory {
       //     ...config.anthropic,
       //     cacheTTL: config.cacheTTL || config.anthropic.cacheTTL,
       //   });
-      
+
       default:
         throw new Error(`Unsupported LLM provider: ${config.provider}`);
     }
   }
-  
+
   /**
    * Create an LLM client from environment variables
    * @param logger Logger instance
@@ -87,23 +87,23 @@ export class LLMClientFactory {
   static createClientFromEnv(logger: Logger): BaseLLMClient {
     // Determine the provider from environment variables
     const provider = process.env.LLM_PROVIDER as LLMProvider || LLMProvider.OPENAI;
-    
+
     // Create the configuration based on the provider
     const config: LLMClientFactoryConfig = {
       provider,
       cacheTTL: parseInt(process.env.LLM_CACHE_TTL || '3600', 10),
     };
-    
+
     // Add provider-specific configuration
     if (provider === LLMProvider.OPENAI) {
       const apiKey = process.env.OPENAI_API_KEY;
       if (!apiKey) {
         throw new Error('OPENAI_API_KEY environment variable is required when using OpenAI');
       }
-      
+
       config.openai = {
         apiKey,
-        model: process.env.OPENAI_MODEL || 'gpt-4',
+        model: process.env.OPENAI_MODEL || 'gpt-4o',
         organization: process.env.OPENAI_ORGANIZATION,
       };
     }
@@ -113,13 +113,13 @@ export class LLMClientFactory {
     //   if (!apiKey) {
     //     throw new Error('ANTHROPIC_API_KEY environment variable is required when using Anthropic');
     //   }
-    //   
+    //
     //   config.anthropic = {
     //     apiKey,
     //     model: process.env.ANTHROPIC_MODEL || 'claude-3-opus-20240229',
     //   };
     // }
-    
+
     // Create and return the client
     return LLMClientFactory.createClient(logger, config);
   }
