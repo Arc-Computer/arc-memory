@@ -14,8 +14,12 @@ A GitHub PR Bot for Arc Memory that enhances pull requests with contextual infor
 When a pull request is opened or updated, the PR Bot:
 
 1. Analyzes the changes in the pull request
-2. Queries the Arc Memory knowledge graph to find relevant context
-3. Generates a comment with three sections:
+2. Extracts context information using the PR Context Generator:
+   - Identifies related Linear tickets from branch names and PR descriptions
+   - Finds relevant ADRs for the changed files
+   - Retrieves commit history and related PRs
+3. Queries the Arc Memory knowledge graph to find additional context
+4. Generates a comment with three sections:
    - Original design decisions behind the code
    - Predicted impact of changes
    - Proof that changes were properly tested
@@ -154,6 +158,37 @@ comment:
   includeAffectedComponents: true
   includeTestCoverage: true
 ```
+
+## Architecture
+
+The Arc Memory PR Bot consists of several key components:
+
+### GraphService
+
+The GraphService provides an interface to the Arc Memory knowledge graph (SQLite database). It handles:
+
+- Connecting to the database
+- Querying for nodes and edges
+- Finding related entities (Linear tickets, ADRs, commits, PRs)
+- Caching results for performance
+
+### ContextGenerator
+
+The ContextGenerator extracts and enriches context information for pull requests:
+
+- Extracts branch name and PR title/body
+- Identifies related Linear tickets through branch naming conventions and mentions
+- Retrieves relevant ADRs using the GraphService
+- Formats the information for display in PR comments
+- Implements fallback mechanisms when primary data sources are unavailable
+
+### Comment Generation
+
+The comment generation system takes the context information and formats it into user-friendly PR comments:
+
+- Customizable based on configuration
+- Supports different sections (design decisions, impact analysis, test verification)
+- Handles fallbacks when certain information is missing
 
 ## Security Considerations
 

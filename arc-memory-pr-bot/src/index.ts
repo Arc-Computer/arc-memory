@@ -1,6 +1,7 @@
 import { Probot } from "probot";
 import { getConfig, BotConfig } from "./config";
 import { GraphService } from "./graph-service";
+import { ContextGenerator, PRContext } from "./context-generator";
 
 /**
  * Generates the comment body for the PR based on the configuration.
@@ -105,6 +106,9 @@ export default (app: Probot) => {
   // Create a GraphService instance
   const graphService = new GraphService(app.log);
 
+  // Create a ContextGenerator instance
+  const contextGenerator = new ContextGenerator(graphService);
+
   // Handle pull request opened or synchronized events
   app.on(["pull_request.opened", "pull_request.synchronize"], async (context) => {
     const pr = context.payload.pull_request;
@@ -128,44 +132,14 @@ export default (app: Probot) => {
         await graphService.connect();
         app.log.info(`Connected to knowledge graph database`);
 
-        // Get the list of files changed in the PR
-        const filesResponse = await context.octokit.pulls.listFiles({
-          owner: repo.owner.login,
-          repo: repo.name,
-          pull_number: pr.number,
-        });
+        // Generate context for the PR
+        const prContext = await contextGenerator.generateContext(context);
+        app.log.info(`Generated context for PR #${prContext.prNumber}`);
+        app.log.info(`PR changes ${prContext.changedFiles.length} files`);
 
-        const changedFiles = filesResponse.data.map(file => file.filename);
-        app.log.info(`PR #${pr.number} changes ${changedFiles.length} files`);
+        const { linearTickets, adrs, commits, relatedPRs } = prContext.relatedEntities;
 
-        // Query the knowledge graph for context
-        const [linearTickets, adrs, commits] = await Promise.all([
-          graphService.findLinearTicketsForPR(pr.number, repo.owner.login, repo.name),
-          graphService.findADRsForChangedFiles(changedFiles),
-          graphService.getCommitHistoryForPR(pr.number, repo.owner.login, repo.name),
-        ]);
-
-        // Find related PRs for the changed files
-        const relatedPRPromises = changedFiles.map(file =>
-          graphService.findRelatedPRsForFile(file)
-        );
-        const relatedPRsArrays = await Promise.all(relatedPRPromises);
-
-        // Flatten and deduplicate the related PRs
-        const relatedPRsMap = new Map();
-        relatedPRsArrays.flat().forEach(pr => {
-          if (!relatedPRsMap.has(pr.id)) {
-            relatedPRsMap.set(pr.id, pr);
-          }
-        });
-        const relatedPRs = Array.from(relatedPRsMap.values());
-
-        // Filter out the current PR from related PRs
-        const filteredRelatedPRs = relatedPRs.filter(
-          relatedPR => relatedPR.number !== pr.number
-        );
-
-        app.log.info(`Found ${linearTickets.length} Linear tickets, ${adrs.length} ADRs, ${commits.length} commits, and ${filteredRelatedPRs.length} related PRs`);
+        app.log.info(`Found ${linearTickets.length} Linear tickets, ${adrs.length} ADRs, ${commits.length} commits, and ${relatedPRs.length} related PRs`);
 
         // Generate a detailed comment with the context
         const detailedComment = context.issue({
@@ -173,7 +147,7 @@ export default (app: Probot) => {
             linearTickets,
             adrs,
             commits,
-            relatedPRs: filteredRelatedPRs,
+            relatedPRs,
           }),
         });
 
@@ -236,20 +210,9 @@ Please check the logs for more details.`,
           await graphService.connect();
           app.log.info(`Connected to knowledge graph database for PR review`);
 
-          // Get the list of files changed in the PR
-          const filesResponse = await context.octokit.pulls.listFiles({
-            owner: repo.owner.login,
-            repo: repo.name,
-            pull_number: pr.number,
-          });
-
-          const changedFiles = filesResponse.data.map(file => file.filename);
-
-          // Query the knowledge graph for context
-          const [linearTickets, adrs] = await Promise.all([
-            graphService.findLinearTicketsForPR(pr.number, repo.owner.login, repo.name),
-            graphService.findADRsForChangedFiles(changedFiles),
-          ]);
+          // Generate context for the PR
+          const prContext = await contextGenerator.generateContext(context);
+          const { linearTickets, adrs } = prContext.relatedEntities;
 
           // Add a comment with approval context
           if (linearTickets.length > 0 || adrs.length > 0) {

@@ -579,6 +579,90 @@ export class GraphService {
   }
 
   /**
+   * Search for nodes in the knowledge graph
+   * @param query The search query (e.g., "type:adr", "issue:ABC-123")
+   * @returns An array of matching nodes
+   */
+  async searchNodes(query: string): Promise<Node[]> {
+    this.ensureConnected();
+
+    // Check cache first
+    const cacheKey = `search:${query}`;
+    const cachedNodes = this.cache.get<Node[]>(cacheKey);
+    if (cachedNodes) {
+      this.logger.debug(`Cache hit for search query "${query}"`);
+      return cachedNodes;
+    }
+
+    try {
+      let sqlQuery = 'SELECT id, type, title, body, extra FROM nodes';
+      const params: any[] = [];
+
+      // Parse the query
+      if (query.includes('type:')) {
+        const typeMatch = query.match(/type:(\w+)/);
+        if (typeMatch && typeMatch[1]) {
+          sqlQuery += ' WHERE type = ?';
+          params.push(typeMatch[1]);
+        }
+      } else if (query.startsWith('issue:')) {
+        sqlQuery += ' WHERE id LIKE ?';
+        params.push(`%${query.substring(6)}%`);
+      } else if (query.includes(':')) {
+        const [field, value] = query.split(':');
+        if (field && value) {
+          sqlQuery += ' WHERE id LIKE ? OR title LIKE ?';
+          params.push(`%${value}%`, `%${value}%`);
+        }
+      } else {
+        // Full-text search if available, otherwise fallback to LIKE
+        try {
+          const ftsQuery = `SELECT id FROM fts_nodes WHERE body MATCH ?`;
+          const ftsResults = await this.db!.all(ftsQuery, [query]);
+
+          if (ftsResults.length > 0) {
+            const ids = ftsResults.map(row => `'${row.id}'`).join(',');
+            sqlQuery += ` WHERE id IN (${ids})`;
+          } else {
+            sqlQuery += ' WHERE title LIKE ? OR body LIKE ?';
+            params.push(`%${query}%`, `%${query}%`);
+          }
+        } catch (ftsError) {
+          // FTS may not be available, fall back to LIKE
+          this.logger.warn(`FTS search failed, falling back to LIKE: ${ftsError}`);
+          sqlQuery += ' WHERE title LIKE ? OR body LIKE ?';
+          params.push(`%${query}%`, `%${query}%`);
+        }
+      }
+
+      const nodes = await this.db!.all(sqlQuery, params);
+
+      // Parse the extra JSON field
+      const result = nodes.map((node) => {
+        if (node.extra) {
+          try {
+            node.extra = JSON.parse(node.extra);
+          } catch (error) {
+            this.logger.warn(`Failed to parse extra field for node ${node.id}: ${error}`);
+            node.extra = {};
+          }
+        } else {
+          node.extra = {};
+        }
+
+        return node;
+      });
+
+      // Cache the result
+      this.cache.set(cacheKey, result);
+      return result;
+    } catch (error) {
+      this.logger.error(`Failed to search nodes with query "${query}": ${error}`);
+      throw new Error(`Failed to search nodes with query "${query}": ${error}`);
+    }
+  }
+
+  /**
    * Clear the cache
    */
   clearCache(): void {
