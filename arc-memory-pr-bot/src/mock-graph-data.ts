@@ -17,10 +17,10 @@ export class MockGraphData {
    * Initialize mock data for testing
    */
   private initializeMockData(): void {
-    // Create mock nodes
+    // Initialize mock nodes representing entities like PRs and Linear Tickets
     this.createMockNodes();
     
-    // Create mock edges
+    // Initialize mock edges to define relationships between nodes (e.g., PRs linked to Linear Tickets)
     this.createMockEdges();
   }
 
