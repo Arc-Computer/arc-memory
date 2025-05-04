@@ -6,8 +6,8 @@
  */
 
 import { Logger } from 'probot';
-import { BaseLLMClient } from './base-llm-client';
-import { OpenAIClient, OpenAIClientConfig } from './openai-client';
+import { BaseLLMClient } from './base-llm-client.js';
+import { OpenAIClient, OpenAIClientConfig } from './openai-client.js';
 
 /**
  * LLM Provider types

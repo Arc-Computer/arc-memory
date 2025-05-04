@@ -7,7 +7,7 @@
  */
 
 import { Logger } from 'probot';
-import { BaseLLMClient, LLMResponse, LLMRequestOptions } from './base-llm-client';
+import { BaseLLMClient, LLMResponse, LLMRequestOptions } from './base-llm-client.js';
 import OpenAI from 'openai';
 
 /**
