@@ -110,4 +110,134 @@ describe("GraphService", () => {
     await graphService.close();
     await expect(graphService.getNodeById("pr:Arc-Computer/arc-memory#1")).rejects.toThrow("Database not connected");
   });
+
+  describe("Caching behavior", () => {
+    beforeEach(async () => {
+      // Clear the cache before each test
+      graphService.clearCache();
+    });
+
+    test("should cache higher-level query results for Linear tickets", async () => {
+      // Spy on the lower-level methods
+      const getNodeByIdSpy = vi.spyOn(graphService, "getNodeById");
+      const getEdgesBySrcSpy = vi.spyOn(graphService, "getEdgesBySrc");
+
+      // First call should use the lower-level methods
+      const tickets1 = await graphService.findLinearTicketsForPR(1, "Arc-Computer", "arc-memory");
+      expect(tickets1.length).toBeGreaterThan(0);
+      expect(getNodeByIdSpy).toHaveBeenCalled();
+      expect(getEdgesBySrcSpy).toHaveBeenCalled();
+
+      // Reset the spies
+      getNodeByIdSpy.mockClear();
+      getEdgesBySrcSpy.mockClear();
+
+      // Second call should use the cache
+      const tickets2 = await graphService.findLinearTicketsForPR(1, "Arc-Computer", "arc-memory");
+      expect(tickets2.length).toBeGreaterThan(0);
+      expect(getNodeByIdSpy).not.toHaveBeenCalled();
+      expect(getEdgesBySrcSpy).not.toHaveBeenCalled();
+
+      // Verify the tickets are the same
+      expect(tickets2).toEqual(tickets1);
+    });
+
+    test("should cache higher-level query results for ADRs", async () => {
+      // Spy on the lower-level methods
+      const getNodeByIdSpy = vi.spyOn(graphService, "getNodeById");
+      const getEdgesByDstSpy = vi.spyOn(graphService, "getEdgesByDst");
+
+      // First call should use the lower-level methods
+      const adrs1 = await graphService.findADRsForChangedFiles(["arc_memory/auth/linear.py"]);
+      expect(adrs1.length).toBeGreaterThan(0);
+      expect(getNodeByIdSpy).toHaveBeenCalled();
+      expect(getEdgesByDstSpy).toHaveBeenCalled();
+
+      // Reset the spies
+      getNodeByIdSpy.mockClear();
+      getEdgesByDstSpy.mockClear();
+
+      // Second call should use the cache
+      const adrs2 = await graphService.findADRsForChangedFiles(["arc_memory/auth/linear.py"]);
+      expect(adrs2.length).toBeGreaterThan(0);
+      expect(getNodeByIdSpy).not.toHaveBeenCalled();
+      expect(getEdgesByDstSpy).not.toHaveBeenCalled();
+
+      // Verify the ADRs are the same
+      expect(adrs2).toEqual(adrs1);
+    });
+
+    test("should cache higher-level query results for commits", async () => {
+      // Spy on the lower-level methods
+      const getNodeByIdSpy = vi.spyOn(graphService, "getNodeById");
+      const getEdgesBySrcSpy = vi.spyOn(graphService, "getEdgesBySrc");
+
+      // First call should use the lower-level methods
+      const commits1 = await graphService.getCommitHistoryForPR(1, "Arc-Computer", "arc-memory");
+      expect(commits1.length).toBeGreaterThan(0);
+      expect(getNodeByIdSpy).toHaveBeenCalled();
+      expect(getEdgesBySrcSpy).toHaveBeenCalled();
+
+      // Reset the spies
+      getNodeByIdSpy.mockClear();
+      getEdgesBySrcSpy.mockClear();
+
+      // Second call should use the cache
+      const commits2 = await graphService.getCommitHistoryForPR(1, "Arc-Computer", "arc-memory");
+      expect(commits2.length).toBeGreaterThan(0);
+      expect(getNodeByIdSpy).not.toHaveBeenCalled();
+      expect(getEdgesBySrcSpy).not.toHaveBeenCalled();
+
+      // Verify the commits are the same
+      expect(commits2).toEqual(commits1);
+    });
+
+    test("should cache higher-level query results for related PRs", async () => {
+      // Spy on the lower-level methods
+      const getNodeByIdSpy = vi.spyOn(graphService, "getNodeById");
+      const getEdgesByDstSpy = vi.spyOn(graphService, "getEdgesByDst");
+
+      // First call should use the lower-level methods
+      const prs1 = await graphService.findRelatedPRsForFile("arc_memory/auth/linear.py");
+      expect(prs1.length).toBeGreaterThan(0);
+      expect(getNodeByIdSpy).toHaveBeenCalled();
+      expect(getEdgesByDstSpy).toHaveBeenCalled();
+
+      // Reset the spies
+      getNodeByIdSpy.mockClear();
+      getEdgesByDstSpy.mockClear();
+
+      // Second call should use the cache
+      const prs2 = await graphService.findRelatedPRsForFile("arc_memory/auth/linear.py");
+      expect(prs2.length).toBeGreaterThan(0);
+      expect(getNodeByIdSpy).not.toHaveBeenCalled();
+      expect(getEdgesByDstSpy).not.toHaveBeenCalled();
+
+      // Verify the PRs are the same
+      expect(prs2).toEqual(prs1);
+    });
+
+    test("should invalidate cache when cleared", async () => {
+      // First call to cache the result
+      const tickets1 = await graphService.findLinearTicketsForPR(1, "Arc-Computer", "arc-memory");
+      expect(tickets1.length).toBeGreaterThan(0);
+
+      // Spy on the lower-level methods after the first call
+      const getNodeByIdSpy = vi.spyOn(graphService, "getNodeById");
+      const getEdgesBySrcSpy = vi.spyOn(graphService, "getEdgesBySrc");
+
+      // Second call should use the cache
+      await graphService.findLinearTicketsForPR(1, "Arc-Computer", "arc-memory");
+      expect(getNodeByIdSpy).not.toHaveBeenCalled();
+      expect(getEdgesBySrcSpy).not.toHaveBeenCalled();
+
+      // Clear the cache
+      graphService.clearCache();
+
+      // Third call should hit the methods again
+      await graphService.findLinearTicketsForPR(1, "Arc-Computer", "arc-memory");
+      expect(getNodeByIdSpy).toHaveBeenCalled();
+      expect(getEdgesBySrcSpy).toHaveBeenCalled();
+    });
+  });
 });
