@@ -621,8 +621,10 @@ export class GraphService {
           const ftsResults = await this.db!.all(ftsQuery, [query]);
 
           if (ftsResults.length > 0) {
-            const ids = ftsResults.map(row => `'${row.id}'`).join(',');
-            sqlQuery += ` WHERE id IN (${ids})`;
+            const placeholders = ftsResults.map(() => '?').join(',');
+            sqlQuery += ` WHERE id IN (${placeholders})`;
+            params.push(...ftsResults.map(row => row.id));
+          }
           } else {
             sqlQuery += ' WHERE title LIKE ? OR body LIKE ?';
             params.push(`%${query}%`, `%${query}%`);
