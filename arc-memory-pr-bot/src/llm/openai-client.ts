@@ -147,7 +147,7 @@ export class OpenAIClient extends BaseLLMClient {
             const response = await this.client.responses.create({
               model,
               input: prompt,
-              max_tokens: maxTokens,
+              max_output_tokens: maxTokens,
               temperature,
             });
 
