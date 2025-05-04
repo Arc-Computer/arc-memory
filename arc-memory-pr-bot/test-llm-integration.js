@@ -1,12 +1,12 @@
 /**
  * Test script for the LLM integration
- * 
+ *
  * This script tests the LLM integration by:
  * 1. Initializing the OpenAI client
  * 2. Creating a mock PR context
  * 3. Calling the PR Context Processor to generate insights
  * 4. Logging the results
- * 
+ *
  * Usage:
  * 1. Set the OPENAI_API_KEY environment variable
  * 2. Run the script with Node.js: node test-llm-integration.js
@@ -164,16 +164,16 @@ async function testLLMIntegration() {
 
     console.log('Creating LLM client...');
     const llmClient = LLMClientFactory.createClientFromEnv(logger);
-    
+
     console.log('Creating PR Context Processor...');
     const prContextProcessor = new PRContextProcessor(llmClient, logger);
-    
+
     console.log('Generating insights...');
     console.log('This may take a minute or two...');
-    
+
     // Generate insights for the mock PR context
     const insights = await prContextProcessor.generateInsights(mockPRContext);
-    
+
     // Log the results
     console.log('\n=== Design Decisions Insight ===');
     console.log('Summary:', insights.designDecisions.summary);
@@ -181,20 +181,20 @@ async function testLLMIntegration() {
     console.log('Related Tickets:', insights.designDecisions.relatedTickets);
     console.log('Design Principles:', insights.designDecisions.designPrinciples);
     console.log('Explanation:', insights.designDecisions.explanation);
-    
+
     console.log('\n=== Impact Analysis Insight ===');
     console.log('Summary:', insights.impactAnalysis.summary);
     console.log('Risk Score:', insights.impactAnalysis.riskScore);
     console.log('Affected Components:', insights.impactAnalysis.affectedComponents);
     console.log('Potential Issues:', insights.impactAnalysis.potentialIssues);
     console.log('Recommendations:', insights.impactAnalysis.recommendations);
-    
+
     console.log('\n=== Test Verification Insight ===');
     console.log('Summary:', insights.testVerification.summary);
     console.log('Test Coverage:', insights.testVerification.testCoverage);
     console.log('Test Gaps:', insights.testVerification.testGaps);
     console.log('Recommendations:', insights.testVerification.recommendations);
-    
+
     console.log('\nLLM integration test completed successfully!');
   } catch (error) {
     console.error('Error testing LLM integration:', error);
