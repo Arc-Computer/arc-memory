@@ -17,7 +17,10 @@
     "test": "vitest"
   },
   "dependencies": {
-    "probot": "^13.0.1"
+    "probot": "^13.0.1",
+    "node-cache": "^5.1.2",
+    "sqlite": "^5.1.1",
+    "sqlite3": "^5.1.7"
   },
   "devDependencies": {
     "@types/node": "^20.0.0",

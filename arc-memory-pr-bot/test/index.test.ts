@@ -1,10 +1,9 @@
 import nock from "nock";
-import myProbotApp from "../src/index.js";
 import { Probot, ProbotOctokit } from "probot";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
-import { describe, beforeEach, afterEach, test, expect } from "vitest";
+import { describe, beforeEach, afterEach, test, expect, vi } from "vitest";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -21,7 +20,36 @@ const pullRequestOpenedPayload = JSON.parse(
 describe("Arc Memory PR Bot", () => {
   let probot: any;
 
-  beforeEach(() => {
+  // Mock the GraphService module
+  vi.mock("../src/graph-service.js", () => {
+    return {
+      GraphService: vi.fn().mockImplementation(() => ({
+        connect: vi.fn().mockResolvedValue(undefined),
+        close: vi.fn().mockResolvedValue(undefined),
+        findLinearTicketsForPR: vi.fn().mockResolvedValue([
+          { id: 'issue:linear/ARC-42', title: 'Test Linear Ticket', state: 'completed', url: 'https://linear.app/test' }
+        ]),
+        findADRsForChangedFiles: vi.fn().mockResolvedValue([
+          { id: 'adr:test', title: 'Test ADR', status: 'accepted', decision_makers: ['test-user'] }
+        ]),
+        getCommitHistoryForPR: vi.fn().mockResolvedValue([
+          { id: 'commit:test', title: 'Test Commit', sha: 'abc123', files: ['test.ts'] }
+        ]),
+        findRelatedPRsForFile: vi.fn().mockResolvedValue([
+          { id: 'pr:test', title: 'Test PR', number: 2, state: 'open', url: 'https://github.com/test' }
+        ]),
+        getStats: vi.fn().mockResolvedValue({ nodeCount: 100, edgeCount: 200 })
+      }))
+    };
+  });
+
+  // Import the app after mocking
+  let myProbotApp: any;
+
+  beforeEach(async () => {
+    // Dynamically import the app after mocking
+    myProbotApp = (await import("../src/index.js")).default;
+
     nock.disableNetConnect();
     probot = new Probot({
       appId: 123,
@@ -37,6 +65,34 @@ describe("Arc Memory PR Bot", () => {
   });
 
   test("creates a comment when a pull request is opened", async () => {
+    // Mock the repository-specific configuration
+    nock("https://api.github.com")
+      .get("/repos/Arc-Computer/arc-memory/contents/.github%2Farc-pr-bot.yml")
+      .reply(404);
+
+    // Mock the repository-specific default configuration
+    nock("https://api.github.com")
+      .get("/repos/Arc-Computer/arc-memory/contents/.github%2F.arc-pr-bot.yml")
+      .reply(404);
+
+    // Mock the organization-level configuration
+    nock("https://api.github.com")
+      .get("/repos/Arc-Computer/.github/contents/.github%2Farc-pr-bot.yml")
+      .reply(404);
+
+    // Mock the organization-level default configuration
+    nock("https://api.github.com")
+      .get("/repos/Arc-Computer/.github/contents/.github%2F.arc-pr-bot.yml")
+      .reply(404);
+
+    // Mock the files API
+    nock("https://api.github.com")
+      .get("/repos/Arc-Computer/arc-memory/pulls/1/files")
+      .reply(200, [
+        { filename: "src/index.ts" },
+        { filename: "src/config.ts" }
+      ]);
+
     const mock = nock("https://api.github.com")
       // Test that we correctly return a test token
       .post("/app/installations/12345678/access_tokens")
@@ -49,7 +105,7 @@ describe("Arc Memory PR Bot", () => {
         },
       })
 
-      // Test that a comment is posted
+      // Test that initial comment is posted
       .post("/repos/Arc-Computer/arc-memory/issues/1/comments", (body: any) => {
         // Check that the comment body contains our expected text
         expect(body.body).toContain("Arc Memory PR Bot");
@@ -57,6 +113,14 @@ describe("Arc Memory PR Bot", () => {
         expect(body.body).toContain("Original design decisions");
         expect(body.body).toContain("Predicted impact");
         expect(body.body).toContain("Proof that changes were properly tested");
+        return true;
+      })
+      .reply(200)
+
+      // Test that detailed comment is posted
+      .post("/repos/Arc-Computer/arc-memory/issues/1/comments", (body: any) => {
+        // Check that the comment body contains our expected text
+        expect(body.body).toContain("Arc Memory PR Bot Analysis");
         return true;
       })
       .reply(200);
