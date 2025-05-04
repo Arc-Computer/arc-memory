@@ -13,3 +13,6 @@ export * from './openai-client.js';
 
 // Export the LLM client factory
 export * from './llm-client-factory.js';
+
+// Export the PR Context Processor
+export * from './pr-context-processor.js';
