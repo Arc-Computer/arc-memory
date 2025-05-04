@@ -1,7 +1,7 @@
 import { Probot } from "probot";
-import { getConfig, BotConfig } from "./config";
-import { GraphService } from "./graph-service";
-import { ContextGenerator, PRContext } from "./context-generator";
+import { getConfig, BotConfig } from "./config.js";
+import { GraphService } from "./graph-service.js";
+import { ContextGenerator } from "./context-generator.js";
 
 /**
  * Generates the comment body for the PR based on the configuration.
@@ -112,7 +112,6 @@ export default (app: Probot) => {
   // Handle pull request opened or synchronized events
   app.on(["pull_request.opened", "pull_request.synchronize"], async (context) => {
     const pr = context.payload.pull_request;
-    const repo = context.payload.repository;
     app.log.info(`Received PR event: ${pr.title} (#${pr.number})`);
 
     try {
@@ -153,14 +152,14 @@ export default (app: Probot) => {
 
         await context.octokit.issues.createComment(detailedComment);
         app.log.info(`Added detailed comment to PR #${pr.number}`);
-      } catch (graphError) {
+      } catch (graphError: any) {
         app.log.error(`Error querying knowledge graph: ${graphError}`);
 
         // Add a comment to let the user know there was an error
         const errorComment = context.issue({
           body: `## Arc Memory PR Bot Error
 
-I encountered an error while querying the knowledge graph: ${graphError.message}
+I encountered an error while querying the knowledge graph: ${graphError.message || String(graphError)}
 
 Please make sure the knowledge graph is built and up-to-date by running \`arc build\`.`,
         });
@@ -194,7 +193,6 @@ Please check the logs for more details.`,
   app.on("pull_request_review.submitted", async (context) => {
     const review = context.payload.review;
     const pr = context.payload.pull_request;
-    const repo = context.payload.repository;
 
     app.log.info(`Received PR review event for PR #${pr.number}`);
     app.log.info(`Review state: ${review.state}`);
@@ -203,7 +201,7 @@ Please check the logs for more details.`,
     if (review.state === 'approved') {
       try {
         // Load configuration
-        const config = await getConfig(context);
+        await getConfig(context);
 
         // Connect to the knowledge graph
         try {

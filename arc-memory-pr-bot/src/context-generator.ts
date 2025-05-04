@@ -1,5 +1,5 @@
 import { Context } from 'probot';
-import { GraphService, LinearTicket, ADR, Commit, PR, EdgeRel, NodeType } from './graph-service';
+import { GraphService, LinearTicket, ADR, Commit, PR, NodeType } from './graph-service.js';
 
 /**
  * Interface for a file change in a pull request.
@@ -55,7 +55,7 @@ export class ContextGenerator {
    * @param context The Probot context object.
    * @returns A promise that resolves to the PR context.
    */
-  async generateContext(context: Context<'pull_request'>): Promise<PRContext> {
+  async generateContext(context: Context<'pull_request'> | Context<'pull_request_review'>): Promise<PRContext> {
     const pr = context.payload.pull_request;
     const repo = context.payload.repository;
 
@@ -144,7 +144,7 @@ export class ContextGenerator {
   ): Promise<LinearTicket[]> {
     // First, get tickets from the knowledge graph
     const graphTickets = await this.graphService.findLinearTicketsForPR(prNumber, owner, repo);
-    
+
     // Create a map to deduplicate tickets
     const ticketsMap = new Map<string, LinearTicket>();
     graphTickets.forEach(ticket => {
@@ -193,7 +193,7 @@ export class ContextGenerator {
     try {
       // Try to find the ticket in the knowledge graph
       const nodes = await this.graphService.searchNodes(`issue:${ticketId}`);
-      
+
       for (const node of nodes) {
         if (node.type === NodeType.ISSUE && node.id.includes(ticketId)) {
           return {
@@ -205,7 +205,7 @@ export class ContextGenerator {
           };
         }
       }
-      
+
       return null;
     } catch (error) {
       // If we can't find the ticket, return a placeholder
@@ -223,7 +223,7 @@ export class ContextGenerator {
   private async findRelevantADRs(changedFiles: string[]): Promise<ADR[]> {
     // First, get ADRs directly related to the changed files
     const fileADRs = await this.graphService.findADRsForChangedFiles(changedFiles);
-    
+
     // Create a map to deduplicate ADRs
     const adrsMap = new Map<string, ADR>();
     fileADRs.forEach(adr => {
@@ -250,18 +250,18 @@ export class ContextGenerator {
     try {
       // Search for ADR nodes
       const nodes = await this.graphService.searchNodes('type:adr');
-      
+
       if (nodes.length === 0) {
         return null;
       }
-      
+
       // Sort by timestamp (newest first)
       nodes.sort((a, b) => {
         const aTime = a.extra?.timestamp ? new Date(a.extra.timestamp).getTime() : 0;
         const bTime = b.extra?.timestamp ? new Date(b.extra.timestamp).getTime() : 0;
         return bTime - aTime;
       });
-      
+
       // Return the newest ADR
       const latestADR = nodes[0];
       return {
