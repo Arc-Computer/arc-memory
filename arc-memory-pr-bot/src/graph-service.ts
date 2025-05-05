@@ -624,7 +624,6 @@ export class GraphService {
             const placeholders = ftsResults.map(() => '?').join(',');
             sqlQuery += ` WHERE id IN (${placeholders})`;
             params.push(...ftsResults.map(row => row.id));
-          }
           } else {
             sqlQuery += ' WHERE title LIKE ? OR body LIKE ?';
             params.push(`%${query}%`, `%${query}%`);

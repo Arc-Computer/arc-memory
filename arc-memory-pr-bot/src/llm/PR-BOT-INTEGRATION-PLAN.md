@@ -32,14 +32,14 @@ export = (app: Probot) => {
     // New code to generate insights using the PR Context Processor
     const llmClient = LLMClientFactory.createClient();
     const prContextProcessor = new PRContextProcessor(llmClient);
-    
+
     try {
       const insights = await prContextProcessor.generateInsights(prContext);
-      
+
       // Format the insights as a comment
       const commentFormatter = new CommentFormatter();
       const comment = commentFormatter.formatComment(insights);
-      
+
       // Post the comment on the PR
       await context.octokit.issues.createComment({
         owner: context.payload.repository.owner.login,
@@ -50,10 +50,10 @@ export = (app: Probot) => {
     } catch (error) {
       // Handle errors and use fallbacks
       app.log.error(`Error generating insights: ${error}`);
-      
+
       // Use fallback mechanism
       const fallbackComment = prContextProcessor.generateFallbackInsights(prContext);
-      
+
       // Post the fallback comment
       await context.octokit.issues.createComment({
         owner: context.payload.repository.owner.login,
@@ -122,8 +122,25 @@ Create a new class to format the insights as a GitHub comment:
 import { PRInsights } from './pr-context-processor';
 
 export class CommentFormatter {
-  formatComment(insights: PRInsights): string {
-    // Format the insights as a GitHub comment
+  /**
+   * Format the insights as Markdown for a GitHub comment
+   * @param insights The PR insights to format
+   * @param prTitle The PR title (optional)
+   * @returns The formatted comment as Markdown
+   */
+  formatComment(insights: PRInsights, prTitle?: string): string {
+    // Format the header
+    // Format the three sections (design decisions, impact analysis, test verification)
+    // Return the formatted comment
+  }
+
+  /**
+   * Format a code diff
+   * @param diff The diff to format
+   * @returns The formatted diff
+   */
+  formatCodeDiff(diff: string): string {
+    // Format the code diff as a collapsible section
   }
 }
 ```

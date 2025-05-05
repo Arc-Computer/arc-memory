@@ -14,7 +14,6 @@ export class CommentFormatter {
   formatComment(insights: PRInsights): string {
     // Format the header
     // Format the three sections
-    // Format the "See without Arc Memory" section
     // Return the formatted comment
   }
 
@@ -46,12 +45,7 @@ export class CommentFormatter {
     // Format the code diff
   }
 
-  /**
-   * Format the "See without Arc Memory" section
-   */
-  private formatSeeWithoutArcMemory(insights: PRInsights): string {
-    // Format the "See without Arc Memory" section
-  }
+
 }
 ```
 
@@ -118,16 +112,7 @@ When reviewing this {pr.title}, Arc shows you:
 </details>
 ```
 
-### "See without Arc Memory" Template
 
-```markdown
-<details>
-<summary>See without Arc Memory</summary>
-
-{insights.rawSummary}
-
-</details>
-```
 
 ## Implementation Steps
 
@@ -137,6 +122,6 @@ When reviewing this {pr.title}, Arc shows you:
 4. Implement the formatImpactAnalysis method
 5. Implement the formatTestVerification method
 6. Implement the formatCodeDiff method
-7. Implement the formatSeeWithoutArcMemory method
-8. Add tests for the CommentFormatter class
-9. Integrate the CommentFormatter with the PR Bot
+
+7. Add tests for the CommentFormatter class
+8. Integrate the CommentFormatter with the PR Bot
