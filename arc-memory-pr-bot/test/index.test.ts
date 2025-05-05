@@ -43,6 +43,52 @@ describe("Arc Memory PR Bot", () => {
     };
   });
 
+  // Mock the LLM client factory
+  vi.mock("../src/llm/llm-client-factory.js", () => {
+    return {
+      LLMClientFactory: {
+        createClientFromEnv: vi.fn().mockReturnValue({
+          generateCompletion: vi.fn().mockResolvedValue("This is a mock LLM response")
+        })
+      }
+    };
+  });
+
+  // Mock the PR Context Processor
+  vi.mock("../src/llm/pr-context-processor.js", () => {
+    return {
+      RiskLevel: {
+        LOW: "low",
+        MEDIUM: "medium",
+        HIGH: "high"
+      },
+      PRContextProcessor: vi.fn().mockImplementation(() => ({
+        generateInsights: vi.fn().mockResolvedValue({
+          designDecisions: {
+            summary: "This is a test design decision",
+            relatedADRs: [{ id: "ADR-001", title: "Test ADR", relevance: "Test relevance" }],
+            relatedTickets: [{ id: "ABC-123", title: "Test ticket", relevance: "Test relevance" }],
+            designPrinciples: ["Test principle"],
+            explanation: "Test explanation"
+          },
+          impactAnalysis: {
+            summary: "This is a test impact analysis",
+            riskScore: { score: 30, level: "low", explanation: "Test explanation" },
+            affectedComponents: [{ name: "TestComponent", impact: "Test impact" }],
+            potentialIssues: ["Test issue"],
+            recommendations: ["Test recommendation"]
+          },
+          testVerification: {
+            summary: "This is a test verification",
+            testCoverage: { percentage: 90, assessment: "Test assessment" },
+            testGaps: ["Test gap"],
+            recommendations: ["Test recommendation"]
+          }
+        })
+      }))
+    };
+  });
+
   // Import the app after mocking
   let myProbotApp: any;
 
@@ -65,32 +111,37 @@ describe("Arc Memory PR Bot", () => {
   });
 
   test("creates a comment when a pull request is opened", async () => {
-    // Mock the repository-specific configuration
+    // Mock the repository-specific configuration with useLLM: true
     nock("https://api.github.com")
       .get("/repos/Arc-Computer/arc-memory/contents/.github%2Farc-pr-bot.yml")
-      .reply(404);
-
-    // Mock the repository-specific default configuration
-    nock("https://api.github.com")
-      .get("/repos/Arc-Computer/arc-memory/contents/.github%2F.arc-pr-bot.yml")
-      .reply(404);
-
-    // Mock the organization-level configuration
-    nock("https://api.github.com")
-      .get("/repos/Arc-Computer/.github/contents/.github%2Farc-pr-bot.yml")
-      .reply(404);
-
-    // Mock the organization-level default configuration
-    nock("https://api.github.com")
-      .get("/repos/Arc-Computer/.github/contents/.github%2F.arc-pr-bot.yml")
-      .reply(404);
+      .reply(200, {
+        content: Buffer.from(JSON.stringify({
+          features: {
+            designDecisions: true,
+            impactAnalysis: true,
+            testVerification: true,
+            useLLM: true
+          }
+        })).toString('base64'),
+        encoding: 'base64'
+      });
 
     // Mock the files API
     nock("https://api.github.com")
       .get("/repos/Arc-Computer/arc-memory/pulls/1/files")
       .reply(200, [
-        { filename: "src/index.ts" },
-        { filename: "src/config.ts" }
+        {
+          filename: "src/index.ts",
+          additions: 10,
+          deletions: 5,
+          patch: "@@ -1,5 +1,10 @@\n import { Probot } from 'probot';\n+import { getConfig } from './config';\n function myFunction() {\n-  return true;\n+  return false;\n }"
+        },
+        {
+          filename: "src/config.ts",
+          additions: 5,
+          deletions: 2,
+          patch: "@@ -1,3 +1,6 @@\n export const config = {\n-  enabled: true\n+  enabled: false,\n+  features: {\n+    useLLM: true\n+  }\n };"
+        }
       ]);
 
     const mock = nock("https://api.github.com")
@@ -117,10 +168,15 @@ describe("Arc Memory PR Bot", () => {
       })
       .reply(200)
 
-      // Test that detailed comment is posted
+      // Test that LLM-generated comment is posted
       .post("/repos/Arc-Computer/arc-memory/issues/1/comments", (body: any) => {
-        // Check that the comment body contains our expected text
-        expect(body.body).toContain("Arc Memory PR Bot Analysis");
+        // Check that the comment body contains our expected text from the mocked LLM response
+        expect(body.body).toContain("The original design decisions behind the code");
+        expect(body.body).toContain("The predicted impact of the change");
+        expect(body.body).toContain("Proof that the change was properly tested");
+        expect(body.body).toContain("This is a test design decision");
+        expect(body.body).toContain("This is a test impact analysis");
+        expect(body.body).toContain("This is a test verification");
         return true;
       })
       .reply(200);
@@ -128,8 +184,9 @@ describe("Arc Memory PR Bot", () => {
     // Receive a webhook event
     await probot.receive({ name: "pull_request", payload: pullRequestOpenedPayload });
 
+    // Check that all expected API calls were made
     expect(mock.pendingMocks()).toStrictEqual([]);
-  });
+  }, 30000);
 
   afterEach(() => {
     nock.cleanAll();

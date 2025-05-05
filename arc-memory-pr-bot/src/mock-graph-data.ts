@@ -1,4 +1,4 @@
-import { NodeType, EdgeRel, Node, Edge, LinearTicket, ADR, PR, Commit, File } from './graph-service';
+import { NodeType, EdgeRel, Node, Edge, LinearTicket, ADR, PR, Commit, File } from './graph-service.js';
 
 /**
  * Mock data provider for testing the GraphService
@@ -19,7 +19,7 @@ export class MockGraphData {
   private initializeMockData(): void {
     // Initialize mock nodes representing entities like PRs and Linear Tickets
     this.createMockNodes();
-    
+
     // Initialize mock edges to define relationships between nodes (e.g., PRs linked to Linear Tickets)
     this.createMockEdges();
   }
@@ -333,7 +333,7 @@ export class MockGraphData {
    * @returns An array of edges
    */
   getEdgesBySrc(srcId: string, relType?: EdgeRel): Edge[] {
-    return this.edges.filter(edge => 
+    return this.edges.filter(edge =>
       edge.src === srcId && (relType === undefined || edge.rel === relType)
     );
   }
@@ -345,7 +345,7 @@ export class MockGraphData {
    * @returns An array of edges
    */
   getEdgesByDst(dstId: string, relType?: EdgeRel): Edge[] {
-    return this.edges.filter(edge => 
+    return this.edges.filter(edge =>
       edge.dst === dstId && (relType === undefined || edge.rel === relType)
     );
   }

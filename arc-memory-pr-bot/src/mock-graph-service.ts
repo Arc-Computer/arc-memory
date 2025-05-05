@@ -1,17 +1,15 @@
 import { Logger } from 'probot';
-import { 
-  GraphService, 
-  NodeType, 
-  EdgeRel, 
-  Node, 
-  Edge, 
-  LinearTicket, 
-  ADR, 
-  PR, 
-  Commit, 
-  File 
-} from './graph-service';
-import { MockGraphData } from './mock-graph-data';
+import {
+  GraphService,
+  EdgeRel,
+  Node,
+  Edge,
+  LinearTicket,
+  ADR,
+  PR,
+  Commit
+} from './graph-service.js';
+import { MockGraphData } from './mock-graph-data.js';
 
 /**
  * Mock implementation of the GraphService for testing
@@ -55,15 +53,8 @@ export class MockGraphService extends GraphService {
     return this.connected;
   }
 
-  /**
-   * Ensure the mock database connection is open
-   * @throws Error if the connection is not open
-   */
-  private ensureConnected(): void {
-    if (!this.isConnected()) {
-      throw new Error('Database not connected');
-    }
-  }
+  // Note: We're not overriding ensureConnected here because it's private in the parent class
+  // Instead, we're relying on our own isConnected() implementation
 
   /**
    * Get a node by its ID from the mock data
@@ -106,7 +97,7 @@ export class MockGraphService extends GraphService {
    */
   async findLinearTicketsForPR(prNumber: number, owner: string, repo: string): Promise<LinearTicket[]> {
     this.ensureConnected();
-    
+
     // Use the parent class implementation, which will call our mocked methods
     return super.findLinearTicketsForPR(prNumber, owner, repo);
   }
@@ -118,7 +109,7 @@ export class MockGraphService extends GraphService {
    */
   async findADRsForChangedFiles(changedFiles: string[]): Promise<ADR[]> {
     this.ensureConnected();
-    
+
     // Use the parent class implementation, which will call our mocked methods
     return super.findADRsForChangedFiles(changedFiles);
   }
@@ -132,7 +123,7 @@ export class MockGraphService extends GraphService {
    */
   async getCommitHistoryForPR(prNumber: number, owner: string, repo: string): Promise<Commit[]> {
     this.ensureConnected();
-    
+
     // Use the parent class implementation, which will call our mocked methods
     return super.getCommitHistoryForPR(prNumber, owner, repo);
   }
@@ -144,7 +135,7 @@ export class MockGraphService extends GraphService {
    */
   async findRelatedPRsForFile(filePath: string): Promise<PR[]> {
     this.ensureConnected();
-    
+
     // Use the parent class implementation, which will call our mocked methods
     return super.findRelatedPRsForFile(filePath);
   }
@@ -155,7 +146,7 @@ export class MockGraphService extends GraphService {
    */
   async getStats(): Promise<{ nodeCount: number; edgeCount: number }> {
     this.ensureConnected();
-    
+
     return Promise.resolve({
       nodeCount: this.mockData.nodes.size,
       edgeCount: this.mockData.edges.length,
