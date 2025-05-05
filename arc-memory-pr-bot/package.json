@@ -15,9 +15,11 @@
     "build": "tsc",
     "start": "probot run ./dist/src/index.js",
     "test": "vitest",
-    "analyze-prs": "node dist/scripts/analyze-closed-prs.js"
+    "analyze-prs": "node dist/scripts/analyze-closed-prs.js",
+    "extract-pr": "node dist/scripts/analyze-closed-prs.js"
   },
   "dependencies": {
+    "@octokit/rest": "^21.1.1",
     "node-cache": "^5.1.2",
     "openai": "^4.97.0",
     "probot": "^13.0.1",
