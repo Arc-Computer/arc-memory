@@ -2,7 +2,7 @@
 
 # Compile TypeScript files, ignoring errors
 echo "Compiling TypeScript files..."
-npx tsc --skipLibCheck --noEmitOnError true
+npx tsc --skipLibCheck --noEmitOnError=true
 
 # Run the bot on port 3001
 echo "Starting the PR Bot..."
