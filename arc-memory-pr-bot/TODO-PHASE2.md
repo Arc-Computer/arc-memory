@@ -14,7 +14,6 @@
 - [ ] Create a CommentFormatter class that formats LLM insights as Markdown
 - [ ] Implement templates for each section (design decisions, impact analysis, test verification)
 - [ ] Add support for code highlighting and diff visualization
-- [ ] Implement the "See without Arc Memory" collapsible section
 
 ### 3. Implement Diff Visualization
 
