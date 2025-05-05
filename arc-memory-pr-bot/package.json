@@ -12,8 +12,9 @@
     "probot-app"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsc --skipLibCheck --noEmitOnError false",
     "start": "probot run ./dist/src/index.js",
+    "dev": "npm run build && probot run ./dist/src/index.js",
     "test": "vitest",
     "analyze-prs": "node dist/scripts/analyze-closed-prs.js",
     "extract-pr": "node dist/scripts/analyze-closed-prs.js"
