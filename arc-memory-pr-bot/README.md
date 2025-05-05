@@ -8,6 +8,8 @@ A GitHub PR Bot for Arc Memory that enhances pull requests with contextual infor
 - Provides context about the original design decisions behind the code
 - Predicts the impact of changes
 - Verifies that changes were properly tested
+- Uses LLMs to generate intelligent insights about PRs
+- Visualizes relevant code diffs with contextual explanations
 
 ## How It Works
 
@@ -19,10 +21,13 @@ When a pull request is opened or updated, the PR Bot:
    - Finds relevant ADRs for the changed files
    - Retrieves commit history and related PRs
 3. Queries the Arc Memory knowledge graph to find additional context
-4. Generates a comment with three sections:
+4. Processes the PR context using LLMs to generate intelligent insights
+5. Extracts relevant code diffs for visualization
+6. Generates a comment with three sections:
    - Original design decisions behind the code
    - Predicted impact of changes
    - Proof that changes were properly tested
+7. Formats the insights and code diffs as a GitHub comment
 
 ## Example Output
 
@@ -93,6 +98,20 @@ Test coverage for modified files: 92%
 
    # The Smee.io URL for local development
    WEBHOOK_PROXY_URL=
+
+   # LLM Configuration
+   # Provider: openai or anthropic
+   LLM_PROVIDER=openai
+
+   # OpenAI Configuration
+   OPENAI_API_KEY=
+   OPENAI_MODEL=gpt-4o
+   OPENAI_ORGANIZATION=
+
+   # LLM Parameters
+   LLM_TEMPERATURE=0.7
+   LLM_MAX_TOKENS=4000
+   LLM_CACHE_TTL=3600
    ```
 
 4. Start the bot:
@@ -135,6 +154,34 @@ Test coverage for modified files: 92%
    npm run dev
    ```
 
+### Analyzing Closed PRs
+
+You can analyze closed PRs to test the PR Context Processor and refine prompts:
+
+1. Create a `.env.analyze` file based on the `.env.analyze-example` template:
+   ```bash
+   cp .env.analyze-example .env.analyze
+   ```
+
+2. Add your GitHub token and OpenAI API key to the `.env.analyze` file
+
+3. Build the project:
+   ```bash
+   npm run build
+   ```
+
+4. List recent closed PRs:
+   ```bash
+   npm run analyze-prs
+   ```
+
+5. Analyze a specific PR:
+   ```bash
+   npm run analyze-prs -- <pr-number>
+   ```
+
+The script will generate insights for the PR and save them to the `output` directory.
+
 ## Configuration
 
 The PR Bot can be configured by adding a `.github/arc-pr-bot.yml` file to the root of your repository:
@@ -145,6 +192,7 @@ features:
   designDecisions: true
   impactAnalysis: true
   testVerification: true
+  useLLM: true
 
 # Configure the risk score thresholds
 riskThresholds:
@@ -157,6 +205,15 @@ comment:
   includeRiskScore: true
   includeAffectedComponents: true
   includeTestCoverage: true
+  includeCodeSnippets: true
+
+# LLM configuration
+llm:
+  provider: openai
+  model: gpt-4o
+  temperature: 0.7
+  maxTokens: 4000
+  cacheTTL: 3600
 ```
 
 ## Architecture
@@ -182,12 +239,21 @@ The ContextGenerator extracts and enriches context information for pull requests
 - Formats the information for display in PR comments
 - Implements fallback mechanisms when primary data sources are unavailable
 
-### Comment Generation
+### PR Context Processor
 
-The comment generation system takes the context information and formats it into user-friendly PR comments:
+The PR Context Processor uses LLMs to generate intelligent insights about pull requests:
+
+- Processes PR context data for LLM consumption
+- Generates structured insights about design decisions, impact analysis, and test verification
+- Handles fallbacks when LLM processing fails
+
+### Comment Formatter
+
+The Comment Formatter takes the LLM-generated insights and formats them into user-friendly PR comments:
 
 - Customizable based on configuration
 - Supports different sections (design decisions, impact analysis, test verification)
+- Formats code diffs for visualization
 - Handles fallbacks when certain information is missing
 
 ## Security Considerations
@@ -197,7 +263,7 @@ When deploying the Arc Memory PR Bot, it's important to handle GitHub App creden
 ### Credential Storage
 
 - **Never commit credentials to version control**
-- Store the `PRIVATE_KEY`, `APP_ID`, and `WEBHOOK_SECRET` as environment variables or in a secure secrets manager
+- Store the `PRIVATE_KEY`, `APP_ID`, `WEBHOOK_SECRET`, and `OPENAI_API_KEY` as environment variables or in a secure secrets manager
 - For local development, use a `.env` file that is listed in `.gitignore`
 - For production, use environment variables or a secrets manager like AWS Secrets Manager, HashiCorp Vault, or GitHub Secrets
 
@@ -226,7 +292,7 @@ When deploying the Arc Memory PR Bot, it's important to handle GitHub App creden
 docker build -t arc-memory-pr-bot .
 
 # 2. Start container
-docker run -e APP_ID=<app-id> -e PRIVATE_KEY=<pem-value> -e WEBHOOK_SECRET=<webhook-secret> arc-memory-pr-bot
+docker run -e APP_ID=<app-id> -e PRIVATE_KEY=<pem-value> -e WEBHOOK_SECRET=<webhook-secret> -e OPENAI_API_KEY=<openai-key> arc-memory-pr-bot
 ```
 
 ### Secure Docker Deployment
