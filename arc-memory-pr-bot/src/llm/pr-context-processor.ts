@@ -1,14 +1,13 @@
 /**
  * PR Context Processor for the Arc Memory PR Bot
- * 
+ *
  * This class processes PR context information and generates insights using an LLM.
  * It structures the PR context data for the LLM and processes the LLM responses.
  */
 
 import { Logger } from 'probot';
-import { BaseLLMClient, LLMRequestOptions, LLMResponse } from './base-llm-client.js';
-import { PRContext, FileChange } from '../context-generator.js';
-import { LinearTicket, ADR, Commit, PR } from '../graph-service.js';
+import { BaseLLMClient } from './base-llm-client.js';
+import { PRContext } from '../context-generator.js';
 
 /**
  * Insight section types
@@ -98,7 +97,7 @@ export interface PRInsights {
 export class PRContextProcessor {
   private llmClient: BaseLLMClient;
   private logger: Logger;
-  
+
   /**
    * Create a new PR Context Processor
    * @param llmClient The LLM client to use
@@ -108,7 +107,7 @@ export class PRContextProcessor {
     this.llmClient = llmClient;
     this.logger = logger;
   }
-  
+
   /**
    * Generate insights for a PR
    * @param prContext The PR context
@@ -116,21 +115,21 @@ export class PRContextProcessor {
    */
   async generateInsights(prContext: PRContext): Promise<PRInsights> {
     this.logger.info(`Generating insights for PR #${prContext.prNumber}`);
-    
+
     // Generate insights for each section in parallel
     const [designDecisions, impactAnalysis, testVerification] = await Promise.all([
       this.generateDesignDecisionsInsight(prContext),
       this.generateImpactAnalysisInsight(prContext),
       this.generateTestVerificationInsight(prContext),
     ]);
-    
+
     return {
       designDecisions,
       impactAnalysis,
       testVerification,
     };
   }
-  
+
   /**
    * Generate design decisions insight
    * @param prContext The PR context
@@ -138,27 +137,27 @@ export class PRContextProcessor {
    */
   private async generateDesignDecisionsInsight(prContext: PRContext): Promise<DesignDecisionsInsight> {
     this.logger.info(`Generating design decisions insight for PR #${prContext.prNumber}`);
-    
+
     // Structure the prompt for design decisions
     const prompt = this.createDesignDecisionsPrompt(prContext);
-    
+
     try {
       // Generate response from LLM
       const response = await this.llmClient.generateResponse(prompt, {
         temperature: 0.3, // Lower temperature for more factual responses
         maxTokens: 1000,
       });
-      
+
       // Parse the response
       return this.parseDesignDecisionsResponse(response.text);
     } catch (error) {
       this.logger.error(`Error generating design decisions insight: ${error}`);
-      
+
       // Return a fallback insight
       return this.createFallbackDesignDecisionsInsight(prContext);
     }
   }
-  
+
   /**
    * Generate impact analysis insight
    * @param prContext The PR context
@@ -166,27 +165,27 @@ export class PRContextProcessor {
    */
   private async generateImpactAnalysisInsight(prContext: PRContext): Promise<ImpactAnalysis> {
     this.logger.info(`Generating impact analysis insight for PR #${prContext.prNumber}`);
-    
+
     // Structure the prompt for impact analysis
     const prompt = this.createImpactAnalysisPrompt(prContext);
-    
+
     try {
       // Generate response from LLM
       const response = await this.llmClient.generateResponse(prompt, {
         temperature: 0.4, // Slightly higher temperature for more creative analysis
         maxTokens: 1000,
       });
-      
+
       // Parse the response
       return this.parseImpactAnalysisResponse(response.text);
     } catch (error) {
       this.logger.error(`Error generating impact analysis insight: ${error}`);
-      
+
       // Return a fallback insight
       return this.createFallbackImpactAnalysisInsight(prContext);
     }
   }
-  
+
   /**
    * Generate test verification insight
    * @param prContext The PR context
@@ -194,27 +193,27 @@ export class PRContextProcessor {
    */
   private async generateTestVerificationInsight(prContext: PRContext): Promise<TestVerification> {
     this.logger.info(`Generating test verification insight for PR #${prContext.prNumber}`);
-    
+
     // Structure the prompt for test verification
     const prompt = this.createTestVerificationPrompt(prContext);
-    
+
     try {
       // Generate response from LLM
       const response = await this.llmClient.generateResponse(prompt, {
         temperature: 0.3, // Lower temperature for more factual responses
         maxTokens: 1000,
       });
-      
+
       // Parse the response
       return this.parseTestVerificationResponse(response.text);
     } catch (error) {
       this.logger.error(`Error generating test verification insight: ${error}`);
-      
+
       // Return a fallback insight
       return this.createFallbackTestVerificationInsight(prContext);
     }
   }
-  
+
   /**
    * Create a prompt for design decisions
    * @param prContext The PR context
@@ -224,22 +223,22 @@ export class PRContextProcessor {
     // Extract relevant information from the PR context
     const { prTitle, prBody, changedFiles, relatedEntities } = prContext;
     const { linearTickets, adrs } = relatedEntities;
-    
+
     // Format the changed files
-    const formattedFiles = changedFiles.map(file => 
+    const formattedFiles = changedFiles.map(file =>
       `${file.filename} (${file.status}, +${file.additions}, -${file.deletions})`
     ).join('\n');
-    
+
     // Format the Linear tickets
-    const formattedTickets = linearTickets.map(ticket => 
+    const formattedTickets = linearTickets.map(ticket =>
       `${ticket.id.split('/')[1]}: ${ticket.title} (${ticket.state})`
     ).join('\n');
-    
+
     // Format the ADRs
-    const formattedADRs = adrs.map(adr => 
+    const formattedADRs = adrs.map(adr =>
       `${adr.id}: ${adr.title} (${adr.status})`
     ).join('\n');
-    
+
     // Create the prompt
     return `
 You are an expert software architect analyzing a pull request to understand the design decisions behind the code changes.
@@ -287,7 +286,7 @@ Provide your analysis in the following JSON format:
 If there are no related ADRs or tickets, make educated guesses about the design decisions based on the code changes and PR description.
 `;
   }
-  
+
   /**
    * Create a prompt for impact analysis
    * @param prContext The PR context
@@ -297,17 +296,17 @@ If there are no related ADRs or tickets, make educated guesses about the design 
     // Extract relevant information from the PR context
     const { prTitle, prBody, changedFiles, relatedEntities } = prContext;
     const { relatedPRs } = relatedEntities;
-    
+
     // Format the changed files
-    const formattedFiles = changedFiles.map(file => 
+    const formattedFiles = changedFiles.map(file =>
       `${file.filename} (${file.status}, +${file.additions}, -${file.deletions})`
     ).join('\n');
-    
+
     // Format the related PRs
-    const formattedRelatedPRs = relatedPRs.map(pr => 
+    const formattedRelatedPRs = relatedPRs.map(pr =>
       `#${pr.number}: ${pr.title} (${pr.state})`
     ).join('\n');
-    
+
     // Create the prompt
     return `
 You are an expert software engineer analyzing a pull request to assess its potential impact and risks.
@@ -352,7 +351,7 @@ Provide your analysis in the following JSON format:
 Base your risk assessment on the scope and nature of the changes, not just the number of files changed.
 `;
   }
-  
+
   /**
    * Create a prompt for test verification
    * @param prContext The PR context
@@ -362,24 +361,24 @@ Base your risk assessment on the scope and nature of the changes, not just the n
     // Extract relevant information from the PR context
     const { prTitle, prBody, changedFiles, relatedEntities } = prContext;
     const { commits } = relatedEntities;
-    
+
     // Format the changed files
-    const formattedFiles = changedFiles.map(file => 
+    const formattedFiles = changedFiles.map(file =>
       `${file.filename} (${file.status}, +${file.additions}, -${file.deletions})`
     ).join('\n');
-    
+
     // Format the commits
-    const formattedCommits = commits.map(commit => 
+    const formattedCommits = commits.map(commit =>
       `${commit.sha.substring(0, 7)}: ${commit.title}`
     ).join('\n');
-    
+
     // Check if test files were changed
-    const testFiles = changedFiles.filter(file => 
-      file.filename.includes('test') || 
-      file.filename.includes('spec') || 
+    const testFiles = changedFiles.filter(file =>
+      file.filename.includes('test') ||
+      file.filename.includes('spec') ||
       file.filename.includes('__tests__')
     );
-    
+
     // Create the prompt
     return `
 You are an expert software engineer analyzing a pull request to verify that the changes are properly tested.
@@ -420,7 +419,7 @@ Provide your analysis in the following JSON format:
 If no test files were changed, consider this a potential issue and recommend adding tests.
 `;
   }
-  
+
   /**
    * Parse the design decisions response
    * @param responseText The response text from the LLM
@@ -432,7 +431,7 @@ If no test files were changed, consider this a potential issue and recommend add
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsedResponse = JSON.parse(jsonMatch[0]);
-        
+
         // Validate and return the parsed response
         return {
           summary: parsedResponse.summary || 'No summary provided',
@@ -445,7 +444,7 @@ If no test files were changed, consider this a potential issue and recommend add
     } catch (error) {
       this.logger.error(`Error parsing design decisions response: ${error}`);
     }
-    
+
     // If parsing fails, return a default insight
     return {
       summary: 'Unable to parse design decisions insight',
@@ -455,7 +454,7 @@ If no test files were changed, consider this a potential issue and recommend add
       explanation: 'The LLM response could not be parsed as JSON. Please check the logs for details.',
     };
   }
-  
+
   /**
    * Parse the impact analysis response
    * @param responseText The response text from the LLM
@@ -467,7 +466,7 @@ If no test files were changed, consider this a potential issue and recommend add
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsedResponse = JSON.parse(jsonMatch[0]);
-        
+
         // Validate and return the parsed response
         return {
           summary: parsedResponse.summary || 'No summary provided',
@@ -484,7 +483,7 @@ If no test files were changed, consider this a potential issue and recommend add
     } catch (error) {
       this.logger.error(`Error parsing impact analysis response: ${error}`);
     }
-    
+
     // If parsing fails, return a default insight
     return {
       summary: 'Unable to parse impact analysis insight',
@@ -498,7 +497,7 @@ If no test files were changed, consider this a potential issue and recommend add
       recommendations: [],
     };
   }
-  
+
   /**
    * Parse the test verification response
    * @param responseText The response text from the LLM
@@ -510,7 +509,7 @@ If no test files were changed, consider this a potential issue and recommend add
       const jsonMatch = responseText.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         const parsedResponse = JSON.parse(jsonMatch[0]);
-        
+
         // Validate and return the parsed response
         return {
           summary: parsedResponse.summary || 'No summary provided',
@@ -525,7 +524,7 @@ If no test files were changed, consider this a potential issue and recommend add
     } catch (error) {
       this.logger.error(`Error parsing test verification response: ${error}`);
     }
-    
+
     // If parsing fails, return a default insight
     return {
       summary: 'Unable to parse test verification insight',
@@ -537,7 +536,7 @@ If no test files were changed, consider this a potential issue and recommend add
       recommendations: [],
     };
   }
-  
+
   /**
    * Create a fallback design decisions insight
    * @param prContext The PR context
@@ -546,7 +545,7 @@ If no test files were changed, consider this a potential issue and recommend add
   private createFallbackDesignDecisionsInsight(prContext: PRContext): DesignDecisionsInsight {
     const { prTitle, relatedEntities } = prContext;
     const { adrs, linearTickets } = relatedEntities;
-    
+
     return {
       summary: `Design decisions for "${prTitle}"`,
       relatedADRs: adrs.map(adr => ({
@@ -563,7 +562,7 @@ If no test files were changed, consider this a potential issue and recommend add
       explanation: 'Unable to generate design decisions insight due to an error with the LLM. Please check the logs for details.',
     };
   }
-  
+
   /**
    * Create a fallback impact analysis insight
    * @param prContext The PR context
@@ -571,7 +570,7 @@ If no test files were changed, consider this a potential issue and recommend add
    */
   private createFallbackImpactAnalysisInsight(prContext: PRContext): ImpactAnalysis {
     const { prTitle, changedFiles } = prContext;
-    
+
     // Group changed files by directory
     const directories = new Set<string>();
     changedFiles.forEach(file => {
@@ -580,7 +579,7 @@ If no test files were changed, consider this a potential issue and recommend add
         directories.add(directory);
       }
     });
-    
+
     return {
       summary: `Impact analysis for "${prTitle}"`,
       riskScore: {
@@ -596,7 +595,7 @@ If no test files were changed, consider this a potential issue and recommend add
       recommendations: ['Review the changes manually to assess potential impact'],
     };
   }
-  
+
   /**
    * Create a fallback test verification insight
    * @param prContext The PR context
@@ -604,20 +603,20 @@ If no test files were changed, consider this a potential issue and recommend add
    */
   private createFallbackTestVerificationInsight(prContext: PRContext): TestVerification {
     const { prTitle, changedFiles } = prContext;
-    
+
     // Check if test files were changed
-    const testFiles = changedFiles.filter(file => 
-      file.filename.includes('test') || 
-      file.filename.includes('spec') || 
+    const testFiles = changedFiles.filter(file =>
+      file.filename.includes('test') ||
+      file.filename.includes('spec') ||
       file.filename.includes('__tests__')
     );
-    
+
     return {
       summary: `Test verification for "${prTitle}"`,
       testCoverage: {
         percentage: testFiles.length > 0 ? 50 : 0,
-        assessment: testFiles.length > 0 
-          ? 'Some test files were changed, but unable to assess coverage due to LLM error.' 
+        assessment: testFiles.length > 0
+          ? 'Some test files were changed, but unable to assess coverage due to LLM error.'
           : 'No test files were changed in this PR.',
       },
       testGaps: ['Unable to determine test gaps due to LLM error'],

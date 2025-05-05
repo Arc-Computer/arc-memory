@@ -1,5 +1,5 @@
 import { Probot } from "probot";
-import { getConfig, BotConfig, getLLMConfigFromEnv } from "./config.js";
+import { getConfig, BotConfig } from "./config.js";
 import { GraphService } from "./graph-service.js";
 import { ContextGenerator } from "./context-generator.js";
 import { PRContextProcessor } from "./llm/pr-context-processor.js";
@@ -220,7 +220,6 @@ export default (app: Probot) => {
         if (config.features.useLLM) {
           try {
             // Initialize the LLM client
-            const llmConfig = getLLMConfigFromEnv();
             const llmClient = LLMClientFactory.createClientFromEnv(app.log);
 
             // Initialize the PR Context Processor
