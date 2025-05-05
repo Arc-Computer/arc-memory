@@ -13,8 +13,9 @@
   ],
   "scripts": {
     "build": "tsc",
-    "start": "probot run ./lib/index.js",
-    "test": "vitest"
+    "start": "probot run ./dist/src/index.js",
+    "test": "vitest",
+    "analyze-prs": "node dist/scripts/analyze-closed-prs.js"
   },
   "dependencies": {
     "node-cache": "^5.1.2",
