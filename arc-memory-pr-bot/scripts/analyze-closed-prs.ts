@@ -19,8 +19,17 @@ import { GraphService } from '../src/graph-service.js';
 // Load environment variables
 config({ path: '.env.analyze' });
 
-// Create a logger
-const logger = console;
+// Create a logger that implements the Logger interface
+const logger = {
+  info: (...args: any[]) => console.info(...args),
+  warn: (...args: any[]) => console.warn(...args),
+  error: (...args: any[]) => console.error(...args),
+  debug: (...args: any[]) => console.debug(...args),
+  trace: (...args: any[]) => console.trace(...args),
+  fatal: (...args: any[]) => console.error('FATAL:', ...args),
+  silent: () => {},
+  level: 'info'
+};
 
 // Create an Octokit instance
 const octokit = new Octokit({
