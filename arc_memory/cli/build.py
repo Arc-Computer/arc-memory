@@ -510,7 +510,8 @@ Prioritize precision over coverage in your enhancements. Follow Arc Memory's sch
                         all_edges, 
                         repo_path=repo_path, 
                         ollama_client=ollama_client,
-                        enhancement_level=llm_enhancement.value
+                        enhancement_level=llm_enhancement.value,
+                        system_prompt=system_prompt
                     )
                     sys.stdout.write(f"\r✅ Reasoning structures complete ({time.time() - kgot_start:.1f}s)\n")
                 except Exception as e:

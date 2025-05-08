@@ -366,7 +366,7 @@ def enhance_with_llm_temporal_analysis(
         response = ollama_client.generate_with_thinking(
             model="qwen3:4b",
             prompt=prompt,
-            system_prompt=system_prompt,
+            system=system_prompt,
             options={"temperature": 0.1}
         )
         

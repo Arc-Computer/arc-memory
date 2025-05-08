@@ -18,13 +18,19 @@ logger = get_logger(__name__)
 class KGoTProcessor:
     """Processor that implements Knowledge Graph of Thoughts."""
 
-    def __init__(self, ollama_client: Optional[OllamaClient] = None):
+    def __init__(
+        self, 
+        ollama_client: Optional[OllamaClient] = None,
+        system_prompt: Optional[str] = None
+    ):
         """Initialize the KGoT processor.
 
         Args:
             ollama_client: Optional Ollama client for LLM processing.
+            system_prompt: Optional system prompt for the LLM.
         """
         self.ollama_client = ollama_client or OllamaClient()
+        self.system_prompt = system_prompt
 
     def process(
         self, nodes: List[Node], edges: List[Edge], repo_path: Optional[Path] = None
@@ -169,44 +175,39 @@ class KGoTProcessor:
         try:
             # Generate response from LLM
             response = self.ollama_client.generate(
-                model="phi4-mini-reasoning",
+                model="qwen3:4b",
                 prompt=prompt,
+                system=self.system_prompt,
                 options={"temperature": 0.3},
             )
 
             # Parse the response
             try:
-                # First try direct JSON parsing
-                data = json.loads(response)
-            except json.JSONDecodeError:
-                # If that fails, try to extract JSON using regex
-                import re
-                # Look for JSON between triple backticks, or just any JSON-like structure
-                json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response, re.DOTALL)
-                if json_match:
-                    json_str = json_match.group(1)
-                else:
-                    # Try to find anything that looks like a JSON object
-                    json_match = re.search(r'(\{.*\})', response, re.DOTALL)
-                    if json_match:
-                        json_str = json_match.group(1)
-                    else:
-                        # Fallback to a minimal structure
-                        logger.warning(f"Could not parse JSON from LLM response for {decision_point.id}")
-                        json_str = '{"question": "What decision was made?", "alternatives": [], "criteria": [], "reasoning": [], "implications": []}'
-                
+                # Use the robust JSON extraction function from semantic_analysis
+                from arc_memory.process.semantic_analysis import _extract_json_from_llm_response
                 try:
-                    data = json.loads(json_str)
-                except json.JSONDecodeError as e:
-                    logger.error(f"Failed to parse extracted JSON: {e}")
-                    # Provide a minimal fallback structure
+                    data = _extract_json_from_llm_response(response)
+                except ValueError:
+                    # Fallback to a minimal structure
+                    logger.warning(f"Could not parse JSON from LLM response for {decision_point.id}")
                     data = {
-                        "question": f"What decision was made in {decision_point.title}?",
-                        "alternatives": [],
-                        "criteria": [],
-                        "reasoning": [],
+                        "question": "What decision was made?", 
+                        "alternatives": [], 
+                        "criteria": [], 
+                        "reasoning": [], 
                         "implications": []
                     }
+            except ImportError:
+                # Handle the case where semantic_analysis module can't be imported
+                logger.error("Could not import _extract_json_from_llm_response from semantic_analysis")
+                # Fallback to a minimal structure
+                data = {
+                    "question": f"What decision was made in {decision_point.title}?",
+                    "alternatives": [], 
+                    "criteria": [], 
+                    "reasoning": [], 
+                    "implications": []
+                }
 
             # Create reasoning nodes and edges
             reasoning_nodes = []
@@ -370,7 +371,12 @@ class KGoTProcessor:
 
 
 def enhance_with_reasoning_structures(
-    nodes: List[Node], edges: List[Edge], repo_path: Optional[Path] = None
+    nodes: List[Node], 
+    edges: List[Edge], 
+    repo_path: Optional[Path] = None,
+    ollama_client: Optional[OllamaClient] = None,
+    enhancement_level: str = "standard",
+    system_prompt: Optional[str] = None
 ) -> Tuple[List[Node], List[Edge]]:
     """Enhance the knowledge graph with reasoning structures.
 
@@ -378,23 +384,29 @@ def enhance_with_reasoning_structures(
         nodes: List of nodes in the knowledge graph.
         edges: List of edges in the knowledge graph.
         repo_path: Optional path to the repository.
+        ollama_client: Optional Ollama client for LLM processing.
+        enhancement_level: Level of enhancement to apply ("fast", "standard", or "deep").
+        system_prompt: Optional system prompt for the LLM.
 
     Returns:
         Enhanced nodes and edges.
     """
-    logger.info("Enhancing knowledge graph with reasoning structures")
-
-    # Initialize KGoT processor
-    processor = KGoTProcessor()
-
-    # Process the knowledge graph
+    logger.info(f"Enhancing knowledge graph with reasoning structures ({enhancement_level} level)")
+    
+    # Skip processing if enhancement level is none or fast
+    if enhancement_level == "none" or enhancement_level == "fast":
+        logger.info(f"Skipping reasoning structure generation (enhancement level: {enhancement_level})")
+        return nodes, edges
+    
+    # Initialize the KGoT processor
+    processor = KGoTProcessor(ollama_client=ollama_client, system_prompt=system_prompt)
+    
+    # Generate reasoning structures
     reasoning_nodes, reasoning_edges = processor.process(nodes, edges, repo_path)
-
-    # Combine original and new nodes/edges
-    all_nodes = nodes + reasoning_nodes
-    all_edges = edges + reasoning_edges
-
-    logger.info(
-        f"Added {len(reasoning_nodes)} reasoning nodes and {len(reasoning_edges)} reasoning edges"
-    )
-    return all_nodes, all_edges
+    
+    # Add the new nodes and edges to the original graph
+    enhanced_nodes = nodes + reasoning_nodes
+    enhanced_edges = edges + reasoning_edges
+    
+    logger.info(f"Added {len(reasoning_nodes)} reasoning nodes and {len(reasoning_edges)} reasoning edges")
+    return enhanced_nodes, enhanced_edges
