@@ -17,20 +17,10 @@ from arc_memory.logging_conf import configure_logging, get_logger, is_debug_mode
 from arc_memory.sql.db import ensure_arc_dir
 from arc_memory.telemetry import track_cli_command
 
-app = typer.Typer(help="Export a slice of the knowledge graph for PR review")
 console = Console()
 logger = get_logger(__name__)
 
 
-@app.callback(invoke_without_command=True)
-def main(ctx: typer.Context):
-    """Export a slice of the knowledge graph for PR review."""
-    if ctx.invoked_subcommand is None:
-        # If no subcommand is provided, show help
-        typer.echo(ctx.get_help())
-
-
-@app.command()
 def export(
     pr: str = typer.Argument(
         ..., help="SHA of the PR head commit"

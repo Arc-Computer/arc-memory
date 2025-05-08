@@ -17,7 +17,7 @@ console = Console()
 from arc_memory.cli.auth import app as auth_app
 from arc_memory.cli.build import app as build_app
 from arc_memory.cli.doctor import app as doctor_app
-from arc_memory.cli.export import app as export_app
+from arc_memory.cli.export import export as export_command
 from arc_memory.cli.trace import app as trace_app
 from arc_memory.cli.why import app as why_app
 from arc_memory.cli.relate import app as relate_app
@@ -34,8 +34,8 @@ app.add_typer(relate_app, name="relate")
 app.add_typer(serve_app, name="serve")
 app.add_typer(sim_app, name="sim")
 
-# Add export command
-app.add_typer(export_app, name="export")
+# Add export command directly to the main app
+app.command()(export_command)
 
 @app.command()
 def version():
