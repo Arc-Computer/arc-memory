@@ -111,7 +111,7 @@ def export(
         console.print(f"[green]Export complete! Saved to {output_path}[/green]")
 
         # If signed, show the signature file
-        if sign and output_path.with_suffix(output_path.suffix + ".sig").exists():
+        if sign and Path(str(output_path) + '.sig').exists():
             sig_path = output_path.with_suffix(output_path.suffix + ".sig")
             console.print(f"[green]Signature saved to {sig_path}[/green]")
 
