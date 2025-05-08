@@ -5,8 +5,7 @@ with additional data sources beyond Git, GitHub, and ADRs.
 """
 
 import importlib.metadata
-import logging
-from typing import Any, Dict, List, Optional, Protocol, Type, TypeVar
+from typing import Any, Dict, List, Optional, Protocol, TypeVar
 
 from arc_memory.logging_conf import get_logger
 from arc_memory.schema.models import Edge, Node
@@ -193,6 +192,20 @@ def discover_plugins() -> IngestorRegistry:
         logger.debug("Registered built-in plugin: linear")
     except (ImportError, AttributeError) as e:
         logger.warning(f"Failed to load built-in plugin 'linear': {e}")
+
+    try:
+        from arc_memory.ingest.code_analysis import CodeAnalysisIngestor
+        registry.register(CodeAnalysisIngestor())
+        logger.debug("Registered built-in plugin: code_analysis")
+    except (ImportError, AttributeError) as e:
+        logger.warning(f"Failed to load built-in plugin 'code_analysis': {e}")
+
+    try:
+        from arc_memory.ingest.change_patterns import ChangePatternIngestor
+        registry.register(ChangePatternIngestor())
+        logger.debug("Registered built-in plugin: change_patterns")
+    except (ImportError, AttributeError) as e:
+        logger.warning(f"Failed to load built-in plugin 'change_patterns': {e}")
 
     # Discover and register third-party plugins
     try:

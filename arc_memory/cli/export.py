@@ -46,6 +46,16 @@ def export(
     base_branch: str = typer.Option(
         "main", "--base", help="Base branch to compare against"
     ),
+    max_hops: int = typer.Option(
+        3, "--max-hops", help="Maximum number of hops to traverse in the graph"
+    ),
+    enhance_for_llm: bool = typer.Option(
+        True, "--enhance-for-llm/--no-enhance-for-llm",
+        help="Enhance the export data for LLM reasoning"
+    ),
+    ci_mode: bool = typer.Option(
+        False, "--ci-mode", help="Optimize for CI environments"
+    ),
     debug: bool = typer.Option(
         False, "--debug", help="Enable debug logging"
     ),
@@ -60,6 +70,8 @@ def export(
         arc export abc123 --out arc-graph.json
         arc export abc123 --out arc-graph.json.gz --compress
         arc export abc123 --out arc-graph.json --sign --key ABCD1234
+        arc export abc123 --out arc-graph.json --max-hops 3
+        arc export abc123 --out arc-graph.json --no-enhance-for-llm
     """
     configure_logging(debug=debug or is_debug_mode())
 
@@ -69,6 +81,9 @@ def export(
         "compress": compress,
         "sign": sign,
         "base_branch": base_branch,
+        "max_hops": max_hops,
+        "enhance_for_llm": enhance_for_llm,
+        "ci_mode": ci_mode,
         "debug": debug,
     }
     track_cli_command("export", args=args)
@@ -104,6 +119,8 @@ def export(
             sign=sign,
             key_id=key,
             base_branch=base_branch,
+            max_hops=max_hops,
+            enhance_for_llm=enhance_for_llm,
         )
 
         console.print(f"[green]Export complete! Saved to {output_path}[/green]")

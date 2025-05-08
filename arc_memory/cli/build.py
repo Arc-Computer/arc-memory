@@ -2,6 +2,7 @@
 
 import sys
 from datetime import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Optional
 
@@ -10,8 +11,12 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn
 
 from arc_memory.errors import GraphBuildError
+from arc_memory.llm.ollama_client import ensure_ollama_available
 from arc_memory.plugins import discover_plugins
 from arc_memory.logging_conf import configure_logging, get_logger, is_debug_mode
+from arc_memory.process.semantic_analysis import enhance_with_semantic_analysis
+from arc_memory.process.temporal_analysis import enhance_with_temporal_analysis
+from arc_memory.process.kgot import enhance_with_reasoning_structures
 from arc_memory.schema.models import BuildManifest
 from arc_memory.sql.db import (
     compress_db,
@@ -21,6 +26,14 @@ from arc_memory.sql.db import (
     save_build_manifest,
 )
 from arc_memory.telemetry import track_cli_command
+
+
+class LLMEnhancementLevel(str, Enum):
+    """LLM enhancement levels for the build process."""
+    NONE = "none"
+    FAST = "fast"
+    STANDARD = "standard"
+    DEEP = "deep"
 
 app = typer.Typer(help="Build the knowledge graph from Git, GitHub, and ADRs")
 console = Console()
@@ -54,6 +67,17 @@ def callback(
     linear: bool = typer.Option(
         False, "--linear", help="Include Linear issues in the graph."
     ),
+    llm_enhancement: LLMEnhancementLevel = typer.Option(
+        LLMEnhancementLevel.STANDARD, "--llm-enhancement", "-l",
+        help="LLM enhancement level: none, fast, standard, deep."
+    ),
+    ollama_host: str = typer.Option(
+        "http://localhost:11434", "--ollama-host",
+        help="Ollama API host URL."
+    ),
+    ci_mode: bool = typer.Option(
+        False, "--ci-mode", help="Optimize for CI environments."
+    ),
     debug: bool = typer.Option(
         False, "--debug", help="Enable debug logging."
     ),
@@ -79,6 +103,9 @@ def callback(
         pull=pull,
         token=token,
         linear=linear,
+        llm_enhancement=llm_enhancement,
+        ollama_host=ollama_host,
+        ci_mode=ci_mode,
         debug=debug,
     )
 
@@ -92,6 +119,9 @@ def build_graph(
     pull: bool = False,
     token: Optional[str] = None,
     linear: bool = False,
+    llm_enhancement: LLMEnhancementLevel = LLMEnhancementLevel.STANDARD,
+    ollama_host: str = "http://localhost:11434",
+    ci_mode: bool = False,
     debug: bool = False,
 ) -> None:
     """Build the knowledge graph from Git, GitHub, and ADRs."""
@@ -105,10 +135,19 @@ def build_graph(
         "incremental": incremental,
         "pull": pull,
         "linear": linear,
+        "llm_enhancement": str(llm_enhancement),
+        "ci_mode": ci_mode,
         "debug": debug,
     }
     # Note: We don't include token in telemetry for security reasons
     track_cli_command("build", args=args)
+
+    # Ensure Ollama is available if LLM enhancement is enabled
+    if llm_enhancement != LLMEnhancementLevel.NONE:
+        logger.info(f"LLM enhancement level: {llm_enhancement}")
+        if not ensure_ollama_available("phi4-mini-reasoning"):
+            logger.warning("Ollama or required model not available. LLM enhancements will be disabled.")
+            llm_enhancement = LLMEnhancementLevel.NONE
 
     # Ensure output directory exists
     arc_dir = ensure_arc_dir()
@@ -211,6 +250,29 @@ def build_graph(
                 # Update progress
                 progress.update(task, completed=True)
 
+            # Apply LLM enhancements if enabled
+            if llm_enhancement != LLMEnhancementLevel.NONE:
+                # Apply semantic analysis
+                task = progress.add_task("Applying semantic analysis...", total=None)
+                all_nodes, all_edges = enhance_with_semantic_analysis(
+                    all_nodes, all_edges, repo_path, str(llm_enhancement)
+                )
+                progress.update(task, completed=True)
+
+                # Apply temporal analysis
+                task = progress.add_task("Applying temporal analysis...", total=None)
+                all_nodes, all_edges = enhance_with_temporal_analysis(
+                    all_nodes, all_edges, repo_path
+                )
+                progress.update(task, completed=True)
+
+                # Apply reasoning structures
+                task = progress.add_task("Generating reasoning structures...", total=None)
+                all_nodes, all_edges = enhance_with_reasoning_structures(
+                    all_nodes, all_edges, repo_path
+                )
+                progress.update(task, completed=True)
+
             # Write to database
             task = progress.add_task("Writing to database...", total=None)
             from arc_memory.sql.db import add_nodes_and_edges
@@ -291,6 +353,17 @@ def build(
     linear: bool = typer.Option(
         False, "--linear", help="Include Linear issues in the graph."
     ),
+    llm_enhancement: LLMEnhancementLevel = typer.Option(
+        LLMEnhancementLevel.STANDARD, "--llm-enhancement", "-l",
+        help="LLM enhancement level: none, fast, standard, deep."
+    ),
+    ollama_host: str = typer.Option(
+        "http://localhost:11434", "--ollama-host",
+        help="Ollama API host URL."
+    ),
+    ci_mode: bool = typer.Option(
+        False, "--ci-mode", help="Optimize for CI environments."
+    ),
     debug: bool = typer.Option(
         False, "--debug", help="Enable debug logging."
     ),
@@ -306,5 +379,8 @@ def build(
         pull=pull,
         token=token,
         linear=linear,
+        llm_enhancement=llm_enhancement,
+        ollama_host=ollama_host,
+        ci_mode=ci_mode,
         debug=debug,
     )
