@@ -266,19 +266,32 @@ def enhance_with_temporal_analysis(
     for node in nodes:
         if node.id in file_change_frequency:
             # Create a copy of the node with enhanced properties
-            node_props = dict(node.properties)
+            if hasattr(node, 'properties'):
+                node_props = dict(node.properties)
+            elif hasattr(node, 'extra'):
+                node_props = dict(node.extra)
+            else:
+                node_props = {}
+                
             node_props["change_frequency"] = file_change_frequency[node.id]
             
             # If high change frequency, mark as hotspot
             if file_change_frequency[node.id] > 5:  # Threshold for hotspot
                 node_props["is_hotspot"] = True
                 
-            enhanced_nodes.append(Node(
+            enhanced_node = Node(
                 id=node.id,
                 title=node.title,
                 type=node.type,
                 properties=node_props
-            ))
+            )
+            
+            # Copy other attributes from the original node
+            for attr in ['body', 'ts', 'path', 'language', 'last_modified']:
+                if hasattr(node, attr):
+                    setattr(enhanced_node, attr, getattr(node, attr))
+                    
+            enhanced_nodes.append(enhanced_node)
         else:
             enhanced_nodes.append(node)
     
