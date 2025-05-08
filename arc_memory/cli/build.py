@@ -28,7 +28,7 @@ from arc_memory.process.kgot import enhance_with_reasoning_structures
 from arc_memory.process.semantic_analysis import enhance_with_semantic_analysis
 from arc_memory.process.temporal_analysis import enhance_with_temporal_analysis
 from arc_memory.schema.models import Edge, Node
-from arc_memory.sql.db import compress_database, get_db_path, store_graph
+from arc_memory.sql.db import add_nodes_and_edges, compress_db, ensure_arc_dir, init_db
 
 app = typer.Typer(help="Build a knowledge graph from various sources.")
 logger = get_logger(__name__)
@@ -135,7 +135,8 @@ def build(
 
         # Resolve output path
         if output_path is None:
-            output_path = get_db_path()
+            arc_dir = ensure_arc_dir()
+            output_path = arc_dir / "graph.db"
 
         # Set up ingestors
         ingestors = []
@@ -277,11 +278,16 @@ def build(
         # Store the graph
         print(f"\n💾 Writing graph to database ({len(all_nodes)} nodes, {len(all_edges)} edges)...")
         db_start = time.time()
-        store_graph(output_path, all_nodes, all_edges)
+        
+        # Initialize the database
+        conn = init_db(output_path)
+        
+        # Add nodes and edges
+        add_nodes_and_edges(conn, all_nodes, all_edges)
         
         # Compress the database
         print("🗜️  Compressing database...")
-        original_size, compressed_size = compress_database(output_path)
+        original_size, compressed_size = compress_db(output_path)
         compression_ratio = (original_size - compressed_size) / original_size * 100
         
         total_time = time.time() - start_time
