@@ -229,8 +229,9 @@ def build(
                     ollama_client=ollama_client,
                 )
             elif ingestor_name == "change_patterns":
-                # Pass the nodes for the git ingestor as context
+                # Pass the commit history information
                 nodes, edges, metadata = ingestor.ingest(
+                    repo_path=repo_path,
                     last_processed=None,
                     llm_enhancement_level=llm_enhancement.value,
                 )
