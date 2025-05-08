@@ -776,3 +776,137 @@ def build(
 ```
 
 This comprehensive LLM integration approach will significantly enhance the quality of the knowledge graph while maintaining reasonable build times of 60-90 seconds for standard builds.
+
+## 9. CI Integration for PR Bot
+
+The LLM-enhanced build process is designed to run entirely locally inside CI environments when a user downloads our PR bot. This ensures a seamless "two-click setup" experience while providing the full benefits of our advanced knowledge graph capabilities.
+
+### 9.1. CI-Specific Mode
+
+```python
+def build_graph(
+    # Existing parameters
+    ci_mode: bool = False,
+) -> None:
+    """Build the knowledge graph with LLM enhancements."""
+    # If in CI mode, use optimized parameters
+    if ci_mode and llm_enhancement_level != "none":
+        params = get_ci_optimized_params()
+    else:
+        params = get_llm_enhancement_params(llm_enhancement_level)
+
+    # Rest of the function
+```
+
+### 9.2. Automatic Ollama Setup
+
+```python
+def ensure_ollama_available(model: str = "phi4-mini-reasoning") -> bool:
+    """Ensure Ollama and the required model are available."""
+    # Check if Ollama is installed
+    if not shutil.which("ollama"):
+        if is_ci_environment():
+            # In CI, we can install Ollama automatically
+            subprocess.run(["curl", "-fsSL", "https://ollama.com/install.sh"], stdout=subprocess.PIPE)
+            subprocess.run(["sh"], input=subprocess.PIPE.stdout)
+        else:
+            raise RuntimeError("Ollama not found. Please install Ollama: https://ollama.com/download")
+
+    # Check if model is available and pull if needed
+    try:
+        result = subprocess.run(
+            ["ollama", "list"],
+            capture_output=True,
+            text=True
+        )
+        if model not in result.stdout:
+            print(f"Pulling model {model}...")
+            subprocess.run(["ollama", "pull", model])
+        return True
+    except Exception as e:
+        raise RuntimeError(f"Failed to ensure model availability: {e}")
+```
+
+### 9.3. CI-Optimized Parameters
+
+```python
+def get_ci_optimized_params() -> Dict[str, Any]:
+    """Get optimized parameters for CI environments."""
+    return {
+        "batch_size": 20,  # Process more files per batch
+        "max_pairs": 50,   # Limit relationship inference
+        "max_decision_points": 5,  # Focus on key decision points only
+        "parallel": True,  # Enable parallelization
+        "timeout": 30,     # Set strict timeout for LLM calls
+        "high_value_only": True,  # Process only high-value files
+    }
+```
+
+### 9.4. GitHub Action Example
+
+```yaml
+name: Build Knowledge Graph
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+      with:
+        fetch-depth: 0  # Get full history for proper graph building
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.12'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+
+    - name: Install and start Ollama
+      run: |
+        curl -fsSL https://ollama.com/install.sh | sh
+        ollama serve &
+        sleep 5  # Give Ollama time to start
+
+    - name: Cache Ollama models
+      uses: actions/cache@v2
+      with:
+        path: ~/.ollama/models
+        key: ollama-models-${{ runner.os }}-phi4-mini
+
+    - name: Build knowledge graph
+      run: |
+        arc build --llm-enhancement fast --ci-mode
+
+    - name: Export graph for PR
+      run: |
+        arc export ${{ github.sha }} --out pr-context.json
+
+    - name: Upload PR context
+      uses: actions/upload-artifact@v3
+      with:
+        name: pr-context
+        path: pr-context.json
+```
+
+### 9.5. Complete CI Workflow
+
+The complete workflow for the PR bot with LLM enhancements will be:
+
+1. **Setup**: Automatically install Ollama and download the Phi-4 Mini model in CI
+2. **Build**: Run the build process with CI-optimized parameters
+3. **Export**: Generate the enhanced JSON payload for the PR
+4. **Analyze**: Use the PR bot to analyze the enhanced knowledge graph
+5. **Comment**: Add insights to the PR based on the analysis
+
+This approach ensures that all users can benefit from our advanced LLM enhancements without any manual setup, maintaining our goal of a "two-click setup" experience.
