@@ -287,10 +287,22 @@ def enhance_with_temporal_analysis(
             )
             
             # Copy other attributes from the original node
-            for attr in ['body', 'ts', 'path', 'language', 'last_modified']:
-                if hasattr(node, attr):
-                    setattr(enhanced_node, attr, getattr(node, attr))
-                    
+            # Only transfer attributes that are fields on Node base class or specific subclasses
+            if hasattr(node, 'body'):
+                enhanced_node.body = node.body
+            if hasattr(node, 'ts'):
+                enhanced_node.ts = node.ts
+                
+            # Only try to set these attributes if the node type might have them
+            if node.type == NodeType.FILE:
+                if hasattr(node, 'path'):
+                    # Handle directly as property since FileNode has path attribute
+                    node_props['path'] = getattr(node, 'path')
+                if hasattr(node, 'language'):
+                    node_props['language'] = getattr(node, 'language')
+                if hasattr(node, 'last_modified'):
+                    node_props['last_modified'] = getattr(node, 'last_modified')
+                
             enhanced_nodes.append(enhanced_node)
         else:
             enhanced_nodes.append(node)
