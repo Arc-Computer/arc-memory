@@ -141,41 +141,33 @@ def build(
         ingestors = []
 
         # Create the Git ingestor
-        ingestors.append(
-            GitIngestor(
-                repo_path=repo_path,
-                max_commits=max_commits,
-                days=days,
-                incremental=incremental,
-                pull=pull,
-            )
-        )
+        git_ingestor = GitIngestor()
+        ingestors.append(git_ingestor)
 
         # Create the GitHub ingestor if a token is provided
         if token:
-            ingestors.append(
-                GitHubIngestor(
-                    repo_path=repo_path,
-                    token=token,
-                    incremental=incremental,
-                )
-            )
+            github_ingestor = GitHubIngestor()
+            ingestors.append(github_ingestor)
 
         # Create the Linear ingestor if requested
         if linear:
-            ingestors.append(LinearIngestor(incremental=incremental))
+            linear_ingestor = LinearIngestor()
+            ingestors.append(linear_ingestor)
 
         # Create the ADR ingestor
-        ingestors.append(ADRIngestor(repo_path=repo_path))
+        adr_ingestor = ADRIngestor()
+        ingestors.append(adr_ingestor)
         
         # Create the Change Pattern ingestor
-        ingestors.append(ChangePatternIngestor())
+        change_pattern_ingestor = ChangePatternIngestor()
+        ingestors.append(change_pattern_ingestor)
         
         # Create the Code Analysis ingestor
-        ingestors.append(CodeAnalysisIngestor(repo_path=repo_path))
+        code_analysis_ingestor = CodeAnalysisIngestor()
+        ingestors.append(code_analysis_ingestor)
 
         # Add plugin ingestors
-        plugin_ingestors = get_ingestor_plugins(repo_path=repo_path)
+        plugin_ingestors = get_ingestor_plugins()
         ingestors.extend(plugin_ingestors)
         
         # LLM setup if enhancement is enabled
@@ -209,12 +201,44 @@ def build(
             sys.stdout.flush()
             
             ingestor_start = time.time()
-            nodes, edges, metadata = ingestor.ingest(
-                previous_nodes=all_nodes,
-                previous_edges=all_edges,
-                llm_enhancement_level=llm_enhancement.value,
-                ollama_client=ollama_client,
-            )
+            
+            # Call the ingest method with the appropriate parameters for each ingestor type
+            if ingestor_name == "git":
+                nodes, edges, metadata = ingestor.ingest(
+                    repo_path=repo_path,
+                    max_commits=max_commits,
+                    days=days,
+                    last_processed=None,  # Use None for full builds or populate for incremental
+                )
+            elif ingestor_name == "github":
+                nodes, edges, metadata = ingestor.ingest(
+                    repo_path=repo_path,
+                    token=token,
+                    last_processed=None,  # Use None for full builds or populate for incremental
+                )
+            elif ingestor_name == "adr":
+                nodes, edges, metadata = ingestor.ingest(
+                    repo_path=repo_path,
+                    last_processed=None,
+                )
+            elif ingestor_name == "code_analysis":
+                nodes, edges, metadata = ingestor.ingest(
+                    repo_path=repo_path,
+                    last_processed=None,
+                    llm_enhancement_level=llm_enhancement.value,
+                    ollama_client=ollama_client,
+                )
+            elif ingestor_name == "change_patterns":
+                # Pass the nodes for the git ingestor as context
+                nodes, edges, metadata = ingestor.ingest(
+                    last_processed=None,
+                    llm_enhancement_level=llm_enhancement.value,
+                )
+            else:
+                # Default handling for other ingestors
+                nodes, edges, metadata = ingestor.ingest(
+                    last_processed=None,
+                )
             
             ingestor_time = time.time() - ingestor_start
             all_nodes.extend(nodes)
