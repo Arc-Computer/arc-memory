@@ -22,8 +22,8 @@ console = Console()
 logger = get_logger(__name__)
 
 
-@app.callback(invoke_without_command=True)
-def callback(
+@app.command()
+def export(
     pr: str = typer.Argument(
         ..., help="SHA of the PR head commit"
     ),
@@ -79,12 +79,12 @@ def callback(
         # Determine repository path
         if repo_path is None:
             repo_path = Path.cwd()
-        
+
         # Determine database path
         if db_path is None:
             arc_dir = ensure_arc_dir()
             db_path = arc_dir / "graph.db"
-        
+
         # Check if the database exists
         if not db_path.exists():
             error_msg = f"Error: Database not found at {db_path}"
@@ -93,10 +93,10 @@ def callback(
                 "Run [bold]arc build[/bold] to create the knowledge graph."
             )
             sys.exit(1)
-        
+
         # Export the graph
         console.print(f"Exporting graph for PR [bold]{pr}[/bold]...")
-        
+
         output_path = export_graph(
             db_path=db_path,
             repo_path=repo_path,
@@ -107,14 +107,14 @@ def callback(
             key_id=key,
             base_branch=base_branch,
         )
-        
+
         console.print(f"[green]Export complete! Saved to {output_path}[/green]")
-        
+
         # If signed, show the signature file
         if sign and output_path.with_suffix(output_path.suffix + ".sig").exists():
             sig_path = output_path.with_suffix(output_path.suffix + ".sig")
             console.print(f"[green]Signature saved to {sig_path}[/green]")
-    
+
     except ExportError as e:
         console.print(f"[red]Error: {e}[/red]")
         sys.exit(1)
