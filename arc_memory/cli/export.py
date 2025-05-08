@@ -112,7 +112,7 @@ def export(
 
         # If signed, show the signature file
         if sign and Path(str(output_path) + '.sig').exists():
-            sig_path = output_path.with_suffix(output_path.suffix + ".sig")
+            sig_path = Path(str(output_path) + '.sig')
             console.print(f"[green]Signature saved to {sig_path}[/green]")
 
     except ExportError as e:

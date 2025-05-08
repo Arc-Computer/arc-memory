@@ -79,14 +79,14 @@ def get_pr_modified_files(
         diff_index = merge_base.diff(pr_commit)
 
         # Extract modified file paths
-        modified_files = []
+        modified_files = set()
         for diff in diff_index:
             if diff.a_path:
-                modified_files.append(diff.a_path)
+                modified_files.add(diff.a_path)
             if diff.b_path and diff.b_path != diff.a_path:
-                modified_files.append(diff.b_path)
+                modified_files.add(diff.b_path)
 
-        return modified_files
+        return list(modified_files)
 
     except git.exc.InvalidGitRepositoryError:
         raise GitError(f"{repo_path} is not a valid Git repository")
@@ -618,6 +618,15 @@ def export_graph(
                 }
                 if key_id:
                     export_data["sign"]["gpg_fpr"] = key_id
+
+                # Rewrite the file with updated signature information
+                logger.info("Updating export file with signature information")
+                if compress:
+                    with gzip.open(final_path, "wt") as f:
+                        json.dump(export_data, f, cls=DateTimeEncoder, indent=2)
+                else:
+                    with open(final_path, "w") as f:
+                        json.dump(export_data, f, cls=DateTimeEncoder, indent=2)
 
         return final_path
 
