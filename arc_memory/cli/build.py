@@ -14,7 +14,7 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 import typer
 
-from arc_memory.errors import BuildError
+from arc_memory.errors import GraphBuildError
 from arc_memory.ingest.adr import ADRIngestor
 from arc_memory.ingest.change_patterns import ChangePatternIngestor
 from arc_memory.ingest.code_analysis import CodeAnalysisIngestor
@@ -131,7 +131,7 @@ def build(
 
         # Check if the repository exists
         if not repo_path.exists():
-            raise BuildError(f"Repository path {repo_path} does not exist")
+            raise GraphBuildError(f"Repository path {repo_path} does not exist")
 
         # Resolve output path
         if output_path is None:
@@ -291,4 +291,4 @@ def build(
         print(f"   ({original_size/1024/1024:.1f} MB → {compressed_size/1024/1024:.1f} MB, {compression_ratio:.1f}% reduction)")
         
     except Exception as e:
-        raise BuildError(f"Error building graph: {e}")
+        raise GraphBuildError(f"Error building graph: {e}")
