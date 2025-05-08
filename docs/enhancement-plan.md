@@ -430,17 +430,349 @@ The resulting JSON payload will provide:
 
 These enhancements will enable LLMs to provide much more valuable insights when reasoning over the codebase, significantly outperforming vector-based approaches by leveraging the rich structure and semantics of the knowledge graph.
 
-## 8. AI Model Integration Considerations
+## 8. LLM Integration in the Build Process
 
-While our primary focus is on enhancing the JSON payload for external LLM reasoning, there are strategic points where embedding AI models directly in the build process could provide significant benefits:
+Based on our analysis, integrating LLMs directly into the build process will provide significant benefits while maintaining reasonable build times. We will use Ollama with the Phi-4 Mini Reasoning model (3.8B parameters) for all LLM-enhanced components.
 
-1. **Code Semantic Analysis**: Using a specialized code understanding model during build to extract semantic meaning from code
-2. **Reasoning Path Generation**: Using a smaller LLM to generate common reasoning paths during the build process
-3. **Knowledge Graph of Thoughts**: Using an LLM to generate thought structures that are embedded in the knowledge graph
+### 8.1. LLM Integration Architecture
 
-The recommended approach is a hybrid one:
-- Use embedded AI models during the build process for tasks that benefit from deep semantic understanding
-- Optimize the JSON payload for external LLM reasoning, providing rich context and pre-computed structures
-- Keep the core graph building process efficient and deterministic
+We will implement a tiered approach to LLM integration:
 
-This hybrid approach provides the best of both worlds: the efficiency and control of a deterministic build process with the semantic richness that only AI models can provide.
+```python
+def build_graph(
+    repo_path: Path,
+    output_path: Optional[Path] = None,
+    llm_enhancement_level: str = "standard",  # "fast", "standard", or "deep"
+    max_commits: int = 5000,
+    days: int = 365,
+    incremental: bool = False,
+) -> None:
+    """Build the knowledge graph with LLM enhancements."""
+    # 1. Standard data collection (unchanged)
+    all_nodes, all_edges = collect_data_from_plugins(
+        repo_path, max_commits, days, incremental
+    )
+
+    # 2. Apply LLM enhancements based on selected level
+    if llm_enhancement_level != "none":
+        # Configure enhancement parameters based on level
+        params = get_llm_enhancement_params(llm_enhancement_level)
+
+        # Apply LLM enhancements
+        all_nodes, all_edges = apply_llm_enhancements(
+            all_nodes, all_edges, repo_path, params
+        )
+
+    # 3. Store in database (unchanged)
+    store_graph_in_database(output_path, all_nodes, all_edges)
+```
+
+### 8.2. Specific LLM Enhancement Points
+
+#### 8.2.1. Code Semantic Analysis
+
+```python
+def enhance_code_semantics(file_nodes: List[Node], file_contents: Dict[str, str]) -> List[Node]:
+    """Enhance file nodes with semantic understanding of code using Phi-4 Mini."""
+    # Batch files for efficient processing
+    batches = create_batches(file_nodes, batch_size=15)
+
+    for batch in batches:
+        # Prepare prompt with code content
+        prompt = create_code_analysis_prompt(batch, file_contents)
+
+        # Call Phi-4 Mini via Ollama
+        response = ollama.generate(
+            model="phi4-mini-reasoning",
+            prompt=prompt,
+            options={"temperature": 0.1}
+        )
+
+        # Parse response and update nodes
+        enhanced_nodes = parse_code_semantics(response, batch)
+
+    return enhanced_nodes
+```
+
+#### 8.2.2. Relationship Inference
+
+```python
+def infer_relationships(nodes: List[Node], edges: List[Edge]) -> List[Edge]:
+    """Infer implicit relationships between nodes using Phi-4 Mini."""
+    # Select high-value node pairs for analysis
+    candidate_pairs = select_candidate_pairs(nodes)
+
+    # Batch processing for efficiency
+    batches = create_batches(candidate_pairs, batch_size=20)
+
+    inferred_edges = []
+    for batch in batches:
+        # Create prompt with node context
+        prompt = create_relationship_inference_prompt(batch, nodes, edges)
+
+        # Call Phi-4 Mini via Ollama
+        response = ollama.generate(
+            model="phi4-mini-reasoning",
+            prompt=prompt,
+            options={"temperature": 0.2}
+        )
+
+        # Parse response and create new edges
+        new_edges = parse_inferred_relationships(response, batch)
+        inferred_edges.extend(new_edges)
+
+    return inferred_edges
+```
+
+#### 8.2.3. Knowledge Graph of Thoughts Generation
+
+```python
+def generate_kgot_structures(nodes: List[Node], edges: List[Edge]) -> Tuple[List[Node], List[Edge]]:
+    """Generate Knowledge Graph of Thoughts structures using Phi-4 Mini."""
+    # Identify key decision points in the codebase
+    decision_points = identify_decision_points(nodes, edges)
+
+    # Process each decision point
+    thought_nodes = []
+    thought_edges = []
+
+    for point in decision_points:
+        # Create prompt with decision context
+        prompt = create_kgot_prompt(point, nodes, edges)
+
+        # Call Phi-4 Mini via Ollama
+        response = ollama.generate(
+            model="phi4-mini-reasoning",
+            prompt=prompt,
+            options={"temperature": 0.3}
+        )
+
+        # Parse response and create thought structures
+        new_nodes, new_edges = parse_kgot_structures(response, point)
+        thought_nodes.extend(new_nodes)
+        thought_edges.extend(new_edges)
+
+    return thought_nodes, thought_edges
+```
+
+#### 8.2.4. Export Optimization
+
+```python
+def optimize_export_for_llm(export_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Optimize the export data structure for LLM reasoning using Phi-4 Mini."""
+    # Create prompt with export data summary
+    prompt = create_export_optimization_prompt(export_data)
+
+    # Call Phi-4 Mini via Ollama
+    response = ollama.generate(
+        model="phi4-mini-reasoning",
+        prompt=prompt,
+        options={"temperature": 0.2}
+    )
+
+    # Parse response and enhance export data
+    enhanced_export = parse_export_optimizations(response, export_data)
+
+    return enhanced_export
+```
+
+### 8.3. Performance Optimization Strategies
+
+To keep the build process under 60-90 seconds while integrating LLMs:
+
+#### 8.3.1. Tiered Enhancement Levels
+
+We will implement three enhancement levels:
+
+1. **Fast Tier** (30-45 seconds):
+   - Basic LLM enhancement for critical files only
+   - Used for frequent developer builds
+
+2. **Standard Tier** (60-90 seconds):
+   - Comprehensive LLM enhancement
+   - Used for daily/regular builds
+
+3. **Deep Tier** (2-5 minutes):
+   - Exhaustive LLM analysis of entire codebase
+   - Used for weekly builds or major releases
+
+#### 8.3.2. Batching and Parallelization
+
+```python
+def apply_llm_enhancements_parallel(nodes: List[Node], edges: List[Edge], params: Dict) -> Tuple[List[Node], List[Edge]]:
+    """Apply LLM enhancements in parallel."""
+    with concurrent.futures.ProcessPoolExecutor(max_workers=3) as executor:
+        # Submit semantic analysis task
+        semantic_future = executor.submit(
+            enhance_code_semantics,
+            [n for n in nodes if n.type == NodeType.FILE],
+            get_file_contents(repo_path, nodes),
+            params["batch_size"]
+        )
+
+        # Submit relationship inference task
+        relationship_future = executor.submit(
+            infer_relationships,
+            nodes,
+            edges,
+            params["max_pairs"]
+        )
+
+        # Submit KGoT generation task
+        kgot_future = executor.submit(
+            generate_kgot_structures,
+            nodes,
+            edges,
+            params["max_decision_points"]
+        )
+
+        # Collect results
+        enhanced_nodes = semantic_future.result()
+        new_edges = relationship_future.result()
+        thought_nodes, thought_edges = kgot_future.result()
+
+        # Combine results
+        all_nodes = merge_nodes(nodes, enhanced_nodes, thought_nodes)
+        all_edges = edges + new_edges + thought_edges
+
+        return all_nodes, all_edges
+```
+
+#### 8.3.3. Selective Processing
+
+```python
+def select_high_value_files(nodes: List[Node], repo_path: Path) -> List[Node]:
+    """Select high-value files for LLM processing."""
+    # Criteria for selection:
+    # 1. Recently modified files
+    # 2. Files with high connectivity in the graph
+    # 3. Files in core directories
+    # 4. Non-generated, non-test files
+
+    high_value_files = []
+    for node in nodes:
+        if node.type != NodeType.FILE:
+            continue
+
+        # Check recency
+        file_path = repo_path / node.path
+        if file_path.exists() and is_recently_modified(file_path):
+            high_value_files.append(node)
+            continue
+
+        # Check connectivity
+        if get_node_connectivity(node, edges) > CONNECTIVITY_THRESHOLD:
+            high_value_files.append(node)
+            continue
+
+        # Check if in core directory
+        if is_in_core_directory(node.path):
+            high_value_files.append(node)
+            continue
+
+        # Exclude generated/test files
+        if is_generated_file(node.path) or is_test_file(node.path):
+            continue
+
+        # Add other high-value files based on heuristics
+        if is_high_value_file(node.path):
+            high_value_files.append(node)
+
+    return high_value_files
+```
+
+### 8.4. Ollama Integration
+
+We will integrate Ollama as follows:
+
+```python
+class OllamaClient:
+    """Client for interacting with Ollama."""
+
+    def __init__(self, host: str = "http://localhost:11434"):
+        """Initialize the Ollama client."""
+        self.host = host
+        self.session = requests.Session()
+
+    def generate(self, model: str, prompt: str, options: Dict = None) -> str:
+        """Generate a response from Ollama."""
+        url = f"{self.host}/api/generate"
+
+        data = {
+            "model": model,
+            "prompt": prompt,
+            "options": options or {}
+        }
+
+        response = self.session.post(url, json=data)
+        response.raise_for_status()
+
+        return response.json()["response"]
+
+    def ensure_model_available(self, model: str) -> bool:
+        """Ensure the specified model is available, pulling if needed."""
+        url = f"{self.host}/api/show"
+
+        try:
+            response = self.session.post(url, json={"name": model})
+            if response.status_code == 200:
+                return True
+        except:
+            pass
+
+        # Model not available, pull it
+        print(f"Pulling model {model}...")
+        url = f"{self.host}/api/pull"
+        response = self.session.post(url, json={"name": model})
+
+        # Wait for model to be pulled
+        while True:
+            data = response.json()
+            if "error" in data:
+                raise Exception(f"Error pulling model: {data['error']}")
+
+            if data.get("status") == "success":
+                return True
+
+            time.sleep(1)
+```
+
+### 8.5. Build Process Integration
+
+The LLM enhancements will be integrated into the build process with the following CLI options:
+
+```python
+@app.command()
+def build(
+    repo_path: Path = typer.Option(
+        Path.cwd(), "--repo", "-r", help="Path to the Git repository."
+    ),
+    output_path: Optional[Path] = typer.Option(
+        None, "--output", "-o", help="Path to the output database file."
+    ),
+    max_commits: int = typer.Option(
+        5000, "--max-commits", help="Maximum number of commits to process."
+    ),
+    days: int = typer.Option(
+        365, "--days", help="Maximum age of commits to process in days."
+    ),
+    incremental: bool = typer.Option(
+        False, "--incremental", help="Only process new data since last build."
+    ),
+    llm_enhancement: str = typer.Option(
+        "standard", "--llm-enhancement", "-l",
+        help="LLM enhancement level: none, fast, standard, deep."
+    ),
+    ollama_host: str = typer.Option(
+        "http://localhost:11434", "--ollama-host",
+        help="Ollama API host URL."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="Enable debug logging."
+    ),
+) -> None:
+    """Build the knowledge graph with optional LLM enhancements."""
+    # Implementation details...
+```
+
+This comprehensive LLM integration approach will significantly enhance the quality of the knowledge graph while maintaining reasonable build times of 60-90 seconds for standard builds.
