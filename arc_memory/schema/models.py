@@ -24,6 +24,7 @@ class EdgeRel(str, Enum):
     MERGES = "MERGES"      # PR merges a commit
     MENTIONS = "MENTIONS"  # PR/Issue mentions another entity
     DECIDES = "DECIDES"    # ADR decides on a file/commit
+    DEPENDS_ON = "DEPENDS_ON"  # File/component depends on another file/component
 
 
 class Node(BaseModel):
