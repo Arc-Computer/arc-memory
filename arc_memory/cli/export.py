@@ -22,6 +22,14 @@ console = Console()
 logger = get_logger(__name__)
 
 
+@app.callback(invoke_without_command=True)
+def main(ctx: typer.Context):
+    """Export a slice of the knowledge graph for PR review."""
+    if ctx.invoked_subcommand is None:
+        # If no subcommand is provided, show help
+        typer.echo(ctx.get_help())
+
+
 @app.command()
 def export(
     pr: str = typer.Argument(
