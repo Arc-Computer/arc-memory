@@ -100,3 +100,9 @@ class DatabaseInitializationError(DatabaseError):
     """Error raised when initializing the database fails."""
 
     pass
+
+
+class ExportError(ArcError):
+    """Error raised when exporting the graph fails."""
+
+    pass
