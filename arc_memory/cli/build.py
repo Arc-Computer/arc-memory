@@ -360,9 +360,24 @@ Generate structured JSON following the requested schema for each enhancement tas
 Prioritize precision over coverage in your enhancements. Follow Arc Memory's schema exactly to ensure all nodes and relationships integrate cleanly with the existing knowledge graph.
 """
             
+            # Use Qwen3:4b model as specified
             if ensure_ollama_available("qwen3:4b"):
                 ollama_client = OllamaClient(host=ollama_host)
                 print("✅ LLM setup complete with Qwen3:4b model")
+                
+                # Test the LLM with a simple query to ensure it's responsive
+                try:
+                    test_response = ollama_client.generate(
+                        model="qwen3:4b",
+                        prompt="Respond with a single word: Working",
+                        system=system_prompt
+                    )
+                    if "working" in test_response.lower():
+                        print("✅ LLM test query successful")
+                    else:
+                        print(f"⚠️ LLM test query returned unexpected response: {test_response[:50]}...")
+                except Exception as e:
+                    print(f"⚠️ Warning: LLM test query failed: {e}")
             else:
                 print("⚠️  Warning: LLM setup failed, continuing without enhancement")
                 llm_enhancement = LLMEnhancementLevel.NONE
@@ -459,7 +474,8 @@ Prioritize precision over coverage in your enhancements. Follow Arc Memory's sch
                     all_nodes, 
                     all_edges, 
                     repo_path=repo_path,
-                    enhancement_level=llm_enhancement.value
+                    enhancement_level=llm_enhancement.value,
+                    ollama_client=ollama_client
                 )
                 sys.stdout.write(f"\r✅ Semantic analysis complete ({time.time() - enhancement_start:.1f}s)\n")
             except Exception as e:

@@ -49,7 +49,7 @@ def enhance_with_temporal_analysis(
         return nodes, edges
     
     # Sort commits by timestamp
-    commit_nodes.sort(key=lambda n: n.properties.get("timestamp", 0))
+    commit_nodes.sort(key=lambda n: getattr(n, "properties", {}).get("timestamp", 0) if hasattr(n, "properties") else 0)
     logger.info(f"Found {len(commit_nodes)} commit nodes for temporal analysis")
     
     # Extract file nodes
@@ -100,7 +100,8 @@ def enhance_with_temporal_analysis(
         if len(commit_ids) > 1:
             # Sort commits by timestamp
             commit_ids.sort(key=lambda cid: 
-                next((n.properties.get("timestamp", 0) for n in commit_nodes if n.id == cid), 0))
+                next((getattr(n, "properties", {}).get("timestamp", 0) if hasattr(n, "properties") else 0 
+                      for n in commit_nodes if n.id == cid), 0))
             
             # Create PRECEDES edges between consecutive commits
             for i in range(len(commit_ids) - 1):
@@ -124,21 +125,40 @@ def enhance_with_temporal_analysis(
         # Identify potential refactoring commits based on commit message patterns
         refactoring_keywords = ["refactor", "clean", "restructure", "renam", "reorganiz"]
         for commit in commit_nodes:
-            commit_msg = commit.properties.get("message", "").lower()
+            commit_msg = ""
+            if hasattr(commit, "properties"):
+                commit_msg = commit.properties.get("message", "").lower()
+            elif hasattr(commit, "body"):
+                commit_msg = (commit.body or "").lower()
             
             is_refactoring = any(keyword in commit_msg for keyword in refactoring_keywords)
             
             if is_refactoring:
                 # Create refactoring node
                 refactoring_id = f"refactoring:{commit.id.split(':')[1]}"
+                
+                # Safely get commit properties
+                commit_properties = getattr(commit, "properties", {})
+                if not commit_properties and hasattr(commit, "author"):
+                    # Handle the case where CommitNode doesn't have properties dict
+                    # but has direct attributes instead
+                    timestamp = getattr(commit, "ts", None) 
+                    if timestamp:
+                        timestamp = timestamp.timestamp() if hasattr(timestamp, "timestamp") else 0
+                    commit_properties = {
+                        "timestamp": timestamp,
+                        "message": getattr(commit, "body", ""),
+                        "author": getattr(commit, "author", ""),
+                    }
+                
                 refactoring_node = Node(
                     id=refactoring_id,
-                    title=f"Refactoring: {commit.title}",
+                    title=f"Refactoring: {getattr(commit, 'title', '')}",
                     type=NodeType.REFACTORING,
                     properties={
-                        "timestamp": commit.properties.get("timestamp", 0),
-                        "description": commit.properties.get("message", ""),
-                        "author": commit.properties.get("author", ""),
+                        "timestamp": commit_properties.get("timestamp", 0),
+                        "description": commit_properties.get("message", ""),
+                        "author": commit_properties.get("author", ""),
                     }
                 )
                 refactoring_nodes.append(refactoring_node)
@@ -171,14 +191,19 @@ def enhance_with_temporal_analysis(
         # Group commits by author
         author_to_commits = defaultdict(list)
         for commit in commit_nodes:
-            author = commit.properties.get("author", "")
+            author = ""
+            if hasattr(commit, "properties"):
+                author = commit.properties.get("author", "")
+            elif hasattr(commit, "author"):
+                author = commit.author
+                
             if author:
                 author_to_commits[author].append(commit)
         
         # For each author, analyze their work patterns
         for author, commits in author_to_commits.items():
             # Sort commits by timestamp
-            commits.sort(key=lambda c: c.properties.get("timestamp", 0))
+            commits.sort(key=lambda c: getattr(c, "properties", {}).get("timestamp", 0) if hasattr(c, "properties") else 0)
             
             # Extract file touches by author
             author_files = set()

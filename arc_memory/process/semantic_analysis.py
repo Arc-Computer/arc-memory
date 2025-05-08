@@ -26,6 +26,7 @@ def enhance_with_semantic_analysis(
     edges: List[Edge],
     repo_path: Optional[Path] = None,
     enhancement_level: str = "standard",
+    ollama_client: Optional[OllamaClient] = None,
 ) -> Tuple[List[Node], List[Edge]]:
     """Enhance nodes and edges with semantic analysis.
 
@@ -34,14 +35,16 @@ def enhance_with_semantic_analysis(
         edges: List of edges to enhance.
         repo_path: Path to the repository (for accessing file content).
         enhancement_level: Level of enhancement to apply.
+        ollama_client: Optional Ollama client for LLM processing.
 
     Returns:
         Enhanced nodes and edges.
     """
     logger.info(f"Enhancing knowledge graph with semantic analysis ({enhancement_level} level)")
     
-    # Initialize Ollama client
-    ollama_client = OllamaClient()
+    # Initialize Ollama client if not provided
+    if ollama_client is None:
+        ollama_client = OllamaClient()
     
     # Apply different levels of enhancement
     if enhancement_level == "fast":
@@ -69,6 +72,91 @@ def enhance_with_semantic_analysis(
     
     logger.info(f"Added {len(new_nodes)} semantic nodes and {len(new_edges)} semantic edges")
     return all_nodes, all_edges
+
+
+def _extract_json_from_llm_response(response: str) -> Dict[str, Any]:
+    """Extract and parse JSON from LLM response text.
+    
+    This function handles various ways LLMs might format JSON in their responses,
+    including with markdown code blocks, irregular whitespace, and other common issues.
+    
+    Args:
+        response: The raw text response from an LLM.
+        
+    Returns:
+        Parsed JSON as a Python dictionary.
+        
+    Raises:
+        ValueError: If JSON could not be extracted and parsed.
+    """
+    import json
+    
+    # Try different patterns to extract JSON
+    patterns = [
+        # JSON with code fence
+        r'```(?:json)?\s*([\s\S]*?)\s*```',
+        # JSON with XML/HTML-like tags
+        r'<json>([\s\S]*?)</json>',
+        # Just extract anything that looks like JSON
+        r'(\{[\s\S]*\})',
+        # Array responses
+        r'(\[[\s\S]*\])'
+    ]
+    
+    extracted_text = None
+    
+    # Try each pattern
+    for pattern in patterns:
+        match = re.search(pattern, response, re.DOTALL)
+        if match:
+            extracted_text = match.group(1).strip()
+            break
+    
+    # If no pattern matched, use the entire response
+    if not extracted_text:
+        extracted_text = response.strip()
+    
+    # Remove any non-JSON text before or after the structure
+    # First, try to find the first '{' or '['
+    start_idx = min(
+        (extracted_text.find('{') if extracted_text.find('{') != -1 else len(extracted_text)),
+        (extracted_text.find('[') if extracted_text.find('[') != -1 else len(extracted_text))
+    )
+    
+    if start_idx < len(extracted_text):
+        extracted_text = extracted_text[start_idx:]
+    
+    # Find last '}' or ']'
+    end_idx = max(extracted_text.rfind('}'), extracted_text.rfind(']'))
+    if end_idx != -1:
+        extracted_text = extracted_text[:end_idx+1]
+    
+    # Attempt to parse the extracted JSON
+    try:
+        parsed_json = json.loads(extracted_text)
+        return parsed_json
+    except json.JSONDecodeError as e:
+        # If parsing fails, try to fix common JSON formatting issues
+        # Replace single quotes with double quotes
+        fixed_text = extracted_text.replace("'", "\"")
+        
+        # Fix unquoted keys
+        fixed_text = re.sub(r'(\s*?)(\w+)(\s*?):', r'\1"\2"\3:', fixed_text)
+        
+        # Try to parse again
+        try:
+            parsed_json = json.loads(fixed_text)
+            return parsed_json
+        except json.JSONDecodeError:
+            # If still failing, try a more lenient approach with json5
+            try:
+                import json5
+                parsed_json = json5.loads(fixed_text)
+                return parsed_json
+            except (ImportError, json.JSONDecodeError):
+                # If all parsing attempts fail, return a default structure
+                logger.error(f"Failed to parse JSON from LLM response: {e}")
+                raise ValueError(f"Failed to parse JSON from LLM response: {e}")
 
 
 def extract_key_concepts(
@@ -128,25 +216,25 @@ def extract_key_concepts(
     ```
     {combined_text}
     ```
+    
+    Return ONLY the JSON object, nothing else.
     """
     
     try:
         # Generate response from LLM
         response = ollama_client.generate(
-            model="phi4-mini-reasoning",
+            model="qwen3:4b",
             prompt=prompt,
             options={"temperature": 0.2}
         )
         
-        # Extract JSON from response
-        json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
-        if json_match:
-            json_str = json_match.group(1)
-        else:
-            json_str = response
-        
-        import json
-        data = json.loads(json_str)
+        # Extract and parse JSON using our robust function
+        try:
+            data = _extract_json_from_llm_response(response)
+        except ValueError:
+            # If parsing fails, create a minimal default structure
+            logger.warning("Falling back to minimal default structure due to JSON parsing error")
+            data = {"concepts": []}
         
         # Create concept nodes
         concept_nodes = []

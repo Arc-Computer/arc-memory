@@ -30,97 +30,138 @@ class OllamaClient:
         self.host = host
         self.session = requests.Session()
 
-    def generate(self, model: str, prompt: str, options: Optional[Dict[str, Any]] = None, system_prompt: Optional[str] = None) -> str:
-        """Generate a response from Ollama.
+    def generate(
+        self, 
+        model: str = "qwen3:4b", 
+        prompt: str = "",
+        system: Optional[str] = None,
+        options: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Generate text using the specified model.
 
         Args:
-            model: The model to use for generation.
+            model: The model to use.
             prompt: The prompt to send to the model.
-            options: Optional parameters for generation (temperature, etc.).
-            system_prompt: Optional system prompt to guide the model's behavior.
+            system: The system message to use.
+            options: Additional options to pass to the model.
 
         Returns:
-            The generated response as a string.
-
-        Raises:
-            Exception: If there's an error communicating with Ollama.
+            The generated text.
         """
         url = f"{self.host}/api/generate"
-
-        data = {
+        
+        # Set default options if not provided
+        if options is None:
+            options = {}
+        
+        # Set default system prompt if not provided
+        if system is None:
+            system = "You are a helpful AI assistant specialized in software engineering and code analysis."
+        
+        # Format the request payload
+        payload = {
             "model": model,
             "prompt": prompt,
-            "options": options or {}
+            "system": system,
+            "options": options,
+            "stream": False  # Default to non-streaming for simplicity
         }
         
-        # Add system prompt if provided
-        if system_prompt:
-            # Format according to Qwen3 model expectations
-            data["system"] = system_prompt
-        
         try:
-            response = self.session.post(url, json=data)
+            # Send the request
+            response = requests.post(url, json=payload, timeout=120)
             response.raise_for_status()
             
-            # For streaming responses
-            if 'Content-Type' in response.headers and 'application/x-ndjson' in response.headers['Content-Type']:
-                # Handle streaming response
-                full_response = ""
-                for line in response.iter_lines():
-                    if line:
-                        try:
-                            data = json.loads(line)
-                            if "response" in data:
-                                full_response += data["response"]
-                        except json.JSONDecodeError as e:
-                            logger.warning(f"Error parsing streaming line: {e}")
-                return full_response
+            # Parse the response
+            data = response.json()
+            return data.get("response", "")
             
-            # For regular JSON responses
-            try:
-                return response.json()["response"]
-            except (json.JSONDecodeError, KeyError) as e:
-                # Handle malformed JSON or missing "response" key
-                logger.error(f"Error parsing Ollama response: {e}")
-                # Extract text content as fallback
-                if response.text:
-                    # Try to extract just the content part if there's extra data
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error calling Ollama API: {e}")
+            return f"Error: {e}"
+        except ValueError as e:
+            logger.error(f"Error parsing Ollama response: {e}")
+            return f"Error parsing response: {e}"
+    
+    def generate_with_streaming(
+        self, 
+        model: str = "qwen3:4b", 
+        prompt: str = "",
+        system: Optional[str] = None,
+        options: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Generate text using the specified model with streaming.
+        
+        This method is especially useful for larger responses like JSON
+        where we want to collect the entire response properly.
+
+        Args:
+            model: The model to use.
+            prompt: The prompt to send to the model.
+            system: The system message to use.
+            options: Additional options to pass to the model.
+
+        Returns:
+            The complete generated text from the stream.
+        """
+        url = f"{self.host}/api/generate"
+        
+        # Set default options if not provided
+        if options is None:
+            options = {}
+        
+        # Set default system prompt if not provided
+        if system is None:
+            system = "You are a helpful AI assistant specialized in software engineering and code analysis."
+        
+        # Format the request payload
+        payload = {
+            "model": model,
+            "prompt": prompt,
+            "system": system,
+            "options": options,
+            "stream": True  # Enable streaming
+        }
+        
+        try:
+            # Send the request
+            response = requests.post(url, json=payload, stream=True, timeout=120)
+            response.raise_for_status()
+            
+            # Collect the streamed response
+            full_response = ""
+            for line in response.iter_lines():
+                if line:
                     try:
-                        # First attempt: try to parse the first valid JSON object
-                        content_lines = response.text.strip().split('\n')
-                        for line in content_lines:
-                            try:
-                                json_obj = json.loads(line)
-                                if "response" in json_obj:
-                                    return json_obj["response"]
-                            except:
-                                continue
+                        # Decode the line
+                        line_text = line.decode('utf-8')
                         
-                        # Second attempt: if the response starts with a valid JSON object
-                        # but has extra content, try to parse just the first part
-                        first_json_end = response.text.find('}\n')
-                        if first_json_end > 0:
-                            try:
-                                json_obj = json.loads(response.text[:first_json_end+1])
-                                if "response" in json_obj:
-                                    return json_obj["response"]
-                            except:
-                                pass
+                        # Skip empty lines
+                        if not line_text.strip():
+                            continue
+                            
+                        # Parse the JSON
+                        line_data = json.loads(line_text)
                         
-                        # Last resort: return the raw text
-                        logger.info(f"Using raw response text as fallback (first 100 chars): {response.text[:100]}...")
-                        return response.text
-                    except Exception as parse_error:
-                        logger.error(f"Error parsing content: {parse_error}")
-                        return response.text
-                raise ValueError(f"Failed to parse response from Ollama: {e}")
-                
-        except requests.RequestException as e:
-            logger.error(f"Error communicating with Ollama: {e}")
-            raise
-        except Exception as e:
-            logger.error(f"Error generating response from Ollama: {e}")
-            raise
+                        # Add the response text to the full response
+                        if "response" in line_data:
+                            full_response += line_data["response"]
+                            
+                        # Check if done
+                        if line_data.get("done", False):
+                            break
+                    except json.JSONDecodeError as e:
+                        logger.warning(f"Error parsing streaming response line: {e}")
+                        continue
+            
+            return full_response
+            
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error calling Ollama API: {e}")
+            return f"Error: {e}"
+        except ValueError as e:
+            logger.error(f"Error parsing Ollama streaming response: {e}")
+            return f"Error parsing response: {e}"
 
     def generate_with_thinking(self, model: str, prompt: str, options: Optional[Dict[str, Any]] = None) -> str:
         """Generate a response using the thinking mode in Qwen3.
