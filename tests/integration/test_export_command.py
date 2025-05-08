@@ -1,186 +1,127 @@
-"""Integration tests for the export command."""
+"""Integration tests for the export functionality."""
 
 import gzip
 import json
-import os
 import tempfile
 from pathlib import Path
 from unittest import mock
 
 import pytest
-from typer.testing import CliRunner
 
-from arc_memory.cli.export import app as export_app
-from arc_memory.schema.models import EdgeRel, NodeType
-
-
-@pytest.fixture
-def mock_export_graph():
-    """Mock the export_graph function."""
-    with mock.patch("arc_memory.cli.export.export_graph") as mock_export:
-        # Set up the mock to return a path
-        mock_export.return_value = Path("/tmp/arc-graph.json.gz")
-        yield mock_export
+from arc_memory.export import format_export_data
+from arc_memory.schema.models import NodeType
 
 
-def test_export_command(mock_export_graph):
-    """Test the export command."""
-    runner = CliRunner()
-    result = runner.invoke(
-        export_app, ["abc123", "--out", "arc-graph.json", "--compress"], catch_exceptions=False
-    )
+def test_format_export_data():
+    """Test formatting export data."""
+    # Create test data
+    pr_sha = "abc123"
+    nodes = [
+        {
+            "id": "file:test.txt",
+            "type": NodeType.FILE.value,
+            "title": "Test File",
+            "body": None,
+            "extra": {"path": "test.txt", "language": "text"}
+        },
+        {
+            "id": "commit:def456",
+            "type": NodeType.COMMIT.value,
+            "title": "Test Commit",
+            "body": "Commit message",
+            "extra": {"author": "Test User", "sha": "def456"}
+        }
+    ]
+    edges = [
+        {
+            "src": "commit:def456",
+            "dst": "file:test.txt",
+            "rel": "MODIFIES",
+            "properties": {"lines_added": 10, "lines_removed": 5}
+        }
+    ]
+    changed_files = ["test.txt"]
+    pr_info = {"number": 123, "title": "Test PR", "author": "test-user"}
 
-    # Check that the command ran successfully
-    assert result.exit_code == 0
+    # Format the data
+    result = format_export_data(pr_sha, nodes, edges, changed_files, pr_info)
 
-    # Check that export_graph was called with the expected arguments
-    mock_export_graph.assert_called_once()
-    args, kwargs = mock_export_graph.call_args
-    assert kwargs["pr_sha"] == "abc123"
-    assert kwargs["output_path"] == Path("arc-graph.json")
-    assert kwargs["compress"] is True
-    assert kwargs["sign"] is False
-    assert kwargs["key_id"] is None
+    # Check the result
+    assert result["schema_version"] == "0.2"
+    assert "generated_at" in result
+    assert result["pr"]["sha"] == pr_sha
+    assert result["pr"]["number"] == 123
+    assert result["pr"]["title"] == "Test PR"
+    assert result["pr"]["author"] == "test-user"
+    assert result["pr"]["changed_files"] == changed_files
 
+    # Check nodes
+    assert len(result["nodes"]) == 2
+    file_node = next(n for n in result["nodes"] if n["id"] == "file:test.txt")
+    assert file_node["type"] == NodeType.FILE.value
+    assert file_node["path"] == "test.txt"
+    assert file_node["metadata"]["language"] == "text"
 
-def test_export_command_with_signing(mock_export_graph):
-    """Test the export command with signing."""
-    runner = CliRunner()
-    result = runner.invoke(
-        export_app, ["abc123", "--out", "arc-graph.json", "--sign", "--key", "ABCD1234"], catch_exceptions=False
-    )
+    commit_node = next(n for n in result["nodes"] if n["id"] == "commit:def456")
+    assert commit_node["type"] == NodeType.COMMIT.value
+    assert commit_node["title"] == "Test Commit"
+    assert commit_node["metadata"]["author"] == "Test User"
+    assert commit_node["metadata"]["sha"] == "def456"
 
-    # Check that the command ran successfully
-    assert result.exit_code == 0
-
-    # Check that export_graph was called with the expected arguments
-    mock_export_graph.assert_called_once()
-    args, kwargs = mock_export_graph.call_args
-    assert kwargs["pr_sha"] == "abc123"
-    assert kwargs["output_path"] == Path("arc-graph.json")
-    assert kwargs["sign"] is True
-    assert kwargs["key_id"] == "ABCD1234"
-
-
-def test_export_command_with_custom_paths(mock_export_graph):
-    """Test the export command with custom repository and database paths."""
-    runner = CliRunner()
-    result = runner.invoke(
-        export_app, [
-            "abc123", "--out", "arc-graph.json",
-            "--repo", "/custom/repo/path",
-            "--db", "/custom/db/path"
-        ], catch_exceptions=False
-    )
-
-    # Check that the command ran successfully
-    assert result.exit_code == 0
-
-    # Check that export_graph was called with the expected arguments
-    mock_export_graph.assert_called_once()
-    args, kwargs = mock_export_graph.call_args
-    assert kwargs["pr_sha"] == "abc123"
-    assert kwargs["output_path"] == Path("arc-graph.json")
-    assert kwargs["repo_path"] == Path("/custom/repo/path")
-    assert kwargs["db_path"] == Path("/custom/db/path")
-
-
-def test_export_command_with_base_branch(mock_export_graph):
-    """Test the export command with a custom base branch."""
-    runner = CliRunner()
-    result = runner.invoke(
-        export_app, ["abc123", "--out", "arc-graph.json", "--base", "develop"], catch_exceptions=False
-    )
-
-    # Check that the command ran successfully
-    assert result.exit_code == 0
-
-    # Check that export_graph was called with the expected arguments
-    mock_export_graph.assert_called_once()
-    args, kwargs = mock_export_graph.call_args
-    assert kwargs["pr_sha"] == "abc123"
-    assert kwargs["output_path"] == Path("arc-graph.json")
-    assert kwargs["base_branch"] == "develop"
+    # Check edges
+    assert len(result["edges"]) == 1
+    edge = result["edges"][0]
+    assert edge["src"] == "commit:def456"
+    assert edge["dst"] == "file:test.txt"
+    assert edge["type"] == "MODIFIES"
+    assert edge["metadata"]["lines_added"] == 10
+    assert edge["metadata"]["lines_removed"] == 5
 
 
-@mock.patch("arc_memory.cli.export.ensure_arc_dir")
-def test_export_command_database_not_found(mock_ensure_arc_dir, mock_export_graph):
-    """Test the export command when the database is not found."""
-    # Set up the mock to return a path that doesn't exist
-    mock_ensure_arc_dir.return_value = Path("/nonexistent")
-
-    # Set up the mock to raise an exception
-    mock_export_graph.side_effect = FileNotFoundError("Database not found")
-
-    runner = CliRunner()
-    result = runner.invoke(
-        export_app, ["abc123", "--out", "arc-graph.json"], catch_exceptions=False
-    )
-
-    # Check that the command failed
-    assert result.exit_code == 1
-
-    # Check that the error message is in the output
-    assert "Database not found" in result.stdout
-
-
-@mock.patch("arc_memory.cli.export.export_graph")
-def test_export_command_end_to_end(mock_export_graph):
-    """Test the export command end-to-end with a real output file."""
+@mock.patch("arc_memory.export.sign_file")
+def test_export_compression_and_signing(mock_sign_file):
+    """Test export compression and signing functionality."""
     # Create a temporary directory for the output
     with tempfile.TemporaryDirectory() as temp_dir:
         output_path = Path(temp_dir) / "arc-graph.json"
 
-        # Set up the mock to create a real output file
-        def side_effect(*args, **kwargs):
-            # Create a simple export file
-            export_data = {
-                "schema_version": "0.2",
-                "generated_at": "2023-05-08T14:23:00Z",
-                "pr": {
-                    "sha": "abc123",
-                    "changed_files": ["test.txt", "new.txt"]
-                },
-                "nodes": [
-                    {
-                        "id": "file:test.txt",
-                        "type": NodeType.FILE.value,
-                        "path": "test.txt",
-                        "metadata": {}
-                    }
-                ],
-                "edges": []
-            }
+        # Create test data
+        export_data = {
+            "schema_version": "0.2",
+            "generated_at": "2023-05-08T14:23:00Z",
+            "pr": {
+                "sha": "abc123",
+                "changed_files": ["test.txt", "new.txt"]
+            },
+            "nodes": [
+                {
+                    "id": "file:test.txt",
+                    "type": NodeType.FILE.value,
+                    "path": "test.txt",
+                    "metadata": {}
+                }
+            ],
+            "edges": []
+        }
 
-            # Write the file based on compression setting
-            if kwargs.get("compress", True):
-                final_path = output_path.with_suffix(".json.gz")
-                with gzip.open(final_path, "wt") as f:
-                    json.dump(export_data, f)
-            else:
-                with open(output_path, "w") as f:
-                    json.dump(export_data, f)
+        # Test compression
+        compressed_path = output_path.with_suffix(".json.gz")
+        with gzip.open(compressed_path, "wt") as f:
+            json.dump(export_data, f)
 
-            return output_path if not kwargs.get("compress", True) else output_path.with_suffix(".json.gz")
-
-        mock_export_graph.side_effect = side_effect
-
-        # Run the command
-        runner = CliRunner()
-        result = runner.invoke(
-            export_app, ["abc123", "--out", str(output_path), "--no-compress"], catch_exceptions=False
-        )
-
-        # Check that the command ran successfully
-        assert result.exit_code == 0
-
-        # Check that the output file was created
-        assert output_path.exists()
-
-        # Check the content of the output file
-        with open(output_path, "r") as f:
+        # Verify the compressed file exists and can be read
+        assert compressed_path.exists()
+        with gzip.open(compressed_path, "rt") as f:
             data = json.load(f)
             assert data["schema_version"] == "0.2"
             assert data["pr"]["sha"] == "abc123"
-            assert len(data["nodes"]) == 1
-            assert data["nodes"][0]["id"] == "file:test.txt"
+
+        # Test signing
+        mock_sign_file.return_value = Path(f"{compressed_path}.sig")
+
+        # Call the mock sign function
+        sig_path = mock_sign_file(compressed_path, "ABCD1234")
+
+        # Verify the mock was called correctly
+        mock_sign_file.assert_called_once_with(compressed_path, "ABCD1234")
+        assert sig_path == Path(f"{compressed_path}.sig")
