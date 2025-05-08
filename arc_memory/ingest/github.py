@@ -183,6 +183,11 @@ class GitHubIngestor:
                         pr_number = pr["number"]
                         logger.info(f"Fetching details for PR #{pr_number}")
                         pr_details = fetcher.fetch_pr_details_sync(owner, repo, pr_number)
+                        
+                        # Check if pr_details is None before proceeding
+                        if pr_details is None:
+                            logger.error(f"Failed to fetch details for PR #{pr_number}, skipping")
+                            continue
 
                         # Create PR node
                         pr_node = fetcher.create_pr_node(pr, pr_details)
@@ -229,6 +234,11 @@ class GitHubIngestor:
                         issue_number = issue["number"]
                         logger.info(f"Fetching details for issue #{issue_number}")
                         issue_details = fetcher.fetch_issue_details_sync(owner, repo, issue_number)
+
+                        # Check if issue_details is None before proceeding
+                        if issue_details is None:
+                            logger.error(f"Failed to fetch details for issue #{issue_number}, skipping")
+                            continue
 
                         # Create issue node
                         issue_node = fetcher.create_issue_node(issue, issue_details)
