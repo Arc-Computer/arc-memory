@@ -1,333 +1,49 @@
-"""Build commands for Arc Memory CLI."""
+"""Build command for Arc Memory.
 
+This module implements the build command, which builds a knowledge graph
+from a Git repository and optionally ingests data from other sources.
+"""
+
+import enum
+import os
 import sys
-from datetime import datetime
+import time
 from enum import Enum
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import typer
-from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn
 
-from arc_memory.errors import GraphBuildError
-from arc_memory.llm.ollama_client import ensure_ollama_available
-from arc_memory.plugins import discover_plugins
-from arc_memory.logging_conf import configure_logging, get_logger, is_debug_mode
+from arc_memory.errors import BuildError
+from arc_memory.ingest.adr import ADRIngestor
+from arc_memory.ingest.change_patterns import ChangePatternIngestor
+from arc_memory.ingest.code_analysis import CodeAnalysisIngestor
+from arc_memory.ingest.git import GitIngestor
+from arc_memory.ingest.github import GitHubIngestor
+from arc_memory.ingest.linear import LinearIngestor
+from arc_memory.llm.ollama_client import OllamaClient, ensure_ollama_available
+from arc_memory.logging_conf import get_logger
+from arc_memory.plugins import get_ingestor_plugins
+from arc_memory.process.kgot import enhance_with_reasoning_structures
 from arc_memory.process.semantic_analysis import enhance_with_semantic_analysis
 from arc_memory.process.temporal_analysis import enhance_with_temporal_analysis
-from arc_memory.process.kgot import enhance_with_reasoning_structures
-from arc_memory.schema.models import BuildManifest
-from arc_memory.sql.db import (
-    compress_db,
-    ensure_arc_dir,
-    init_db,
-    load_build_manifest,
-    save_build_manifest,
-)
-from arc_memory.telemetry import track_cli_command
+from arc_memory.schema.models import Edge, Node
+from arc_memory.sql.db import compress_database, get_db_path, store_graph
+
+app = typer.Typer(help="Build a knowledge graph from various sources.")
+logger = get_logger(__name__)
 
 
 class LLMEnhancementLevel(str, Enum):
     """LLM enhancement levels for the build process."""
+
     NONE = "none"
     FAST = "fast"
     STANDARD = "standard"
     DEEP = "deep"
 
-app = typer.Typer(help="Build the knowledge graph from Git, GitHub, and ADRs")
-console = Console()
-logger = get_logger(__name__)
 
-
-@app.callback(invoke_without_command=True)
-def callback(
-    ctx: typer.Context,
-    repo_path: Path = typer.Option(
-        Path.cwd(), "--repo", "-r", help="Path to the Git repository."
-    ),
-    output_path: Optional[Path] = typer.Option(
-        None, "--output", "-o", help="Path to the output database file."
-    ),
-    max_commits: int = typer.Option(
-        5000, "--max-commits", help="Maximum number of commits to process."
-    ),
-    days: int = typer.Option(
-        365, "--days", help="Maximum age of commits to process in days."
-    ),
-    incremental: bool = typer.Option(
-        False, "--incremental", help="Only process new data since last build."
-    ),
-    pull: bool = typer.Option(
-        False, "--pull", help="Pull the latest CI-built graph."
-    ),
-    token: Optional[str] = typer.Option(
-        None, "--token", help="GitHub token to use for API calls."
-    ),
-    linear: bool = typer.Option(
-        False, "--linear", help="Include Linear issues in the graph."
-    ),
-    llm_enhancement: LLMEnhancementLevel = typer.Option(
-        LLMEnhancementLevel.STANDARD, "--llm-enhancement", "-l",
-        help="LLM enhancement level: none, fast, standard, deep."
-    ),
-    ollama_host: str = typer.Option(
-        "http://localhost:11434", "--ollama-host",
-        help="Ollama API host URL."
-    ),
-    ci_mode: bool = typer.Option(
-        False, "--ci-mode", help="Optimize for CI environments."
-    ),
-    debug: bool = typer.Option(
-        False, "--debug", help="Enable debug logging."
-    ),
-) -> None:
-    """Build the knowledge graph from Git, GitHub, and ADRs."""
-    configure_logging(debug=debug or is_debug_mode())
-
-    # If a subcommand was invoked, don't run the default command
-    if ctx.invoked_subcommand is not None:
-        return
-
-    # Determine output path
-    arc_dir = ensure_arc_dir()
-    output_path_to_use = output_path if output_path is not None else arc_dir / "graph.db"
-
-    # Run the build command (moved to a separate function)
-    build_graph(
-        repo_path=repo_path,
-        output_path=output_path_to_use,
-        max_commits=max_commits,
-        days=days,
-        incremental=incremental,
-        pull=pull,
-        token=token,
-        linear=linear,
-        llm_enhancement=llm_enhancement,
-        ollama_host=ollama_host,
-        ci_mode=ci_mode,
-        debug=debug,
-    )
-
-
-def build_graph(
-    repo_path: Path,
-    output_path: Optional[Path] = None,
-    max_commits: int = 5000,
-    days: int = 365,
-    incremental: bool = False,
-    pull: bool = False,
-    token: Optional[str] = None,
-    linear: bool = False,
-    llm_enhancement: LLMEnhancementLevel = LLMEnhancementLevel.STANDARD,
-    ollama_host: str = "http://localhost:11434",
-    ci_mode: bool = False,
-    debug: bool = False,
-) -> None:
-    """Build the knowledge graph from Git, GitHub, and ADRs."""
-    configure_logging(debug=debug)
-
-    # Track command usage
-    args = {
-        "repo_path": str(repo_path),
-        "max_commits": max_commits,
-        "days": days,
-        "incremental": incremental,
-        "pull": pull,
-        "linear": linear,
-        "llm_enhancement": str(llm_enhancement),
-        "ci_mode": ci_mode,
-        "debug": debug,
-    }
-    # Note: We don't include token in telemetry for security reasons
-    track_cli_command("build", args=args)
-
-    # Ensure Ollama is available if LLM enhancement is enabled
-    if llm_enhancement != LLMEnhancementLevel.NONE:
-        logger.info(f"LLM enhancement level: {llm_enhancement}")
-        if not ensure_ollama_available("phi4-mini-reasoning"):
-            logger.warning("Ollama or required model not available. LLM enhancements will be disabled.")
-            llm_enhancement = LLMEnhancementLevel.NONE
-
-    # Ensure output directory exists
-    arc_dir = ensure_arc_dir()
-    if output_path is None:
-        output_path = arc_dir / "graph.db"
-
-    # Check if repo_path is a Git repository
-    if not (repo_path / ".git").exists():
-        error_msg = f"Error: {repo_path} is not a Git repository."
-        console.print(f"[red]{error_msg}[/red]")
-        track_cli_command("build", args=args, success=False,
-                         error=ValueError(error_msg))
-        sys.exit(1)
-
-    # Handle --pull option
-    if pull:
-        error_msg = "Pulling latest CI-built graph is not implemented yet."
-        console.print(f"[yellow]{error_msg}[/yellow]")
-        track_cli_command("build", args=args, success=False,
-                         error=NotImplementedError(error_msg))
-        sys.exit(1)
-
-    # Load existing manifest for incremental builds
-    manifest = None
-    if incremental:
-        manifest = load_build_manifest()
-        if manifest is None:
-            console.print(
-                "[yellow]No existing build manifest found. Performing full build.[/yellow]"
-            )
-            incremental = False
-        else:
-            console.print(f"[green]Found existing build manifest. Last build: {manifest.build_time}[/green]")
-
-    # Initialize database
-    try:
-        conn = init_db(output_path)
-    except Exception as e:
-        console.print(f"[red]Failed to initialize database: {e}[/red]")
-        sys.exit(1)
-
-    # Build the graph
-    with Progress(
-        SpinnerColumn(),
-        TextColumn("[progress.description]{task.description}"),
-        console=console,
-    ) as progress:
-        try:
-            # Discover plugins
-            registry = discover_plugins()
-            logger.info(f"Discovered plugins: {registry.list_plugins()}")
-
-            # Filter plugins based on flags
-            if not linear:
-                registry.remove_plugin("linear")
-                logger.info("Linear plugin disabled. Use --linear to enable.")
-
-            # Initialize lists for all nodes and edges
-            all_nodes = []
-            all_edges = []
-            plugin_metadata = {}
-
-            # Process each plugin
-            for plugin in registry.get_all():
-                plugin_name = plugin.get_name()
-                task = progress.add_task(f"Ingesting {plugin_name} data...", total=None)
-
-                # Get last processed data for this plugin
-                last_processed_data = None
-                if manifest and incremental and plugin_name in manifest.last_processed:
-                    last_processed_data = manifest.last_processed[plugin_name]
-
-                # Special handling for Git plugin (pass max_commits and days)
-                if plugin_name == "git":
-                    nodes, edges, metadata = plugin.ingest(
-                        repo_path,
-                        max_commits=max_commits,
-                        days=days,
-                        last_processed=last_processed_data,
-                    )
-                # Special handling for GitHub plugin (pass token)
-                elif plugin_name == "github":
-                    nodes, edges, metadata = plugin.ingest(
-                        repo_path,
-                        token=token,
-                        last_processed=last_processed_data,
-                    )
-                # Default handling for other plugins
-                else:
-                    nodes, edges, metadata = plugin.ingest(
-                        repo_path,
-                        last_processed=last_processed_data,
-                    )
-
-                # Add results to the combined lists
-                all_nodes.extend(nodes)
-                all_edges.extend(edges)
-                plugin_metadata[plugin_name] = metadata
-
-                # Update progress
-                progress.update(task, completed=True)
-
-            # Apply LLM enhancements if enabled
-            if llm_enhancement != LLMEnhancementLevel.NONE:
-                # Apply semantic analysis
-                task = progress.add_task("Applying semantic analysis...", total=None)
-                all_nodes, all_edges = enhance_with_semantic_analysis(
-                    all_nodes, all_edges, repo_path, str(llm_enhancement)
-                )
-                progress.update(task, completed=True)
-
-                # Apply temporal analysis
-                task = progress.add_task("Applying temporal analysis...", total=None)
-                all_nodes, all_edges = enhance_with_temporal_analysis(
-                    all_nodes, all_edges, repo_path
-                )
-                progress.update(task, completed=True)
-
-                # Apply reasoning structures
-                task = progress.add_task("Generating reasoning structures...", total=None)
-                all_nodes, all_edges = enhance_with_reasoning_structures(
-                    all_nodes, all_edges, repo_path
-                )
-                progress.update(task, completed=True)
-
-            # Write to database
-            task = progress.add_task("Writing to database...", total=None)
-            from arc_memory.sql.db import add_nodes_and_edges
-            add_nodes_and_edges(conn, all_nodes, all_edges)
-
-            # Get the node and edge counts
-            from arc_memory.sql.db import get_node_count, get_edge_count
-            node_count = get_node_count(conn)
-            edge_count = get_edge_count(conn)
-            progress.update(task, completed=True)
-
-            # Compress database
-            task = progress.add_task("Compressing database...", total=None)
-            compressed_path = compress_db(output_path)
-            progress.update(task, completed=True)
-
-            # Create and save build manifest
-            # Get the last commit hash from the git plugin metadata
-            last_commit_hash = None
-            if "git" in plugin_metadata and "last_commit_hash" in plugin_metadata["git"]:
-                last_commit_hash = plugin_metadata["git"]["last_commit_hash"]
-
-            build_manifest = BuildManifest(
-                schema_version="0.1.0",
-                build_time=datetime.now(),
-                commit=last_commit_hash,
-                node_count=node_count,
-                edge_count=edge_count,
-                last_processed=plugin_metadata,
-            )
-            save_build_manifest(build_manifest)
-
-            console.print(
-                f"[green]Build complete! {node_count} nodes and {edge_count} edges.[/green]"
-            )
-            console.print(
-                f"[green]Database saved to {output_path} and compressed to {compressed_path}[/green]"
-            )
-            # Track successful completion
-            track_cli_command("build", args=args, success=True)
-        except GraphBuildError as e:
-            progress.stop()
-            console.print(f"[red]Build failed: {e}[/red]")
-            track_cli_command("build", args=args, success=False, error=e)
-            sys.exit(1)
-        except Exception as e:
-            progress.stop()
-            logger.exception("Unexpected error during build")
-            console.print(f"[red]Unexpected error: {e}[/red]")
-            track_cli_command("build", args=args, success=False, error=e)
-            sys.exit(1)
-
-
-# Keep the original command for backward compatibility
-@app.command(hidden=True)
+@app.command()
 def build(
     repo_path: Path = typer.Option(
         Path.cwd(), "--repo", "-r", help="Path to the Git repository."
@@ -345,42 +61,234 @@ def build(
         False, "--incremental", help="Only process new data since last build."
     ),
     pull: bool = typer.Option(
-        False, "--pull", help="Pull the latest CI-built graph."
+        False, "--pull", help="Pull the latest changes from the remote repository."
     ),
     token: Optional[str] = typer.Option(
-        None, "--token", help="GitHub token to use for API calls."
+        None, "--token", "-t", help="GitHub Personal Access Token."
     ),
     linear: bool = typer.Option(
-        False, "--linear", help="Include Linear issues in the graph."
+        False, "--linear", help="Fetch data from Linear."
     ),
     llm_enhancement: LLMEnhancementLevel = typer.Option(
-        LLMEnhancementLevel.STANDARD, "--llm-enhancement", "-l",
-        help="LLM enhancement level: none, fast, standard, deep."
+        LLMEnhancementLevel.NONE,
+        "--llm-enhancement",
+        "-l",
+        help="LLM enhancement level: none, fast, standard, deep.",
     ),
     ollama_host: str = typer.Option(
-        "http://localhost:11434", "--ollama-host",
-        help="Ollama API host URL."
+        "http://localhost:11434",
+        "--ollama-host",
+        help="Ollama API host URL.",
     ),
     ci_mode: bool = typer.Option(
-        False, "--ci-mode", help="Optimize for CI environments."
+        False, "--ci-mode", help="Run in CI mode with optimized parameters."
     ),
-    debug: bool = typer.Option(
-        False, "--debug", help="Enable debug logging."
-    ),
+    debug: bool = typer.Option(False, "--debug", help="Enable debug logging."),
 ) -> None:
-    """Build the knowledge graph from Git, GitHub, and ADRs."""
-    # Call the extracted function
-    build_graph(
-        repo_path=repo_path,
-        output_path=output_path,
-        max_commits=max_commits,
-        days=days,
-        incremental=incremental,
-        pull=pull,
-        token=token,
-        linear=linear,
-        llm_enhancement=llm_enhancement,
-        ollama_host=ollama_host,
-        ci_mode=ci_mode,
-        debug=debug,
-    )
+    """Build the knowledge graph from a Git repository and other sources.
+
+    This command builds a knowledge graph from a Git repository and optionally
+    ingests data from other sources like GitHub and Linear. The resulting graph
+    is stored in a SQLite database.
+
+    Examples:
+        # Build from the current directory
+        arc build
+
+        # Build from a specific repository
+        arc build --repo /path/to/repo
+
+        # Build with a specific output file
+        arc build --output /path/to/output.db
+
+        # Build with GitHub data
+        arc build --token <github-token>
+
+        # Build with Linear data
+        arc build --linear
+
+        # Build with LLM enhancement
+        arc build --llm-enhancement standard
+    """
+    try:
+        start_time = time.time()
+        
+        # Print welcome message
+        print("\n📊 Arc Memory Knowledge Graph Builder")
+        print("=====================================")
+        print(f"Repository: {repo_path}")
+        print(f"Max commits: {max_commits}")
+        print(f"Days: {days}")
+        if incremental:
+            print("Mode: Incremental (only processing new data)")
+        else:
+            print("Mode: Full rebuild")
+        
+        print(f"LLM Enhancement: {llm_enhancement.value}")
+        if llm_enhancement != LLMEnhancementLevel.NONE:
+            print(f"Ollama Host: {ollama_host}")
+        print()
+
+        # Check if the repository exists
+        if not repo_path.exists():
+            raise BuildError(f"Repository path {repo_path} does not exist")
+
+        # Resolve output path
+        if output_path is None:
+            output_path = get_db_path()
+
+        # Set up ingestors
+        ingestors = []
+
+        # Create the Git ingestor
+        ingestors.append(
+            GitIngestor(
+                repo_path=repo_path,
+                max_commits=max_commits,
+                days=days,
+                incremental=incremental,
+                pull=pull,
+            )
+        )
+
+        # Create the GitHub ingestor if a token is provided
+        if token:
+            ingestors.append(
+                GitHubIngestor(
+                    repo_path=repo_path,
+                    token=token,
+                    incremental=incremental,
+                )
+            )
+
+        # Create the Linear ingestor if requested
+        if linear:
+            ingestors.append(LinearIngestor(incremental=incremental))
+
+        # Create the ADR ingestor
+        ingestors.append(ADRIngestor(repo_path=repo_path))
+        
+        # Create the Change Pattern ingestor
+        ingestors.append(ChangePatternIngestor())
+        
+        # Create the Code Analysis ingestor
+        ingestors.append(CodeAnalysisIngestor(repo_path=repo_path))
+
+        # Add plugin ingestors
+        plugin_ingestors = get_ingestor_plugins(repo_path=repo_path)
+        ingestors.extend(plugin_ingestors)
+        
+        # LLM setup if enhancement is enabled
+        ollama_client = None
+        if llm_enhancement != LLMEnhancementLevel.NONE:
+            print("🔄 Setting up LLM enhancement...")
+            if ensure_ollama_available("qwen3:4b"):
+                ollama_client = OllamaClient(host=ollama_host)
+                print("✅ LLM setup complete")
+            else:
+                print("⚠️  Warning: LLM setup failed, continuing without enhancement")
+                llm_enhancement = LLMEnhancementLevel.NONE
+
+        # Process nodes and edges using ingestors
+        all_nodes = []
+        all_edges = []
+        
+        total_ingestors = len(ingestors)
+        print(f"\n🔍 Running {total_ingestors} ingestors...\n")
+        
+        # Define a spinner animation for progress
+        spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+        spinner_idx = 0
+        
+        for idx, ingestor in enumerate(ingestors, 1):
+            ingestor_name = ingestor.get_name()
+            
+            # Clear current line and print status
+            sys.stdout.write(f"\r{' ' * 80}\r")
+            sys.stdout.write(f"[{idx}/{total_ingestors}] Processing {ingestor_name}...")
+            sys.stdout.flush()
+            
+            ingestor_start = time.time()
+            nodes, edges, metadata = ingestor.ingest(
+                previous_nodes=all_nodes,
+                previous_edges=all_edges,
+                llm_enhancement_level=llm_enhancement.value,
+                ollama_client=ollama_client,
+            )
+            
+            ingestor_time = time.time() - ingestor_start
+            all_nodes.extend(nodes)
+            all_edges.extend(edges)
+            
+            # Print completion status with stats
+            sys.stdout.write(f"\r{' ' * 80}\r")
+            sys.stdout.write(f"✅ [{idx}/{total_ingestors}] {ingestor_name}: {len(nodes)} nodes, {len(edges)} edges ({ingestor_time:.1f}s)\n")
+            sys.stdout.flush()
+
+        # Apply LLM enhancements if enabled
+        if llm_enhancement != LLMEnhancementLevel.NONE:
+            print("\n🧠 Applying LLM enhancements...")
+            enhancement_start = time.time()
+            
+            # Apply semantic analysis
+            spinner_idx = 0
+            semantic_spinner_thread = None
+            sys.stdout.write("\r⠋ Enhancing with semantic analysis...")
+            sys.stdout.flush()
+            
+            try:
+                all_nodes, all_edges = enhance_with_semantic_analysis(
+                    all_nodes, all_edges, ollama_client=ollama_client
+                )
+                sys.stdout.write(f"\r✅ Semantic analysis complete ({time.time() - enhancement_start:.1f}s)\n")
+            except Exception as e:
+                sys.stdout.write(f"\r❌ Semantic analysis failed: {e}\n")
+            
+            # Apply temporal analysis
+            temporal_start = time.time()
+            sys.stdout.write("\r⠋ Enhancing with temporal analysis...")
+            sys.stdout.flush()
+            
+            try:
+                all_nodes, all_edges = enhance_with_temporal_analysis(
+                    all_nodes, all_edges
+                )
+                sys.stdout.write(f"\r✅ Temporal analysis complete ({time.time() - temporal_start:.1f}s)\n")
+            except Exception as e:
+                sys.stdout.write(f"\r❌ Temporal analysis failed: {e}\n")
+            
+            # Apply KGoT reasoning structures (only in standard or deep mode)
+            if llm_enhancement in [LLMEnhancementLevel.STANDARD, LLMEnhancementLevel.DEEP]:
+                kgot_start = time.time()
+                sys.stdout.write("\r⠋ Generating reasoning structures...")
+                sys.stdout.flush()
+                
+                try:
+                    all_nodes, all_edges = enhance_with_reasoning_structures(
+                        all_nodes, all_edges, repo_path=repo_path
+                    )
+                    sys.stdout.write(f"\r✅ Reasoning structures complete ({time.time() - kgot_start:.1f}s)\n")
+                except Exception as e:
+                    sys.stdout.write(f"\r❌ Reasoning structures failed: {e}\n")
+            
+            enhancement_time = time.time() - enhancement_start
+            print(f"✅ LLM enhancements complete ({enhancement_time:.1f}s)")
+
+        # Store the graph
+        print(f"\n💾 Writing graph to database ({len(all_nodes)} nodes, {len(all_edges)} edges)...")
+        db_start = time.time()
+        store_graph(output_path, all_nodes, all_edges)
+        
+        # Compress the database
+        print("🗜️  Compressing database...")
+        original_size, compressed_size = compress_database(output_path)
+        compression_ratio = (original_size - compressed_size) / original_size * 100
+        
+        total_time = time.time() - start_time
+        print(f"\n✨ Build complete in {total_time:.1f} seconds!")
+        print(f"📊 {len(all_nodes)} nodes and {len(all_edges)} edges")
+        print(f"💾 Database saved to {output_path} and compressed to {output_path}.zst")
+        print(f"   ({original_size/1024/1024:.1f} MB → {compressed_size/1024/1024:.1f} MB, {compression_ratio:.1f}% reduction)")
+        
+    except Exception as e:
+        raise BuildError(f"Error building graph: {e}")
