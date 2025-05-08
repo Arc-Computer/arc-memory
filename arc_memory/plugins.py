@@ -6,6 +6,7 @@ with additional data sources beyond Git, GitHub, and ADRs.
 
 import importlib.metadata
 from typing import Any, Dict, List, Optional, Protocol, TypeVar
+from pathlib import Path
 
 from arc_memory.logging_conf import get_logger
 from arc_memory.schema.models import Edge, Node
@@ -236,3 +237,23 @@ def get_plugin_config(plugin_name: str) -> Dict[str, Any]:
     # In a real implementation, this would load configuration from a file
     # or environment variables
     return {}
+
+
+def get_ingestor_plugins(repo_path: Optional[Path] = None) -> List[IngestorPlugin]:
+    """Get ingestor plugins with repo_path configured.
+    
+    Args:
+        repo_path: The path to the repository to analyze.
+        
+    Returns:
+        A list of configured ingestor plugin instances.
+    """
+    # Use the discover_plugins function to get the registry
+    registry = discover_plugins()
+    
+    # Filter out already directly instantiated plugins (git, github, adr, linear, etc.)
+    # as these are added separately in the build command
+    built_in_plugins = ["git", "github", "adr", "linear", "code_analysis", "change_patterns"]
+    
+    # Return only third-party plugins
+    return [p for p in registry.get_all() if p.get_name() not in built_in_plugins]
