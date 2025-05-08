@@ -375,17 +375,22 @@ def optimize_export_for_llm(export_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     logger.info("Optimizing export data for LLM reasoning")
 
-    # Add reasoning paths section
-    export_data["reasoning_paths"] = generate_common_reasoning_paths(export_data)
+    try:
+        # Add reasoning paths section
+        export_data["reasoning_paths"] = generate_common_reasoning_paths(export_data)
 
-    # Add semantic context section
-    export_data["semantic_context"] = extract_semantic_context(export_data)
+        # Add semantic context section
+        export_data["semantic_context"] = extract_semantic_context(export_data)
 
-    # Add temporal patterns section
-    export_data["temporal_patterns"] = extract_temporal_patterns(export_data)
+        # Add temporal patterns section
+        export_data["temporal_patterns"] = extract_temporal_patterns(export_data)
 
-    # Add thought structures section
-    export_data["thought_structures"] = generate_thought_structures(export_data)
+        # Add thought structures section
+        export_data["thought_structures"] = generate_thought_structures(export_data)
+    except Exception as e:
+        logger.error(f"Error optimizing export for LLM: {e}")
+        # Return original data if enhancement fails
+        export_data["enhancement_error"] = str(e)
 
     return export_data
 
@@ -465,51 +470,65 @@ def extract_semantic_context(export_data: Dict[str, Any]) -> Dict[str, Any]:
         }
     }
 
-    # Extract key concepts
-    concept_nodes = [n for n in export_data["nodes"] if n["type"] == "concept"]
-    for node in concept_nodes:
-        if "metadata" in node and "definition" in node["metadata"]:
-            semantic_context["key_concepts"].append({
-                "name": node["title"],
-                "definition": node["metadata"]["definition"],
-                "related_terms": node["metadata"].get("related_terms", [])
-            })
-
-    # Extract code entities
-    function_nodes = [n for n in export_data["nodes"] if n["type"] == "function"]
-    for node in function_nodes:
-        if "metadata" in node:
-            semantic_context["code_entities"]["functions"].append({
-                "name": node["title"],
-                "signature": node["metadata"].get("signature", ""),
-                "path": node.get("path", "")
-            })
-
-    class_nodes = [n for n in export_data["nodes"] if n["type"] == "class"]
-    for node in class_nodes:
-        if "metadata" in node:
-            semantic_context["code_entities"]["classes"].append({
-                "name": node["title"],
-                "methods": node["metadata"].get("methods", []),
-                "path": node.get("path", "")
-            })
-
-    # Extract architecture information
-    for node in export_data["nodes"]:
-        if node["type"] == "file" and "metadata" in node:
-            service = node["metadata"].get("service")
-            component = node["metadata"].get("component")
-
-            if service and service not in [s["name"] for s in semantic_context["architecture"]["services"]]:
-                semantic_context["architecture"]["services"].append({
-                    "name": service,
-                    "components": [component] if component else []
+    try:
+        # Extract key concepts
+        concept_nodes = [n for n in export_data.get("nodes", []) if n.get("type") == "concept"]
+        for node in concept_nodes:
+            metadata = node.get("metadata", {})
+            if metadata and metadata.get("definition"):
+                semantic_context["key_concepts"].append({
+                    "name": node.get("title", "Unnamed concept"),
+                    "definition": metadata.get("definition", ""),
+                    "related_terms": metadata.get("related_terms", [])
                 })
-            elif service and component:
-                # Add component to existing service
-                for s in semantic_context["architecture"]["services"]:
-                    if s["name"] == service and component not in s["components"]:
-                        s["components"].append(component)
+
+        # Extract code entities
+        function_nodes = [n for n in export_data.get("nodes", []) if n.get("type") == "function"]
+        for node in function_nodes:
+            metadata = node.get("metadata", {})
+            if metadata:
+                semantic_context["code_entities"]["functions"].append({
+                    "name": node.get("title", "Unnamed function"),
+                    "signature": metadata.get("signature", ""),
+                    "path": node.get("path", "")
+                })
+
+        class_nodes = [n for n in export_data.get("nodes", []) if n.get("type") == "class"]
+        for node in class_nodes:
+            metadata = node.get("metadata", {})
+            if metadata:
+                semantic_context["code_entities"]["classes"].append({
+                    "name": node.get("title", "Unnamed class"),
+                    "methods": metadata.get("methods", []),
+                    "path": node.get("path", "")
+                })
+
+        # Extract architecture information
+        for node in export_data.get("nodes", []):
+            if node.get("type") == "file":
+                metadata = node.get("metadata", {})
+                service = metadata.get("service")
+                component = metadata.get("component")
+
+                if service and service not in [s["name"] for s in semantic_context["architecture"]["services"]]:
+                    semantic_context["architecture"]["services"].append({
+                        "name": service,
+                        "components": [component] if component else []
+                    })
+                elif service and component:
+                    # Add component to existing service
+                    for s in semantic_context["architecture"]["services"]:
+                        if s["name"] == service and component not in s["components"]:
+                            s["components"].append(component)
+    except Exception as e:
+        logger.error(f"Error extracting semantic context: {e}")
+        # Return empty semantic context if extraction fails
+        return {
+            "key_concepts": [],
+            "code_entities": {"functions": [], "classes": [], "modules": []},
+            "architecture": {"services": [], "components": []},
+            "error": str(e)
+        }
 
     return semantic_context
 

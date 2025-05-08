@@ -55,7 +55,21 @@ class OllamaClient:
         try:
             response = self.session.post(url, json=data)
             response.raise_for_status()
-            return response.json()["response"]
+            
+            try:
+                return response.json()["response"]
+            except (json.JSONDecodeError, KeyError) as e:
+                # Handle malformed JSON or missing "response" key
+                logger.error(f"Error parsing Ollama response: {e}")
+                # Extract text content as fallback
+                if response.text:
+                    logger.info(f"Using raw response text as fallback (first 100 chars): {response.text[:100]}...")
+                    return response.text
+                raise ValueError(f"Failed to parse response from Ollama: {e}")
+                
+        except requests.RequestException as e:
+            logger.error(f"Error communicating with Ollama: {e}")
+            raise
         except Exception as e:
             logger.error(f"Error generating response from Ollama: {e}")
             raise

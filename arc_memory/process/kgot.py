@@ -175,14 +175,38 @@ class KGoTProcessor:
             )
 
             # Parse the response
-            import re
-            json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(1)
-            else:
-                json_str = response
-
-            data = json.loads(json_str)
+            try:
+                # First try direct JSON parsing
+                data = json.loads(response)
+            except json.JSONDecodeError:
+                # If that fails, try to extract JSON using regex
+                import re
+                # Look for JSON between triple backticks, or just any JSON-like structure
+                json_match = re.search(r'```(?:json)?\s*(\{.*?\})\s*```', response, re.DOTALL)
+                if json_match:
+                    json_str = json_match.group(1)
+                else:
+                    # Try to find anything that looks like a JSON object
+                    json_match = re.search(r'(\{.*\})', response, re.DOTALL)
+                    if json_match:
+                        json_str = json_match.group(1)
+                    else:
+                        # Fallback to a minimal structure
+                        logger.warning(f"Could not parse JSON from LLM response for {decision_point.id}")
+                        json_str = '{"question": "What decision was made?", "alternatives": [], "criteria": [], "reasoning": [], "implications": []}'
+                
+                try:
+                    data = json.loads(json_str)
+                except json.JSONDecodeError as e:
+                    logger.error(f"Failed to parse extracted JSON: {e}")
+                    # Provide a minimal fallback structure
+                    data = {
+                        "question": f"What decision was made in {decision_point.title}?",
+                        "alternatives": [],
+                        "criteria": [],
+                        "reasoning": [],
+                        "implications": []
+                    }
 
             # Create reasoning nodes and edges
             reasoning_nodes = []
@@ -192,7 +216,7 @@ class KGoTProcessor:
             question_id = f"reasoning:question:{decision_point.id}"
             question_node = Node(
                 id=question_id,
-                type="reasoning_question",  # Custom type
+                type=NodeType.REASONING_QUESTION,
                 title=data.get("question", "Unknown question"),
                 extra={"decision_point": decision_point.id},
             )
@@ -202,7 +226,7 @@ class KGoTProcessor:
             question_edge = Edge(
                 src=question_id,
                 dst=decision_point.id,
-                rel="REASONS_ABOUT",  # Custom relationship
+                rel=EdgeRel.REASONS_ABOUT,
                 properties={"type": "question"},
             )
             reasoning_edges.append(question_edge)
@@ -212,7 +236,7 @@ class KGoTProcessor:
                 alt_id = f"reasoning:alternative:{decision_point.id}:{i}"
                 alt_node = Node(
                     id=alt_id,
-                    type="reasoning_alternative",  # Custom type
+                    type=NodeType.REASONING_ALTERNATIVE,
                     title=alt.get("name", f"Alternative {i+1}"),
                     body=alt.get("description", ""),
                     extra={"decision_point": decision_point.id},
@@ -223,7 +247,7 @@ class KGoTProcessor:
                 alt_edge = Edge(
                     src=question_id,
                     dst=alt_id,
-                    rel="HAS_ALTERNATIVE",  # Custom relationship
+                    rel=EdgeRel.HAS_ALTERNATIVE,
                     properties={"index": i},
                 )
                 reasoning_edges.append(alt_edge)
@@ -233,7 +257,7 @@ class KGoTProcessor:
                 criterion_id = f"reasoning:criterion:{decision_point.id}:{i}"
                 criterion_node = Node(
                     id=criterion_id,
-                    type="reasoning_criterion",  # Custom type
+                    type=NodeType.REASONING_CRITERION,
                     title=criterion.get("name", f"Criterion {i+1}"),
                     body=criterion.get("description", ""),
                     extra={"decision_point": decision_point.id},
@@ -244,7 +268,7 @@ class KGoTProcessor:
                 criterion_edge = Edge(
                     src=question_id,
                     dst=criterion_id,
-                    rel="HAS_CRITERION",  # Custom relationship
+                    rel=EdgeRel.HAS_CRITERION,
                     properties={"index": i},
                 )
                 reasoning_edges.append(criterion_edge)
@@ -255,7 +279,7 @@ class KGoTProcessor:
                 step_id = f"reasoning:step:{decision_point.id}:{step.get('step', 0)}"
                 step_node = Node(
                     id=step_id,
-                    type="reasoning_step",  # Custom type
+                    type=NodeType.REASONING_STEP,
                     title=f"Step {step.get('step', 0)}",
                     body=step.get("description", ""),
                     extra={"decision_point": decision_point.id},
@@ -266,7 +290,7 @@ class KGoTProcessor:
                 step_edge = Edge(
                     src=prev_step_id,
                     dst=step_id,
-                    rel="NEXT_STEP",  # Custom relationship
+                    rel=EdgeRel.NEXT_STEP,
                     properties={"step": step.get("step", 0)},
                 )
                 reasoning_edges.append(step_edge)
@@ -277,7 +301,7 @@ class KGoTProcessor:
                 impl_id = f"reasoning:implication:{decision_point.id}:{i}"
                 impl_node = Node(
                     id=impl_id,
-                    type="reasoning_implication",  # Custom type
+                    type=NodeType.REASONING_IMPLICATION,
                     title=f"Implication {i+1}",
                     body=implication,
                     extra={"decision_point": decision_point.id},
@@ -288,7 +312,7 @@ class KGoTProcessor:
                 impl_edge = Edge(
                     src=decision_point.id,
                     dst=impl_id,
-                    rel="HAS_IMPLICATION",  # Custom relationship
+                    rel=EdgeRel.HAS_IMPLICATION,
                     properties={"index": i},
                 )
                 reasoning_edges.append(impl_edge)
