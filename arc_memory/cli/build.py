@@ -43,7 +43,6 @@ class LLMEnhancementLevel(str, Enum):
     DEEP = "deep"
 
 
-@app.command()
 def build(
     repo_path: Path = typer.Option(
         Path.cwd(), "--repo", "-r", help="Path to the Git repository."
