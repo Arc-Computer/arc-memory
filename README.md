@@ -88,13 +88,13 @@ uv pip install arc-memory
    ```bash
    # Build with GitHub data
    arc build --github
-   
+
    # Build with Linear data
    arc build --linear
-   
+
    # Build with both GitHub and Linear data
    arc build --github --linear
-   
+
    # Build with LLM enhancement for deeper analysis
    arc build --github --linear --llm-enhancement standard
    ```
@@ -209,6 +209,18 @@ As you use Arc in your daily workflow:
 4. Decision trails become richer and more insightful
 
 This creates a reinforcing flywheel where each component makes the others more powerful.
+
+## Telemetry
+
+Arc includes optional, privacy-respecting telemetry to help us improve the product:
+
+- **Anonymous**: No personally identifiable information is collected
+- **Opt-in**: Disabled by default, enable with `arc config telemetry on`
+- **Transparent**: All collected data is documented and visible
+- **Focused**: Only collects command usage and session metrics
+
+Telemetry is disabled by default. To enable it: `arc config telemetry on`
+To disable telemetry: `arc config telemetry off`
 
 ## Documentation
 
