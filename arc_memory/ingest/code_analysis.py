@@ -443,7 +443,7 @@ class CodeAnalysisIngestor:
                 Always respond with valid JSON only. Do not include any explanations, markdown formatting, or additional text.
                 Ensure all JSON keys and string values are properly quoted with double quotes."""
 
-                response = self.ollama_client.generate_with_thinking(
+                response = self.ollama_client.generate(
                     model="qwen3:4b",
                     prompt=prompt,
                     system=system_prompt,
