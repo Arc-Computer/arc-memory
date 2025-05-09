@@ -53,6 +53,10 @@ def export(
         True, "--enhance-for-llm/--no-enhance-for-llm",
         help="Enhance the export data for LLM reasoning"
     ),
+    include_causal: bool = typer.Option(
+        True, "--include-causal/--no-causal",
+        help="Include causal relationships in the export"
+    ),
     ci_mode: bool = typer.Option(
         False, "--ci-mode", help="Optimize for CI environments"
     ),
@@ -66,12 +70,19 @@ def export(
     modified in a specific PR, along with related nodes and edges. The export
     is saved as a JSON file that can be used by the GitHub App for PR reviews.
 
+    The export includes:
+    - Modified files and their relationships
+    - Related entities (commits, PRs, issues, etc.)
+    - Causal relationships (decisions, implications, code changes)
+    - Reasoning structures from the Knowledge Graph of Thoughts
+
     Examples:
         arc export abc123 --out arc-graph.json
         arc export abc123 --out arc-graph.json.gz --compress
         arc export abc123 --out arc-graph.json --sign --key ABCD1234
         arc export abc123 --out arc-graph.json --max-hops 3
         arc export abc123 --out arc-graph.json --no-enhance-for-llm
+        arc export abc123 --out arc-graph.json --no-causal
     """
     configure_logging(debug=debug or is_debug_mode())
 
@@ -83,6 +94,7 @@ def export(
         "base_branch": base_branch,
         "max_hops": max_hops,
         "enhance_for_llm": enhance_for_llm,
+        "include_causal": include_causal,
         "ci_mode": ci_mode,
         "debug": debug,
     }
@@ -121,6 +133,7 @@ def export(
             base_branch=base_branch,
             max_hops=max_hops,
             enhance_for_llm=enhance_for_llm,
+            include_causal=include_causal,
         )
 
         console.print(f"[green]Export complete! Saved to {output_path}[/green]")
