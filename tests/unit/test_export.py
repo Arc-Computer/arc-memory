@@ -119,7 +119,7 @@ def test_format_export_data():
     result = format_export_data(pr_sha, nodes, edges, changed_files, pr_info)
 
     # Check the result
-    assert result["schema_version"] == "0.2"
+    assert result["schema_version"] == "0.3"  # Updated schema version for causal relationships
     assert "generated_at" in result
     assert result["pr"]["sha"] == pr_sha
     assert result["pr"]["number"] == 123

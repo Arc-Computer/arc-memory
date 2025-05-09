@@ -166,11 +166,10 @@ class GitHubFetcher:
             pr_number: Pull request number.
 
         Returns:
-            Additional PR details.
+            Additional PR details or None if the PR details couldn't be fetched.
 
         Raises:
             GitHubAuthError: If there's an error with GitHub authentication.
-            IngestError: If there's an error fetching the data.
         """
         logger.info(f"Fetching details for PR #{pr_number} in {owner}/{repo}")
 
@@ -202,7 +201,8 @@ class GitHubFetcher:
             raise
         except Exception as e:
             logger.exception(f"Error fetching PR details: {e}")
-            raise IngestError(f"Failed to fetch PR details: {e}")
+            # Return None instead of raising an exception
+            return None
 
     async def fetch_issue_details(
         self, owner: str, repo: str, issue_number: int
@@ -215,11 +215,10 @@ class GitHubFetcher:
             issue_number: Issue number.
 
         Returns:
-            Additional issue details.
+            Additional issue details or None if the issue details couldn't be fetched.
 
         Raises:
             GitHubAuthError: If there's an error with GitHub authentication.
-            IngestError: If there's an error fetching the data.
         """
         logger.info(f"Fetching details for issue #{issue_number} in {owner}/{repo}")
 
@@ -243,14 +242,15 @@ class GitHubFetcher:
             raise
         except Exception as e:
             logger.exception(f"Error fetching issue details: {e}")
-            raise IngestError(f"Failed to fetch issue details: {e}")
+            # Return None instead of raising an exception
+            return None
 
-    def create_pr_node(self, pr_data: Dict[str, Any], details: Dict[str, Any]) -> PRNode:
+    def create_pr_node(self, pr_data: Dict[str, Any], details: Optional[Dict[str, Any]]) -> PRNode:
         """Create a PRNode from PR data.
 
         Args:
             pr_data: Pull request data from GraphQL.
-            details: Additional details from REST API.
+            details: Additional details from REST API, may be None.
 
         Returns:
             A PRNode object.
@@ -287,66 +287,68 @@ class GitHubFetcher:
             "updated_at": updated_at.isoformat(),
         }
 
-        # Add file information
-        if details and "files" in details:
-            extra["files"] = [
-                {
-                    "filename": file["filename"],
-                    "additions": file.get("additions", 0),
-                    "deletions": file.get("deletions", 0),
-                    "changes": file.get("changes", 0),
-                }
-                for file in details["files"]
-            ]
+        # Safely add details data
+        if details is not None:
+            # Add file information
+            if "files" in details:
+                extra["files"] = [
+                    {
+                        "filename": file["filename"],
+                        "additions": file.get("additions", 0),
+                        "deletions": file.get("deletions", 0),
+                        "changes": file.get("changes", 0),
+                    }
+                    for file in details["files"]
+                ]
 
-        # Add review information
-        if details and "reviews" in details:
-            extra["reviews"] = [
-                {
-                    "author": review.get("user", {}).get("login"),
-                    "state": review.get("state"),
-                    "body": review.get("body"),
-                    "submitted_at": review.get("submitted_at"),
-                }
-                for review in details["reviews"]
-            ]
+            # Add review information
+            if "reviews" in details:
+                extra["reviews"] = [
+                    {
+                        "author": review.get("user", {}).get("login"),
+                        "state": review.get("state"),
+                        "body": review.get("body"),
+                        "submitted_at": review.get("submitted_at"),
+                    }
+                    for review in details["reviews"]
+                ]
 
-        # Add comment information
-        if details and "comments" in details:
-            extra["comments"] = [
-                {
-                    "author": comment.get("user", {}).get("login"),
-                    "body": comment.get("body"),
-                    "created_at": comment.get("created_at"),
-                }
-                for comment in details["comments"]
-            ]
+            # Add comment information
+            if "comments" in details:
+                extra["comments"] = [
+                    {
+                        "author": comment.get("user", {}).get("login"),
+                        "body": comment.get("body"),
+                        "created_at": comment.get("created_at"),
+                    }
+                    for comment in details["comments"]
+                ]
 
-        # Add commit information
-        if details and "commits" in details:
-            extra["commits"] = [
-                {
-                    "sha": commit.get("sha"),
-                    "message": commit.get("commit", {}).get("message"),
-                    "author": commit.get("author", {}).get("login") or commit.get("commit", {}).get("author", {}).get("name"),
-                    "url": commit.get("html_url"),
-                }
-                for commit in details["commits"]
-            ]
+            # Add commit information
+            if "commits" in details:
+                extra["commits"] = [
+                    {
+                        "sha": commit.get("sha"),
+                        "message": commit.get("commit", {}).get("message"),
+                        "author": commit.get("author", {}).get("login") or commit.get("commit", {}).get("author", {}).get("name"),
+                        "url": commit.get("html_url"),
+                    }
+                    for commit in details["commits"]
+                ]
 
-        # Add review comment information (inline comments)
-        if details and "review_comments" in details:
-            extra["review_comments"] = [
-                {
-                    "author": comment.get("user", {}).get("login"),
-                    "body": comment.get("body"),
-                    "created_at": comment.get("created_at"),
-                    "path": comment.get("path"),
-                    "position": comment.get("position"),
-                    "diff_hunk": comment.get("diff_hunk"),
-                }
-                for comment in details["review_comments"]
-            ]
+            # Add review comment information (inline comments)
+            if "review_comments" in details:
+                extra["review_comments"] = [
+                    {
+                        "author": comment.get("user", {}).get("login"),
+                        "body": comment.get("body"),
+                        "created_at": comment.get("created_at"),
+                        "path": comment.get("path"),
+                        "position": comment.get("position"),
+                        "diff_hunk": comment.get("diff_hunk"),
+                    }
+                    for comment in details["review_comments"]
+                ]
 
         # Create the PR node
         return PRNode(
@@ -363,12 +365,12 @@ class GitHubFetcher:
             extra=extra,
         )
 
-    def create_issue_node(self, issue_data: Dict[str, Any], details: Dict[str, Any]) -> IssueNode:
+    def create_issue_node(self, issue_data: Dict[str, Any], details: Optional[Dict[str, Any]]) -> IssueNode:
         """Create an IssueNode from issue data.
 
         Args:
             issue_data: Issue data from GraphQL.
-            details: Additional details from REST API.
+            details: Additional details from REST API, may be None.
 
         Returns:
             An IssueNode object.
@@ -404,62 +406,64 @@ class GitHubFetcher:
             "updated_at": updated_at.isoformat(),
         }
 
-        # Add comment information
-        if details and "comments" in details:
-            extra["comments"] = [
-                {
-                    "author": comment.get("user", {}).get("login"),
-                    "body": comment.get("body"),
-                    "created_at": comment.get("created_at"),
-                }
-                for comment in details["comments"]
-            ]
+        # Safely add details data
+        if details is not None:
+            # Add comment information
+            if "comments" in details:
+                extra["comments"] = [
+                    {
+                        "author": comment.get("user", {}).get("login"),
+                        "body": comment.get("body"),
+                        "created_at": comment.get("created_at"),
+                    }
+                    for comment in details["comments"]
+                ]
 
-        # Add events information
-        if details and "events" in details:
-            extra["events"] = [
-                {
-                    "event": event.get("event"),
-                    "actor": event.get("actor", {}).get("login"),
-                    "created_at": event.get("created_at"),
-                    "label": event.get("label", {}).get("name") if event.get("label") else None,
-                    "assignee": event.get("assignee", {}).get("login") if event.get("assignee") else None,
-                }
-                for event in details["events"]
-            ]
+            # Add events information
+            if "events" in details:
+                extra["events"] = [
+                    {
+                        "event": event.get("event"),
+                        "actor": event.get("actor", {}).get("login"),
+                        "created_at": event.get("created_at"),
+                        "label": event.get("label", {}).get("name") if event.get("label") else None,
+                        "assignee": event.get("assignee", {}).get("login") if event.get("assignee") else None,
+                    }
+                    for event in details["events"]
+                ]
 
-        # Add timeline information
-        if details and "timeline" in details:
-            extra["timeline"] = [
-                {
-                    "event": item.get("event"),
-                    "actor": item.get("actor", {}).get("login") if item.get("actor") else None,
-                    "created_at": item.get("created_at"),
-                    # Include additional fields based on event type
-                    **({
-                        "label": item.get("label", {}).get("name")
-                    } if item.get("event") == "labeled" or item.get("event") == "unlabeled" else {}),
-                    **({
-                        "assignee": item.get("assignee", {}).get("login")
-                    } if item.get("event") == "assigned" or item.get("event") == "unassigned" else {}),
-                    **({
-                        "milestone": item.get("milestone", {}).get("title")
-                    } if item.get("event") == "milestoned" or item.get("event") == "demilestoned" else {}),
-                    **({
-                        "rename": {
-                            "from": item.get("rename", {}).get("from"),
-                            "to": item.get("rename", {}).get("to"),
-                        }
-                    } if item.get("event") == "renamed" else {}),
-                    **({
-                        "cross_reference": {
-                            "source": item.get("source", {}).get("issue", {}).get("number"),
-                            "type": "pr" if item.get("source", {}).get("issue", {}).get("pull_request") else "issue",
-                        }
-                    } if item.get("event") == "cross-referenced" else {}),
-                }
-                for item in details["timeline"]
-            ]
+            # Add timeline information
+            if "timeline" in details:
+                extra["timeline"] = [
+                    {
+                        "event": item.get("event"),
+                        "actor": item.get("actor", {}).get("login") if item.get("actor") else None,
+                        "created_at": item.get("created_at"),
+                        # Include additional fields based on event type
+                        **({
+                            "label": item.get("label", {}).get("name")
+                        } if item.get("event") == "labeled" or item.get("event") == "unlabeled" else {}),
+                        **({
+                            "assignee": item.get("assignee", {}).get("login")
+                        } if item.get("event") == "assigned" or item.get("event") == "unassigned" else {}),
+                        **({
+                            "milestone": item.get("milestone", {}).get("title")
+                        } if item.get("event") == "milestoned" or item.get("event") == "demilestoned" else {}),
+                        **({
+                            "rename": {
+                                "from": item.get("rename", {}).get("from"),
+                                "to": item.get("rename", {}).get("to"),
+                            }
+                        } if item.get("event") == "renamed" else {}),
+                        **({
+                            "cross_reference": {
+                                "source": item.get("source", {}).get("issue", {}).get("number"),
+                                "type": "pr" if item.get("source", {}).get("issue", {}).get("pull_request") else "issue",
+                            }
+                        } if item.get("event") == "cross-referenced" else {}),
+                    }
+                    for item in details["timeline"]
+                ]
 
         # Create the issue node
         return IssueNode(
@@ -577,7 +581,7 @@ class GitHubFetcher:
 
     def fetch_pr_details_sync(
         self, owner: str, repo: str, pr_number: int
-    ) -> Dict[str, Any]:
+    ) -> Optional[Dict[str, Any]]:
         """Synchronous wrapper for fetch_pr_details."""
         import asyncio
 
@@ -590,7 +594,7 @@ class GitHubFetcher:
 
     def fetch_issue_details_sync(
         self, owner: str, repo: str, issue_number: int
-    ) -> Dict[str, Any]:
+    ) -> Optional[Dict[str, Any]]:
         """Synchronous wrapper for fetch_issue_details."""
         import asyncio
 
@@ -643,6 +647,10 @@ class GitHubFetcher:
 
                     # Fetch additional details
                     details = self.fetch_pr_details_sync(owner, repo, pr_number)
+                    
+                    # If we couldn't get details, create a minimal details object
+                    if details is None:
+                        details = {"files": [], "reviews": [], "comments": [], "commits": [], "review_comments": []}
 
                     # Combine basic details and additional details
                     combined_details = {

@@ -5,8 +5,8 @@ with additional data sources beyond Git, GitHub, and ADRs.
 """
 
 import importlib.metadata
-import logging
-from typing import Any, Dict, List, Optional, Protocol, Type, TypeVar
+from typing import Any, Dict, List, Optional, Protocol, TypeVar
+from pathlib import Path
 
 from arc_memory.logging_conf import get_logger
 from arc_memory.schema.models import Edge, Node
@@ -194,6 +194,20 @@ def discover_plugins() -> IngestorRegistry:
     except (ImportError, AttributeError) as e:
         logger.warning(f"Failed to load built-in plugin 'linear': {e}")
 
+    try:
+        from arc_memory.ingest.code_analysis import CodeAnalysisIngestor
+        registry.register(CodeAnalysisIngestor())
+        logger.debug("Registered built-in plugin: code_analysis")
+    except (ImportError, AttributeError) as e:
+        logger.warning(f"Failed to load built-in plugin 'code_analysis': {e}")
+
+    try:
+        from arc_memory.ingest.change_patterns import ChangePatternIngestor
+        registry.register(ChangePatternIngestor())
+        logger.debug("Registered built-in plugin: change_patterns")
+    except (ImportError, AttributeError) as e:
+        logger.warning(f"Failed to load built-in plugin 'change_patterns': {e}")
+
     # Discover and register third-party plugins
     try:
         for entry_point in importlib.metadata.entry_points(group='arc_memory.plugins'):
@@ -223,3 +237,23 @@ def get_plugin_config(plugin_name: str) -> Dict[str, Any]:
     # In a real implementation, this would load configuration from a file
     # or environment variables
     return {}
+
+
+def get_ingestor_plugins(repo_path: Optional[Path] = None) -> List[IngestorPlugin]:
+    """Get ingestor plugins with repo_path configured.
+    
+    Args:
+        repo_path: The path to the repository to analyze.
+        
+    Returns:
+        A list of configured ingestor plugin instances.
+    """
+    # Use the discover_plugins function to get the registry
+    registry = discover_plugins()
+    
+    # Filter out already directly instantiated plugins (git, github, adr, linear, etc.)
+    # as these are added separately in the build command
+    built_in_plugins = ["git", "github", "adr", "linear", "code_analysis", "change_patterns"]
+    
+    # Return only third-party plugins
+    return [p for p in registry.get_all() if p.get_name() not in built_in_plugins]

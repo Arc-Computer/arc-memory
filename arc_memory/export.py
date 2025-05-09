@@ -17,6 +17,7 @@ import git
 from git import Repo
 
 from arc_memory.errors import ExportError, GitError
+from arc_memory.llm.ollama_client import OllamaClient
 from arc_memory.logging_conf import get_logger
 from arc_memory.schema.models import Edge, EdgeRel, Node, NodeType
 from arc_memory.sql.db import (
@@ -275,7 +276,8 @@ def get_recent_commits_for_file(
 
 
 def get_related_nodes(
-    conn: Any, node_ids: List[str], max_hops: int = 1, include_adrs: bool = True
+    conn: Any, node_ids: List[str], max_hops: int = 1, include_adrs: bool = True,
+    include_causal: bool = False
 ) -> Tuple[List[Dict[str, Any]], List[Dict[str, Any]]]:
     """Get nodes related to the specified nodes up to max_hops away.
 
@@ -284,6 +286,7 @@ def get_related_nodes(
         node_ids: List of node IDs to start from
         max_hops: Maximum number of hops to traverse
         include_adrs: Whether to include all ADRs regardless of hop distance
+        include_causal: Whether to include all causal nodes (decisions, implications, code changes)
 
     Returns:
         Tuple of (nodes, edges) where each is a list of dictionaries
@@ -315,6 +318,101 @@ def get_related_nodes(
                     })
         except Exception as e:
             logger.warning(f"Error fetching ADR nodes: {e}")
+
+    # If include_causal is True, get all causal nodes (decisions, implications, code changes)
+    if include_causal:
+        try:
+            # Get all decision nodes
+            logger.info("Including decision nodes in the export")
+            cursor = conn.execute(
+                "SELECT id, type, title, body, extra FROM nodes WHERE type = ?",
+                (NodeType.DECISION.value,)
+            )
+            for row in cursor:
+                node_id = row[0]
+                if node_id not in visited_nodes:
+                    visited_nodes.add(node_id)
+                    nodes_result.append({
+                        "id": node_id,
+                        "type": row[1],
+                        "title": row[2],
+                        "body": row[3],
+                        "extra": json.loads(row[4]) if row[4] else {}
+                    })
+
+            # Get all implication nodes
+            logger.info("Including implication nodes in the export")
+            cursor = conn.execute(
+                "SELECT id, type, title, body, extra FROM nodes WHERE type = ?",
+                (NodeType.IMPLICATION.value,)
+            )
+            for row in cursor:
+                node_id = row[0]
+                if node_id not in visited_nodes:
+                    visited_nodes.add(node_id)
+                    nodes_result.append({
+                        "id": node_id,
+                        "type": row[1],
+                        "title": row[2],
+                        "body": row[3],
+                        "extra": json.loads(row[4]) if row[4] else {}
+                    })
+
+            # Get all code change nodes
+            logger.info("Including code change nodes in the export")
+            cursor = conn.execute(
+                "SELECT id, type, title, body, extra FROM nodes WHERE type = ?",
+                (NodeType.CODE_CHANGE.value,)
+            )
+            for row in cursor:
+                node_id = row[0]
+                if node_id not in visited_nodes:
+                    visited_nodes.add(node_id)
+                    nodes_result.append({
+                        "id": node_id,
+                        "type": row[1],
+                        "title": row[2],
+                        "body": row[3],
+                        "extra": json.loads(row[4]) if row[4] else {}
+                    })
+
+            # Get all causal edges
+            logger.info("Including causal edges in the export")
+            causal_edge_types = [
+                EdgeRel.LEADS_TO.value,
+                EdgeRel.RESULTS_IN.value,
+                EdgeRel.IMPLEMENTS_DECISION.value,
+                EdgeRel.CAUSED_BY.value,
+                EdgeRel.INFLUENCES.value,
+                EdgeRel.ADDRESSES.value
+            ]
+
+            placeholders = ", ".join(["?" for _ in causal_edge_types])
+            cursor = conn.execute(
+                f"SELECT src, dst, rel, properties FROM edges WHERE rel IN ({placeholders})",
+                causal_edge_types
+            )
+
+            for row in cursor:
+                edge_key = (row[0], row[1], row[2])
+                if edge_key not in visited_edges:
+                    visited_edges.add(edge_key)
+                    edges_result.append({
+                        "src": row[0],
+                        "dst": row[1],
+                        "rel": row[2],
+                        "properties": json.loads(row[3]) if row[3] else {}
+                    })
+
+                    # Add the source and destination nodes to nodes_to_visit
+                    # so they'll be included in the BFS traversal
+                    if row[0] not in visited_nodes:
+                        nodes_to_visit.add(row[0])
+                    if row[1] not in visited_nodes:
+                        nodes_to_visit.add(row[1])
+
+        except Exception as e:
+            logger.warning(f"Error fetching causal nodes and edges: {e}")
 
     # BFS to get related nodes up to max_hops away
     for _ in range(max_hops):
@@ -354,6 +452,508 @@ def get_related_nodes(
                     nodes_to_visit.add(edge["src"])
 
     return nodes_result, edges_result
+
+
+def extract_causal_relationships(export_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract causal relationships from the export data.
+
+    This function identifies and structures causal relationships in the knowledge graph,
+    including decision → implication → code-change chains.
+
+    Args:
+        export_data: The export data to analyze
+
+    Returns:
+        Dictionary with causal relationship information
+    """
+    causal_relationships = {
+        "decision_chains": [],
+        "implications": [],
+        "code_changes": [],
+        "causal_edges": []
+    }
+
+    try:
+        # Extract nodes by type
+        nodes = export_data.get("nodes", [])
+        edges = export_data.get("edges", [])
+
+        decision_nodes = [n for n in nodes if n.get("type") == "decision"]
+        implication_nodes = [n for n in nodes if n.get("type") == "implication"]
+        code_change_nodes = [n for n in nodes if n.get("type") == "code_change"]
+
+        # Extract causal edges
+        causal_edge_types = ["LEADS_TO", "RESULTS_IN", "IMPLEMENTS_DECISION",
+                            "CAUSED_BY", "INFLUENCES", "ADDRESSES"]
+
+        causal_edges = [e for e in edges if e.get("type") in causal_edge_types]
+
+        # Add causal edges to the result
+        for edge in causal_edges:
+            causal_relationships["causal_edges"].append({
+                "src": edge.get("src"),
+                "dst": edge.get("dst"),
+                "type": edge.get("type"),
+                "confidence": edge.get("metadata", {}).get("confidence", 1.0)
+            })
+
+        # Add decision nodes
+        for node in decision_nodes:
+            decision_info = {
+                "id": node.get("id"),
+                "title": node.get("title", "Unnamed decision"),
+                "type": node.get("metadata", {}).get("decision_type", "unknown"),
+                "confidence": node.get("metadata", {}).get("confidence", 1.0),
+                "implications": [],
+                "code_changes": []
+            }
+
+            # Find direct implications
+            for edge in causal_edges:
+                if edge.get("src") == node.get("id") and edge.get("type") == "LEADS_TO":
+                    # Find the implication node
+                    implication = next((n for n in implication_nodes if n.get("id") == edge.get("dst")), None)
+                    if implication:
+                        implication_info = {
+                            "id": implication.get("id"),
+                            "title": implication.get("title", "Unnamed implication"),
+                            "type": implication.get("metadata", {}).get("implication_type", "unknown"),
+                            "severity": implication.get("metadata", {}).get("severity", "medium"),
+                            "confidence": edge.get("metadata", {}).get("confidence", 1.0)
+                        }
+                        decision_info["implications"].append(implication_info)
+
+                        # Find code changes resulting from this implication
+                        for code_edge in causal_edges:
+                            if code_edge.get("src") == implication.get("id") and code_edge.get("type") == "RESULTS_IN":
+                                # Find the code change node
+                                code_change = next((n for n in code_change_nodes if n.get("id") == code_edge.get("dst")), None)
+                                if code_change:
+                                    code_change_info = {
+                                        "id": code_change.get("id"),
+                                        "title": code_change.get("title", "Unnamed code change"),
+                                        "type": code_change.get("metadata", {}).get("change_type", "unknown"),
+                                        "files": code_change.get("metadata", {}).get("files", []),
+                                        "confidence": code_edge.get("metadata", {}).get("confidence", 1.0)
+                                    }
+                                    decision_info["code_changes"].append(code_change_info)
+
+            # Add to decision chains
+            causal_relationships["decision_chains"].append(decision_info)
+
+        # Add standalone implications (not directly linked to decisions)
+        for node in implication_nodes:
+            # Skip implications already included in decision chains
+            if any(node.get("id") in [imp.get("id") for imp in chain.get("implications", [])]
+                  for chain in causal_relationships["decision_chains"]):
+                continue
+
+            implication_info = {
+                "id": node.get("id"),
+                "title": node.get("title", "Unnamed implication"),
+                "type": node.get("metadata", {}).get("implication_type", "unknown"),
+                "severity": node.get("metadata", {}).get("severity", "medium"),
+                "confidence": node.get("metadata", {}).get("confidence", 1.0),
+                "code_changes": []
+            }
+
+            # Find code changes resulting from this implication
+            for edge in causal_edges:
+                if edge.get("src") == node.get("id") and edge.get("type") == "RESULTS_IN":
+                    # Find the code change node
+                    code_change = next((n for n in code_change_nodes if n.get("id") == edge.get("dst")), None)
+                    if code_change:
+                        code_change_info = {
+                            "id": code_change.get("id"),
+                            "title": code_change.get("title", "Unnamed code change"),
+                            "type": code_change.get("metadata", {}).get("change_type", "unknown"),
+                            "files": code_change.get("metadata", {}).get("files", []),
+                            "confidence": edge.get("metadata", {}).get("confidence", 1.0)
+                        }
+                        implication_info["code_changes"].append(code_change_info)
+
+            # Add to implications
+            causal_relationships["implications"].append(implication_info)
+
+        # Add standalone code changes (not directly linked to decisions or implications)
+        for node in code_change_nodes:
+            # Skip code changes already included in decision chains or implications
+            if any(node.get("id") in [cc.get("id") for cc in chain.get("code_changes", [])]
+                  for chain in causal_relationships["decision_chains"]):
+                continue
+
+            if any(node.get("id") in [cc.get("id") for cc in imp.get("code_changes", [])]
+                  for imp in causal_relationships["implications"]):
+                continue
+
+            code_change_info = {
+                "id": node.get("id"),
+                "title": node.get("title", "Unnamed code change"),
+                "type": node.get("metadata", {}).get("change_type", "unknown"),
+                "files": node.get("metadata", {}).get("files", []),
+                "confidence": node.get("metadata", {}).get("confidence", 1.0)
+            }
+
+            # Add to code changes
+            causal_relationships["code_changes"].append(code_change_info)
+
+    except Exception as e:
+        logger.error(f"Error extracting causal relationships: {e}")
+        # Return empty structure if extraction fails
+        return {
+            "decision_chains": [],
+            "implications": [],
+            "code_changes": [],
+            "causal_edges": [],
+            "error": str(e)
+        }
+
+    return causal_relationships
+
+
+def optimize_export_for_llm(export_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Optimize the export data structure for LLM reasoning.
+
+    This function enhances the export data with additional structures that
+    make it easier for LLMs to reason over the knowledge graph, including:
+    - Reasoning paths for common query types
+    - Semantic context for code entities
+    - Temporal patterns in the codebase
+    - Knowledge Graph of Thoughts structures
+    - Causal relationships and decision chains
+
+    Args:
+        export_data: The export data to optimize
+
+    Returns:
+        Enhanced export data
+    """
+    logger.info("Optimizing export data for LLM reasoning")
+
+    try:
+        # Add reasoning paths section
+        export_data["reasoning_paths"] = generate_common_reasoning_paths(export_data)
+
+        # Add semantic context section
+        export_data["semantic_context"] = extract_semantic_context(export_data)
+
+        # Add temporal patterns section
+        export_data["temporal_patterns"] = extract_temporal_patterns(export_data)
+
+        # Add thought structures section
+        export_data["thought_structures"] = generate_thought_structures(export_data)
+
+        # Add causal relationships section
+        export_data["causal_relationships"] = extract_causal_relationships(export_data)
+    except Exception as e:
+        logger.error(f"Error optimizing export for LLM: {e}")
+        # Return original data if enhancement fails
+        export_data["enhancement_error"] = str(e)
+
+    return export_data
+
+
+def generate_common_reasoning_paths(export_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Generate common reasoning paths for the export data.
+
+    Args:
+        export_data: The export data to analyze
+
+    Returns:
+        List of reasoning paths
+    """
+    reasoning_paths = []
+
+    # Path 1: Impact analysis - what files are affected by this PR
+    impact_path = {
+        "name": "impact_analysis",
+        "description": "Analyze the impact of changes in this PR",
+        "steps": [
+            {"type": "start", "node_type": "pr", "description": "Start with the PR"},
+            {"type": "traverse", "edge_type": "MODIFIES", "direction": "outgoing", "description": "Find files modified by the PR"},
+            {"type": "filter", "criteria": "service", "description": "Group by service/component"},
+            {"type": "analyze", "description": "Analyze impact on each service/component"}
+        ]
+    }
+    reasoning_paths.append(impact_path)
+
+    # Path 2: Decision trail - why were these changes made
+    decision_path = {
+        "name": "decision_trail",
+        "description": "Understand the decision process behind these changes",
+        "steps": [
+            {"type": "start", "node_type": "pr", "description": "Start with the PR"},
+            {"type": "traverse", "edge_type": "MENTIONS", "direction": "outgoing", "description": "Find issues mentioned by the PR"},
+            {"type": "traverse", "edge_type": "DECIDES", "direction": "incoming", "description": "Find ADRs related to these issues"},
+            {"type": "analyze", "description": "Analyze the decision process"}
+        ]
+    }
+    reasoning_paths.append(decision_path)
+
+    # Path 3: Code dependencies - what other code depends on the changed files
+    dependency_path = {
+        "name": "dependency_analysis",
+        "description": "Analyze dependencies affected by these changes",
+        "steps": [
+            {"type": "start", "node_type": "file", "description": "Start with modified files"},
+            {"type": "traverse", "edge_type": "DEPENDS_ON", "direction": "incoming", "description": "Find files that depend on modified files"},
+            {"type": "traverse", "edge_type": "PART_OF", "direction": "outgoing", "description": "Find components that contain these files"},
+            {"type": "analyze", "description": "Analyze potential impact on dependent components"}
+        ]
+    }
+    reasoning_paths.append(dependency_path)
+
+    # Path 4: Causal chain analysis - decision → implication → code-change
+    causal_chain_path = {
+        "name": "causal_chain_analysis",
+        "description": "Analyze the causal chains from decisions to code changes",
+        "steps": [
+            {"type": "start", "node_type": "decision", "description": "Start with decision nodes"},
+            {"type": "traverse", "edge_type": "LEADS_TO", "direction": "outgoing", "description": "Find implications of these decisions"},
+            {"type": "traverse", "edge_type": "RESULTS_IN", "direction": "outgoing", "description": "Find code changes resulting from these implications"},
+            {"type": "analyze", "description": "Analyze the complete causal chain"}
+        ]
+    }
+    reasoning_paths.append(causal_chain_path)
+
+    # Path 5: Implication analysis - what are the implications of changes
+    implication_path = {
+        "name": "implication_analysis",
+        "description": "Analyze the implications of the changes in this PR",
+        "steps": [
+            {"type": "start", "node_type": "pr", "description": "Start with the PR"},
+            {"type": "traverse", "edge_type": "IMPLEMENTS_DECISION", "direction": "outgoing", "description": "Find decisions implemented by this PR"},
+            {"type": "traverse", "edge_type": "LEADS_TO", "direction": "outgoing", "description": "Find implications of these decisions"},
+            {"type": "filter", "criteria": "severity", "description": "Group implications by severity"},
+            {"type": "analyze", "description": "Analyze implications by severity level"}
+        ]
+    }
+    reasoning_paths.append(implication_path)
+
+    # Path 6: Reverse causal analysis - from code changes to decisions
+    reverse_causal_path = {
+        "name": "reverse_causal_analysis",
+        "description": "Trace from code changes back to the original decisions",
+        "steps": [
+            {"type": "start", "node_type": "file", "description": "Start with modified files"},
+            {"type": "traverse", "edge_type": "CAUSED_BY", "direction": "outgoing", "description": "Find what caused these changes"},
+            {"type": "traverse", "edge_type": "IMPLEMENTS_DECISION", "direction": "incoming", "description": "Find decisions that led to these changes"},
+            {"type": "analyze", "description": "Analyze the decision rationale behind the changes"}
+        ]
+    }
+    reasoning_paths.append(reverse_causal_path)
+
+    return reasoning_paths
+
+
+def extract_semantic_context(export_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract semantic context from the export data.
+
+    Args:
+        export_data: The export data to analyze
+
+    Returns:
+        Semantic context information
+    """
+    semantic_context = {
+        "key_concepts": [],
+        "code_entities": {
+            "functions": [],
+            "classes": [],
+            "modules": []
+        },
+        "architecture": {
+            "services": [],
+            "components": []
+        }
+    }
+
+    try:
+        # Extract key concepts
+        concept_nodes = [n for n in export_data.get("nodes", []) if n.get("type") == "concept"]
+        for node in concept_nodes:
+            metadata = node.get("metadata", {})
+            if metadata and metadata.get("definition"):
+                semantic_context["key_concepts"].append({
+                    "name": node.get("title", "Unnamed concept"),
+                    "definition": metadata.get("definition", ""),
+                    "related_terms": metadata.get("related_terms", [])
+                })
+
+        # Extract code entities
+        function_nodes = [n for n in export_data.get("nodes", []) if n.get("type") == "function"]
+        for node in function_nodes:
+            metadata = node.get("metadata", {})
+            if metadata:
+                semantic_context["code_entities"]["functions"].append({
+                    "name": node.get("title", "Unnamed function"),
+                    "signature": metadata.get("signature", ""),
+                    "path": node.get("path", "")
+                })
+
+        class_nodes = [n for n in export_data.get("nodes", []) if n.get("type") == "class"]
+        for node in class_nodes:
+            metadata = node.get("metadata", {})
+            if metadata:
+                semantic_context["code_entities"]["classes"].append({
+                    "name": node.get("title", "Unnamed class"),
+                    "methods": metadata.get("methods", []),
+                    "path": node.get("path", "")
+                })
+
+        # Extract architecture information
+        for node in export_data.get("nodes", []):
+            if node.get("type") == "file":
+                metadata = node.get("metadata", {})
+                service = metadata.get("service")
+                component = metadata.get("component")
+
+                if service and service not in [s["name"] for s in semantic_context["architecture"]["services"]]:
+                    semantic_context["architecture"]["services"].append({
+                        "name": service,
+                        "components": [component] if component else []
+                    })
+                elif service and component:
+                    # Add component to existing service
+                    for s in semantic_context["architecture"]["services"]:
+                        if s["name"] == service and component not in s["components"]:
+                            s["components"].append(component)
+    except Exception as e:
+        logger.error(f"Error extracting semantic context: {e}")
+        # Return empty semantic context if extraction fails
+        return {
+            "key_concepts": [],
+            "code_entities": {"functions": [], "classes": [], "modules": []},
+            "architecture": {"services": [], "components": []},
+            "error": str(e)
+        }
+
+    return semantic_context
+
+
+def extract_temporal_patterns(export_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract temporal patterns from the export data.
+
+    Args:
+        export_data: The export data to analyze
+
+    Returns:
+        Temporal pattern information
+    """
+    temporal_patterns = {
+        "change_frequency": {},
+        "co_changing_files": [],
+        "change_sequences": []
+    }
+
+    # Extract change frequency for files
+    file_nodes = [n for n in export_data["nodes"] if n["type"] == "file"]
+    for node in file_nodes:
+        if "metadata" in node and "change_stats" in node["metadata"]:
+            stats = node["metadata"]["change_stats"]
+            path = node.get("path", node["id"])
+            temporal_patterns["change_frequency"][path] = {
+                "recent_commit_count": stats.get("recent_commit_count", 0),
+                "last_modified": stats.get("last_modified"),
+                "authors": stats.get("authors", [])
+            }
+
+    # Extract co-changing files
+    change_pattern_nodes = [n for n in export_data["nodes"] if n["type"] == "change_pattern"]
+    for node in change_pattern_nodes:
+        if node["metadata"].get("pattern_type") == "co_change" and "files" in node["metadata"]:
+            temporal_patterns["co_changing_files"].append({
+                "files": node["metadata"]["files"],
+                "frequency": node["metadata"].get("frequency", 1)
+            })
+
+    return temporal_patterns
+
+
+def generate_thought_structures(export_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Generate thought structures for the export data.
+
+    Args:
+        export_data: The export data to analyze
+
+    Returns:
+        List of thought structures
+    """
+    thought_structures = []
+
+    # Extract reasoning nodes
+    reasoning_nodes = [
+        n for n in export_data["nodes"]
+        if n["type"].startswith("reasoning_")
+    ]
+
+    # Group reasoning nodes by decision point
+    decision_points = {}
+    for node in reasoning_nodes:
+        if "metadata" in node and "decision_point" in node["metadata"]:
+            dp_id = node["metadata"]["decision_point"]
+            if dp_id not in decision_points:
+                decision_points[dp_id] = []
+            decision_points[dp_id].append(node)
+
+    # Create thought structures for each decision point
+    for dp_id, nodes in decision_points.items():
+        # Find the decision point node
+        dp_node = next((n for n in export_data["nodes"] if n["id"] == dp_id), None)
+        if not dp_node:
+            continue
+
+        # Create the thought structure
+        thought = {
+            "decision_point": {
+                "id": dp_id,
+                "title": dp_node["title"],
+                "type": dp_node["type"]
+            },
+            "reasoning": {}
+        }
+
+        # Add reasoning components
+        for node in nodes:
+            node_type = node["type"].replace("reasoning_", "")
+            if node_type == "question":
+                thought["reasoning"]["question"] = node["title"]
+            elif node_type == "alternative":
+                if "alternatives" not in thought["reasoning"]:
+                    thought["reasoning"]["alternatives"] = []
+                thought["reasoning"]["alternatives"].append({
+                    "name": node["title"],
+                    "description": node.get("body", "")
+                })
+            elif node_type == "criterion":
+                if "criteria" not in thought["reasoning"]:
+                    thought["reasoning"]["criteria"] = []
+                thought["reasoning"]["criteria"].append({
+                    "name": node["title"],
+                    "description": node.get("body", "")
+                })
+            elif node_type == "step":
+                if "steps" not in thought["reasoning"]:
+                    thought["reasoning"]["steps"] = []
+                # Extract step number from title
+                step_num = 0
+                if node["title"].startswith("Step "):
+                    try:
+                        step_num = int(node["title"].replace("Step ", ""))
+                    except ValueError:
+                        pass
+                thought["reasoning"]["steps"].append({
+                    "step": step_num,
+                    "description": node.get("body", "")
+                })
+            elif node_type == "implication":
+                if "implications" not in thought["reasoning"]:
+                    thought["reasoning"]["implications"] = []
+                thought["reasoning"]["implications"].append(node.get("body", ""))
+
+        thought_structures.append(thought)
+
+    return thought_structures
 
 
 def format_export_data(
@@ -408,6 +1008,42 @@ def format_export_data(
             formatted_node["path"] = node["extra"].get("path", "")
             formatted_node["metadata"]["status"] = node["extra"].get("status", "")
             formatted_node["metadata"]["decision_makers"] = node["extra"].get("decision_makers", [])
+        # Add causal node types
+        elif node["type"] == NodeType.DECISION.value:
+            formatted_node["title"] = node["title"]
+            if "body" in node:
+                formatted_node["body"] = node["body"]
+            formatted_node["metadata"]["decision_type"] = node["extra"].get("decision_type", "unknown")
+            formatted_node["metadata"]["confidence"] = node["extra"].get("confidence", 1.0)
+            if "decision_makers" in node["extra"]:
+                formatted_node["metadata"]["decision_makers"] = node["extra"]["decision_makers"]
+            if "source" in node["extra"]:
+                formatted_node["metadata"]["source"] = node["extra"]["source"]
+        elif node["type"] == NodeType.IMPLICATION.value:
+            formatted_node["title"] = node["title"]
+            if "body" in node:
+                formatted_node["body"] = node["body"]
+            formatted_node["metadata"]["implication_type"] = node["extra"].get("implication_type", "unknown")
+            formatted_node["metadata"]["severity"] = node["extra"].get("severity", "medium")
+            formatted_node["metadata"]["confidence"] = node["extra"].get("confidence", 1.0)
+            if "scope" in node["extra"]:
+                formatted_node["metadata"]["scope"] = node["extra"]["scope"]
+            if "source" in node["extra"]:
+                formatted_node["metadata"]["source"] = node["extra"]["source"]
+        elif node["type"] == NodeType.CODE_CHANGE.value:
+            formatted_node["title"] = node["title"]
+            if "body" in node:
+                formatted_node["body"] = node["body"]
+            formatted_node["metadata"]["change_type"] = node["extra"].get("change_type", "unknown")
+            formatted_node["metadata"]["confidence"] = node["extra"].get("confidence", 1.0)
+            if "files" in node["extra"]:
+                formatted_node["metadata"]["files"] = node["extra"]["files"]
+            if "description" in node["extra"]:
+                formatted_node["metadata"]["description"] = node["extra"]["description"]
+            if "author" in node["extra"]:
+                formatted_node["metadata"]["author"] = node["extra"]["author"]
+            if "commit_sha" in node["extra"]:
+                formatted_node["metadata"]["commit_sha"] = node["extra"]["commit_sha"]
 
         formatted_nodes.append(formatted_node)
 
@@ -424,7 +1060,7 @@ def format_export_data(
 
     # Create the export data
     export_data = {
-        "schema_version": "0.2",
+        "schema_version": "0.3",  # Updated schema version to reflect causal relationship support
         "generated_at": datetime.now().isoformat(),
         "pr": {
             "sha": pr_sha,
@@ -479,6 +1115,9 @@ def export_graph(
     sign: bool = False,
     key_id: Optional[str] = None,
     base_branch: str = "main",
+    max_hops: int = 3,
+    enhance_for_llm: bool = True,
+    include_causal: bool = True,
 ) -> Path:
     """Export a relevant slice of the knowledge graph for a PR.
 
@@ -491,6 +1130,9 @@ def export_graph(
         sign: Whether to sign the output file
         key_id: GPG key ID to use for signing
         base_branch: Base branch to compare against
+        max_hops: Maximum number of hops to traverse in the graph
+        enhance_for_llm: Whether to enhance the export data for LLM reasoning
+        include_causal: Whether to include causal relationships in the export
 
     Returns:
         Path to the exported file
@@ -580,8 +1222,25 @@ def export_graph(
                     logger.warning(f"Error inferring service/component for {file_path}: {e}")
 
         # Get related nodes and edges
-        logger.info("Getting related nodes and edges")
-        nodes, edges = get_related_nodes(conn, file_nodes, max_hops=2, include_adrs=True)
+        logger.info(f"Getting related nodes and edges (max_hops={max_hops})")
+
+        # Include causal relationships if requested
+        if include_causal:
+            logger.info("Including causal relationships in the export")
+            nodes, edges = get_related_nodes(
+                conn,
+                file_nodes,
+                max_hops=max_hops,
+                include_adrs=True,
+                include_causal=True
+            )
+        else:
+            nodes, edges = get_related_nodes(
+                conn,
+                file_nodes,
+                max_hops=max_hops,
+                include_adrs=True
+            )
 
         # Add the recent commits and edges
         nodes.extend(all_nodes)
@@ -591,6 +1250,10 @@ def export_graph(
 
         # Format the export data
         export_data = format_export_data(pr_sha, nodes, edges, modified_files)
+
+        # Optimize the export data for LLM reasoning if enabled
+        if enhance_for_llm:
+            export_data = optimize_export_for_llm(export_data)
 
         # Write the export data to file
         final_path = output_path
