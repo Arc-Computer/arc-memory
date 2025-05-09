@@ -72,6 +72,7 @@ class CodeAnalysisIngestor:
         repo_path: Path,
         last_processed: Optional[Dict[str, Any]] = None,
         llm_enhancement_level: str = "standard",
+        ollama_client: Optional[OllamaClient] = None,
     ) -> Tuple[List[Node], List[Edge], Dict[str, Any]]:
         """Ingest code data from a repository.
 
@@ -79,6 +80,7 @@ class CodeAnalysisIngestor:
             repo_path: Path to the repository.
             last_processed: Metadata from the previous run for incremental builds.
             llm_enhancement_level: Level of LLM enhancement to apply.
+            ollama_client: Optional Ollama client for LLM processing.
 
         Returns:
             A tuple of (nodes, edges, metadata).
@@ -87,7 +89,7 @@ class CodeAnalysisIngestor:
 
         # Initialize Ollama client if needed
         if llm_enhancement_level != "none":
-            self.ollama_client = OllamaClient()
+            self.ollama_client = ollama_client or OllamaClient()
 
         # Get all code files in the repository
         code_files = self._get_code_files(repo_path)

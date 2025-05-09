@@ -48,6 +48,18 @@ def mock_nodes():
             title="storage.py",
             body="Implementation of the storage layer using SQLite.",
         ),
+        Node(
+            id="issue:789",
+            type=NodeType.ISSUE,
+            title="SQLite performance concerns",
+            body="Are there any performance concerns with using SQLite?",
+        ),
+        Node(
+            id="issue:101",
+            type=NodeType.ISSUE,
+            title="SQLite testing strategy",
+            body="How should we test the SQLite implementation?",
+        ),
     ]
 
 
@@ -79,6 +91,16 @@ def mock_edges():
             src="commit:abc123",
             dst="file:src/storage.py",
             rel=EdgeRel.MODIFIES,
+        ),
+        Edge(
+            src="pr:123",
+            dst="issue:789",
+            rel=EdgeRel.MENTIONS,
+        ),
+        Edge(
+            src="pr:123",
+            dst="issue:101",
+            rel=EdgeRel.MENTIONS,
         ),
     ]
 
@@ -196,7 +218,7 @@ def test_generate_reasoning_structure(mock_get_decision_context, mock_ollama_cli
     
     # Check that the question node was created
     question_node = next(
-        (n for n in reasoning_nodes if n.type == "reasoning_question"), None
+        (n for n in reasoning_nodes if n.type == NodeType.REASONING_QUESTION), None
     )
     assert question_node is not None
     assert question_node.title == "What database should we use for local storage?"

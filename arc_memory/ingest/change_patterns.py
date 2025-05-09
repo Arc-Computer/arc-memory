@@ -143,20 +143,23 @@ class ChangePatternIngestor:
             if frequency < 2 or len(files) < 2:
                 continue  # Skip infrequent patterns or single files
 
+            # Convert frozenset to list before slicing
+            files_list = list(files)
+            
             pattern_id = f"pattern:co_change:{hash(files)}"
             pattern_node = ChangePatternNode(
                 id=pattern_id,
                 type=NodeType.CHANGE_PATTERN,
-                title=f"Co-change Pattern: {', '.join(files[:3])}{'...' if len(files) > 3 else ''}",
+                title=f"Co-change Pattern: {', '.join(files_list[:3])}{'...' if len(files_list) > 3 else ''}",
                 pattern_type="co_change",
-                files=list(files),
+                files=files_list,
                 frequency=frequency,
-                impact={"files_affected": len(files)},
+                impact={"files_affected": len(files_list)},
             )
             nodes.append(pattern_node)
 
             # Create edges to files
-            for file_path in files:
+            for file_path in files_list:
                 file_id = f"file:{file_path}"
                 edge = Edge(
                     src=pattern_id,

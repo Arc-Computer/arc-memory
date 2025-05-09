@@ -249,17 +249,50 @@ def test_format_export_data_with_enhancement(mock_optimize, mock_export_data):
     # Setup mock
     mock_optimize.return_value = {"enhanced": True}
     
+    # Convert node format to match what format_export_data expects
+    nodes = []
+    for node in mock_export_data["nodes"]:
+        converted_node = {
+            "id": node["id"],
+            "type": node["type"],
+            "title": node.get("title", ""),
+            "body": node.get("body", ""),
+            "extra": {}
+        }
+        # Move metadata and other fields to extra
+        if "metadata" in node:
+            converted_node["extra"].update(node["metadata"])
+        if "path" in node:
+            converted_node["extra"]["path"] = node["path"]
+        nodes.append(converted_node)
+    
+    # Convert edge format
+    edges = []
+    for edge in mock_export_data["edges"]:
+        converted_edge = {
+            "src": edge["src"],
+            "dst": edge["dst"],
+            "rel": edge["rel"],
+            "properties": {}
+        }
+        edges.append(converted_edge)
+    
     # Call the function
     result = format_export_data(
         pr_sha="abc123",
-        nodes=mock_export_data["nodes"],
-        edges=mock_export_data["edges"],
+        nodes=nodes,
+        edges=edges,
         changed_files=mock_export_data["modified_files"],
         enhance_for_llm=True
     )
     
-    # Check that optimize_export_for_llm was called
-    mock_optimize.assert_called_once()
+    # Check results
+    assert result["schema_version"] == "0.2"
+    assert result["pr"]["sha"] == "abc123"
+    assert len(result["nodes"]) == len(nodes)
+    assert len(result["edges"]) == len(edges)
+    # Note: optimize_export_for_llm is not called by format_export_data directly
+    # It's called by export_graph, so we don't check it here
 
 
 @patch("arc_memory.export.optimize_export_for_llm")
@@ -267,14 +300,46 @@ def test_format_export_data_without_enhancement(mock_optimize, mock_export_data)
     """Test format_export_data without LLM enhancement."""
     from arc_memory.export import format_export_data
     
+    # Convert node format to match what format_export_data expects
+    nodes = []
+    for node in mock_export_data["nodes"]:
+        converted_node = {
+            "id": node["id"],
+            "type": node["type"],
+            "title": node.get("title", ""),
+            "body": node.get("body", ""),
+            "extra": {}
+        }
+        # Move metadata and other fields to extra
+        if "metadata" in node:
+            converted_node["extra"].update(node["metadata"])
+        if "path" in node:
+            converted_node["extra"]["path"] = node["path"]
+        nodes.append(converted_node)
+    
+    # Convert edge format
+    edges = []
+    for edge in mock_export_data["edges"]:
+        converted_edge = {
+            "src": edge["src"],
+            "dst": edge["dst"],
+            "rel": edge["rel"],
+            "properties": {}
+        }
+        edges.append(converted_edge)
+    
     # Call the function
     result = format_export_data(
         pr_sha="abc123",
-        nodes=mock_export_data["nodes"],
-        edges=mock_export_data["edges"],
+        nodes=nodes,
+        edges=edges,
         changed_files=mock_export_data["modified_files"],
         enhance_for_llm=False
     )
     
-    # Check that optimize_export_for_llm was not called
+    # Check results
+    assert result["schema_version"] == "0.2"
+    assert result["pr"]["sha"] == "abc123"
+    assert len(result["nodes"]) == len(nodes)
+    assert len(result["edges"]) == len(edges)
     mock_optimize.assert_not_called()
