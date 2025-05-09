@@ -62,8 +62,11 @@ def build(
     pull: bool = typer.Option(
         False, "--pull", help="Pull the latest changes from the remote repository."
     ),
+    github: bool = typer.Option(
+        False, "--github", help="Fetch data from GitHub."
+    ),
     token: Optional[str] = typer.Option(
-        None, "--token", "-t", help="GitHub Personal Access Token."
+        None, "--token", "-t", help="GitHub Personal Access Token (deprecated, use --github instead)."
     ),
     linear: bool = typer.Option(
         False, "--linear", help="Fetch data from Linear."
@@ -101,17 +104,20 @@ def build(
         arc build --output /path/to/output.db
 
         # Build with GitHub data
-        arc build --token <github-token>
+        arc build --github
 
         # Build with Linear data
         arc build --linear
+
+        # Build with both GitHub and Linear data
+        arc build --github --linear
 
         # Build with LLM enhancement
         arc build --llm-enhancement standard
     """
     try:
         start_time = time.time()
-        
+
         # Print welcome message
         print("\n📊 Arc Memory Knowledge Graph Builder")
         print("=====================================")
@@ -122,7 +128,7 @@ def build(
             print("Mode: Incremental (only processing new data)")
         else:
             print("Mode: Full rebuild")
-        
+
         print(f"LLM Enhancement: {llm_enhancement.value}")
         if llm_enhancement != LLMEnhancementLevel.NONE:
             print(f"Ollama Host: {ollama_host}")
@@ -144,8 +150,8 @@ def build(
         git_ingestor = GitIngestor()
         ingestors.append(git_ingestor)
 
-        # Create the GitHub ingestor if a token is provided
-        if token:
+        # Create the GitHub ingestor if requested or if a token is provided
+        if github or token:
             github_ingestor = GitHubIngestor()
             ingestors.append(github_ingestor)
 
@@ -157,11 +163,11 @@ def build(
         # Create the ADR ingestor
         adr_ingestor = ADRIngestor()
         ingestors.append(adr_ingestor)
-        
+
         # Create the Change Pattern ingestor
         change_pattern_ingestor = ChangePatternIngestor()
         ingestors.append(change_pattern_ingestor)
-        
+
         # Create the Code Analysis ingestor
         code_analysis_ingestor = CodeAnalysisIngestor()
         ingestors.append(code_analysis_ingestor)
@@ -169,7 +175,7 @@ def build(
         # Add plugin ingestors
         plugin_ingestors = get_ingestor_plugins()
         ingestors.extend(plugin_ingestors)
-        
+
         # LLM setup if enhancement is enabled
         ollama_client = None
         if llm_enhancement != LLMEnhancementLevel.NONE:
@@ -256,7 +262,7 @@ Generate structured JSON following the requested schema for each enhancement tas
     },
     {
       "id": "commit:d4e5f6",
-      "type": "commit", 
+      "type": "commit",
       "properties": {
         "message": "Refactor auth flow for better security",
         "author": "security@example.com"
@@ -312,7 +318,7 @@ Generate structured JSON following the requested schema for each enhancement tas
       "description": "Evaluated JWT vs. session-based approaches for scalability and security"
     },
     {
-      "step": 3, 
+      "step": 3,
       "description": "Selected JWT as optimal solution based on scalability requirements"
     }
   ],
@@ -359,12 +365,12 @@ Generate structured JSON following the requested schema for each enhancement tas
 
 Prioritize precision over coverage in your enhancements. Follow Arc Memory's schema exactly to ensure all nodes and relationships integrate cleanly with the existing knowledge graph.
 """
-            
+
             # Use Qwen3:4b model as specified
             if ensure_ollama_available("qwen3:4b"):
                 ollama_client = OllamaClient(host=ollama_host)
                 print("✅ LLM setup complete with Qwen3:4b model")
-                
+
                 # Test the LLM with a simple query to ensure it's responsive
                 try:
                     test_response = ollama_client.generate(
@@ -385,24 +391,24 @@ Prioritize precision over coverage in your enhancements. Follow Arc Memory's sch
         # Process nodes and edges using ingestors
         all_nodes = []
         all_edges = []
-        
+
         total_ingestors = len(ingestors)
         print(f"\n🔍 Running {total_ingestors} ingestors...\n")
-        
+
         # Define a spinner animation for progress
         spinner_chars = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
         spinner_idx = 0
-        
+
         for idx, ingestor in enumerate(ingestors, 1):
             ingestor_name = ingestor.get_name()
-            
+
             # Clear current line and print status
             sys.stdout.write(f"\r{' ' * 80}\r")
             sys.stdout.write(f"[{idx}/{total_ingestors}] Processing {ingestor_name}...")
             sys.stdout.flush()
-            
+
             ingestor_start = time.time()
-            
+
             try:
                 # Call the ingest method with the appropriate parameters for each ingestor type
                 if ingestor_name == "git":
@@ -449,11 +455,11 @@ Prioritize precision over coverage in your enhancements. Follow Arc Memory's sch
             except Exception as e:
                 print(f"\r❌ Error processing {ingestor_name}: {e}")
                 nodes, edges, metadata = [], [], {}
-            
+
             ingestor_time = time.time() - ingestor_start
             all_nodes.extend(nodes)
             all_edges.extend(edges)
-            
+
             # Print completion status with stats
             sys.stdout.write(f"\r{' ' * 80}\r")
             sys.stdout.write(f"✅ [{idx}/{total_ingestors}] {ingestor_name}: {len(nodes)} nodes, {len(edges)} edges ({ingestor_time:.1f}s)\n")
@@ -463,16 +469,16 @@ Prioritize precision over coverage in your enhancements. Follow Arc Memory's sch
         if llm_enhancement != LLMEnhancementLevel.NONE and ollama_client is not None:
             print("\n🧠 Applying LLM enhancements...")
             enhancement_start = time.time()
-            
+
             # Apply semantic analysis
             spinner_idx = 0
             sys.stdout.write("\r⠋ Enhancing with semantic analysis...")
             sys.stdout.flush()
-            
+
             try:
                 all_nodes, all_edges = enhance_with_semantic_analysis(
-                    all_nodes, 
-                    all_edges, 
+                    all_nodes,
+                    all_edges,
                     repo_path=repo_path,
                     enhancement_level=llm_enhancement.value,
                     ollama_client=ollama_client
@@ -480,15 +486,15 @@ Prioritize precision over coverage in your enhancements. Follow Arc Memory's sch
                 sys.stdout.write(f"\r✅ Semantic analysis complete ({time.time() - enhancement_start:.1f}s)\n")
             except Exception as e:
                 sys.stdout.write(f"\r❌ Semantic analysis failed: {e}\n")
-            
+
             # Apply temporal analysis
             temporal_start = time.time()
             sys.stdout.write("\r⠋ Enhancing with temporal analysis...")
             sys.stdout.flush()
-            
+
             try:
                 all_nodes, all_edges = enhance_with_temporal_analysis(
-                    all_nodes, 
+                    all_nodes,
                     all_edges,
                     repo_path=repo_path,
                     enhancement_level=llm_enhancement.value,
@@ -497,18 +503,18 @@ Prioritize precision over coverage in your enhancements. Follow Arc Memory's sch
                 sys.stdout.write(f"\r✅ Temporal analysis complete ({time.time() - temporal_start:.1f}s)\n")
             except Exception as e:
                 sys.stdout.write(f"\r❌ Temporal analysis failed: {e}\n")
-            
+
             # Apply KGoT reasoning structures (only in standard or deep mode)
             if llm_enhancement in [LLMEnhancementLevel.STANDARD, LLMEnhancementLevel.DEEP]:
                 kgot_start = time.time()
                 sys.stdout.write("\r⠋ Generating reasoning structures...")
                 sys.stdout.flush()
-                
+
                 try:
                     all_nodes, all_edges = enhance_with_reasoning_structures(
-                        all_nodes, 
-                        all_edges, 
-                        repo_path=repo_path, 
+                        all_nodes,
+                        all_edges,
+                        repo_path=repo_path,
                         ollama_client=ollama_client,
                         enhancement_level=llm_enhancement.value,
                         system_prompt=system_prompt
@@ -516,34 +522,34 @@ Prioritize precision over coverage in your enhancements. Follow Arc Memory's sch
                     sys.stdout.write(f"\r✅ Reasoning structures complete ({time.time() - kgot_start:.1f}s)\n")
                 except Exception as e:
                     sys.stdout.write(f"\r❌ Reasoning structures failed: {e}\n")
-            
+
             enhancement_time = time.time() - enhancement_start
             print(f"✅ LLM enhancements complete ({enhancement_time:.1f}s)")
 
         # Store the graph
         print(f"\n💾 Writing graph to database ({len(all_nodes)} nodes, {len(all_edges)} edges)...")
         db_start = time.time()
-        
+
         # Initialize the database
         conn = init_db(output_path)
-        
+
         # Add nodes and edges
         add_nodes_and_edges(conn, all_nodes, all_edges)
-        
+
         # Compress the database
         print("🗜️  Compressing database...")
         compressed_path = compress_db(output_path)
-        
+
         # Get file sizes for reporting
         original_size = output_path.stat().st_size
         compressed_size = compressed_path.stat().st_size
         compression_ratio = (original_size - compressed_size) / original_size * 100
-        
+
         total_time = time.time() - start_time
         print(f"\n✨ Build complete in {total_time:.1f} seconds!")
         print(f"📊 {len(all_nodes)} nodes and {len(all_edges)} edges")
         print(f"💾 Database saved to {output_path} and compressed to {compressed_path}")
         print(f"   ({original_size/1024/1024:.1f} MB → {compressed_size/1024/1024:.1f} MB, {compression_ratio:.1f}% reduction)")
-        
+
     except Exception as e:
         raise GraphBuildError(f"Error building graph: {e}")

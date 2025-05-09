@@ -31,8 +31,8 @@ class OllamaClient:
         self.session = requests.Session()
 
     def generate(
-        self, 
-        model: str = "qwen3:4b", 
+        self,
+        model: str = "qwen3:4b",
         prompt: str = "",
         system: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
@@ -49,15 +49,15 @@ class OllamaClient:
             The generated text.
         """
         url = f"{self.host}/api/generate"
-        
+
         # Set default options if not provided
         if options is None:
             options = {}
-        
+
         # Set default system prompt if not provided
         if system is None:
             system = "You are a helpful AI assistant specialized in software engineering and code analysis."
-        
+
         # Format the request payload
         payload = {
             "model": model,
@@ -66,32 +66,32 @@ class OllamaClient:
             "options": options,
             "stream": False  # Default to non-streaming for simplicity
         }
-        
+
         try:
             # Send the request
-            response = requests.post(url, json=payload, timeout=120)
+            response = requests.post(url, json=payload, timeout=260)
             response.raise_for_status()
-            
+
             # Parse the response
             data = response.json()
             return data.get("response", "")
-            
+
         except requests.exceptions.RequestException as e:
             logger.error(f"Error calling Ollama API: {e}")
             return f"Error: {e}"
         except ValueError as e:
             logger.error(f"Error parsing Ollama response: {e}")
             return f"Error parsing response: {e}"
-    
+
     def generate_with_streaming(
-        self, 
-        model: str = "qwen3:4b", 
+        self,
+        model: str = "qwen3:4b",
         prompt: str = "",
         system: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
     ) -> str:
         """Generate text using the specified model with streaming.
-        
+
         This method is especially useful for larger responses like JSON
         where we want to collect the entire response properly.
 
@@ -105,15 +105,15 @@ class OllamaClient:
             The complete generated text from the stream.
         """
         url = f"{self.host}/api/generate"
-        
+
         # Set default options if not provided
         if options is None:
             options = {}
-        
+
         # Set default system prompt if not provided
         if system is None:
             system = "You are a helpful AI assistant specialized in software engineering and code analysis."
-        
+
         # Format the request payload
         payload = {
             "model": model,
@@ -122,12 +122,12 @@ class OllamaClient:
             "options": options,
             "stream": True  # Enable streaming
         }
-        
+
         try:
             # Send the request
-            response = requests.post(url, json=payload, stream=True, timeout=120)
+            response = requests.post(url, json=payload, stream=True, timeout=260)
             response.raise_for_status()
-            
+
             # Collect the streamed response
             full_response = ""
             for line in response.iter_lines():
@@ -135,27 +135,27 @@ class OllamaClient:
                     try:
                         # Decode the line
                         line_text = line.decode('utf-8')
-                        
+
                         # Skip empty lines
                         if not line_text.strip():
                             continue
-                            
+
                         # Parse the JSON
                         line_data = json.loads(line_text)
-                        
+
                         # Add the response text to the full response
                         if "response" in line_data:
                             full_response += line_data["response"]
-                            
+
                         # Check if done
                         if line_data.get("done", False):
                             break
                     except json.JSONDecodeError as e:
                         logger.warning(f"Error parsing streaming response line: {e}")
                         continue
-            
+
             return full_response
-            
+
         except requests.exceptions.RequestException as e:
             logger.error(f"Error calling Ollama API: {e}")
             return f"Error: {e}"
@@ -163,12 +163,19 @@ class OllamaClient:
             logger.error(f"Error parsing Ollama streaming response: {e}")
             return f"Error parsing response: {e}"
 
-    def generate_with_thinking(self, model: str, prompt: str, options: Optional[Dict[str, Any]] = None) -> str:
+    def generate_with_thinking(
+        self,
+        model: str = "qwen3:4b",
+        prompt: str = "",
+        system: Optional[str] = None,
+        options: Optional[Dict[str, Any]] = None
+    ) -> str:
         """Generate a response using the thinking mode in Qwen3.
 
         Args:
             model: The model to use for generation (should be Qwen3 model).
             prompt: The prompt to send to the model.
+            system: The system message to use.
             options: Optional parameters for generation.
 
         Returns:
@@ -177,8 +184,14 @@ class OllamaClient:
         # Add thinking directive explicitly for Qwen3 models
         if not prompt.endswith("/think") and not "/think" in prompt:
             prompt = f"{prompt} /think"
-            
-        return self.generate(model, prompt, options)
+
+        # Use our normal generate method with the thinking prompt
+        return self.generate(
+            model=model,
+            prompt=prompt,
+            system=system,
+            options=options
+        )
 
     def ensure_model_available(self, model: str) -> bool:
         """Ensure the specified model is available, pulling if needed.
@@ -205,27 +218,27 @@ class OllamaClient:
         # Model not available, pull it
         logger.info(f"Pulling model {model}...")
         url = f"{self.host}/api/pull"
-        
+
         try:
             response = self.session.post(url, json={"name": model}, stream=True)
             response.raise_for_status()
-            
+
             for line in response.iter_lines():
                 if line:
                     data = json.loads(line)
                     if "error" in data:
                         logger.error(f"Error pulling model: {data['error']}")
                         return False
-                    
+
                     if "status" in data and data["status"] == "success":
                         logger.info(f"Successfully pulled model {model}")
                         return True
-                    
+
                     # Log progress
                     if "completed" in data and "total" in data:
                         progress = (data["completed"] / data["total"]) * 100
                         logger.info(f"Pulling model {model}: {progress:.1f}% complete")
-            
+
             return True
         except Exception as e:
             logger.error(f"Error pulling model: {e}")
@@ -252,7 +265,7 @@ def ensure_ollama_available(model: str = "qwen3:4b") -> bool:
     ollama_path = subprocess.run(
         ["which", "ollama"], capture_output=True, text=True
     ).stdout.strip()
-    
+
     if not ollama_path:
         logger.info("Ollama not found, attempting to install...")
         try:
