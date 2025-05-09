@@ -782,7 +782,7 @@ def extract_causal_from_node_llm(
     try:
         # Generate response from LLM
         response = ollama_client.generate(
-            model="phi4-mini-reasoning",
+            model="qwen3:4b",
             prompt=prompt,
             options={"temperature": 0.2}
         )

@@ -72,6 +72,11 @@ class EdgeRel(str, Enum):
     FOLLOWS = "FOLLOWS"        # Change pattern follows another
     PRECEDES = "PRECEDES"      # Change pattern precedes another
     CORRELATES_WITH = "CORRELATES_WITH"  # Changes correlate with each other
+    CREATES = "CREATES"        # Entity creates another entity
+    IMPROVES = "IMPROVES"      # Entity improves another entity
+    AFFECTS = "AFFECTS"        # Entity affects another entity
+    STARTS_WITH = "STARTS_WITH"  # Phase starts with a commit
+    ENDS_WITH = "ENDS_WITH"    # Phase ends with a commit
 
     # New relationships for reasoning structures
     REASONS_ABOUT = "REASONS_ABOUT"  # Reasoning node reasons about an entity
