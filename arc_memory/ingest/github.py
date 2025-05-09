@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 
 # Constants
 GITHUB_API_URL = "https://api.github.com"
-USER_AGENT = "Arc-Memory/0.2.2"
+USER_AGENT = "Arc-Memory/0.4.0"
 
 
 def get_repo_info(repo_path: Path) -> Tuple[str, str]:
@@ -183,7 +183,7 @@ class GitHubIngestor:
                         pr_number = pr["number"]
                         logger.info(f"Fetching details for PR #{pr_number}")
                         pr_details = fetcher.fetch_pr_details_sync(owner, repo, pr_number)
-                        
+
                         # Check if pr_details is None before proceeding
                         if pr_details is None:
                             logger.error(f"Failed to fetch details for PR #{pr_number}, skipping")

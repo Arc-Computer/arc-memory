@@ -1,3 +1,3 @@
 """Arc Memory - Local bi-temporal knowledge graph for code repositories."""
 
-__version__ = "0.3.2"
+__version__ = "0.4.0"
