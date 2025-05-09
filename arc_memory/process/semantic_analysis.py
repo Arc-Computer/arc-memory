@@ -22,7 +22,7 @@ logger = get_logger(__name__)
 
 
 def enhance_with_semantic_analysis(
-    nodes: List[Node], 
+    nodes: List[Node],
     edges: List[Edge],
     repo_path: Optional[Path] = None,
     enhancement_level: str = "standard",
@@ -41,11 +41,11 @@ def enhance_with_semantic_analysis(
         Enhanced nodes and edges.
     """
     logger.info(f"Enhancing knowledge graph with semantic analysis ({enhancement_level} level)")
-    
+
     # Initialize Ollama client if not provided
     if ollama_client is None:
         ollama_client = OllamaClient()
-    
+
     # Apply different levels of enhancement
     if enhancement_level == "fast":
         # Basic enhancement - extract key concepts
@@ -65,32 +65,35 @@ def enhance_with_semantic_analysis(
     else:
         # No enhancement
         return nodes, edges
-    
+
     # Combine original and new nodes/edges
     all_nodes = nodes + new_nodes
     all_edges = edges + new_edges
-    
+
     logger.info(f"Added {len(new_nodes)} semantic nodes and {len(new_edges)} semantic edges")
     return all_nodes, all_edges
 
 
 def _extract_json_from_llm_response(response: str) -> Dict[str, Any]:
     """Extract and parse JSON from LLM response text.
-    
+
     This function handles various ways LLMs might format JSON in their responses,
     including with markdown code blocks, irregular whitespace, and other common issues.
-    
+
     Args:
         response: The raw text response from an LLM.
-        
+
     Returns:
         Parsed JSON as a Python dictionary.
-        
+
     Raises:
         ValueError: If JSON could not be extracted and parsed.
     """
     import json
-    
+
+    # First, remove any thinking section if present
+    response = re.sub(r'<think>[\s\S]*?</think>', '', response)
+
     # Try different patterns to extract JSON
     patterns = [
         # JSON with code fence
@@ -102,35 +105,35 @@ def _extract_json_from_llm_response(response: str) -> Dict[str, Any]:
         # Array responses
         r'(\[[\s\S]*\])'
     ]
-    
+
     extracted_text = None
-    
+
     # Try each pattern
     for pattern in patterns:
         match = re.search(pattern, response, re.DOTALL)
         if match:
             extracted_text = match.group(1).strip()
             break
-    
+
     # If no pattern matched, use the entire response
     if not extracted_text:
         extracted_text = response.strip()
-    
+
     # Remove any non-JSON text before or after the structure
     # First, try to find the first '{' or '['
     start_idx = min(
         (extracted_text.find('{') if extracted_text.find('{') != -1 else len(extracted_text)),
         (extracted_text.find('[') if extracted_text.find('[') != -1 else len(extracted_text))
     )
-    
+
     if start_idx < len(extracted_text):
         extracted_text = extracted_text[start_idx:]
-    
+
     # Find last '}' or ']'
     end_idx = max(extracted_text.rfind('}'), extracted_text.rfind(']'))
     if end_idx != -1:
         extracted_text = extracted_text[:end_idx+1]
-    
+
     # Attempt to parse the extracted JSON
     try:
         parsed_json = json.loads(extracted_text)
@@ -139,10 +142,10 @@ def _extract_json_from_llm_response(response: str) -> Dict[str, Any]:
         # If parsing fails, try to fix common JSON formatting issues
         # Replace single quotes with double quotes
         fixed_text = extracted_text.replace("'", "\"")
-        
+
         # Fix unquoted keys
         fixed_text = re.sub(r'(\s*?)(\w+)(\s*?):', r'\1"\2"\3:', fixed_text)
-        
+
         # Try to parse again
         try:
             parsed_json = json.loads(fixed_text)
@@ -160,7 +163,7 @@ def _extract_json_from_llm_response(response: str) -> Dict[str, Any]:
 
 
 def extract_key_concepts(
-    nodes: List[Node], 
+    nodes: List[Node],
     edges: List[Edge],
     ollama_client: OllamaClient,
 ) -> Tuple[List[Node], List[Edge]]:
@@ -175,7 +178,7 @@ def extract_key_concepts(
         New concept nodes and edges.
     """
     logger.info("Extracting key concepts from node content")
-    
+
     # Collect text content from nodes
     text_content = []
     for node in nodes:
@@ -183,16 +186,16 @@ def extract_key_concepts(
             text_content.append(node.title)
         if node.body:
             text_content.append(node.body)
-    
+
     # Skip if no content to analyze
     if not text_content:
         return [], []
-    
+
     # Combine text content (limit to avoid token limits)
     combined_text = "\n".join(text_content)
     if len(combined_text) > 10000:
         combined_text = combined_text[:10000]
-    
+
     # Create prompt for concept extraction
     prompt = f"""
     Analyze the following text and extract key domain concepts.
@@ -200,7 +203,7 @@ def extract_key_concepts(
     1. A name (1-3 words)
     2. A clear definition (1-2 sentences)
     3. Related terms or concepts
-    
+
     Format your response as JSON with the following structure:
     {{
         "concepts": [
@@ -211,15 +214,15 @@ def extract_key_concepts(
             }}
         ]
     }}
-    
+
     Here's the text to analyze:
     ```
     {combined_text}
     ```
-    
+
     Return ONLY the JSON object, nothing else.
     """
-    
+
     try:
         # Generate response from LLM
         response = ollama_client.generate(
@@ -227,7 +230,7 @@ def extract_key_concepts(
             prompt=prompt,
             options={"temperature": 0.2}
         )
-        
+
         # Extract and parse JSON using our robust function
         try:
             data = _extract_json_from_llm_response(response)
@@ -235,16 +238,16 @@ def extract_key_concepts(
             # If parsing fails, create a minimal default structure
             logger.warning("Falling back to minimal default structure due to JSON parsing error")
             data = {"concepts": []}
-        
+
         # Create concept nodes
         concept_nodes = []
         concept_edges = []
-        
+
         for concept_data in data.get("concepts", []):
             # Create concept node
             concept_name = concept_data.get("name", "Unknown Concept")
             concept_id = f"concept:{concept_name.lower().replace(' ', '_')}"
-            
+
             concept_node = ConceptNode(
                 id=concept_id,
                 type=NodeType.CONCEPT,
@@ -254,7 +257,7 @@ def extract_key_concepts(
                 related_terms=concept_data.get("related_terms", []),
             )
             concept_nodes.append(concept_node)
-            
+
             # Create edges to related nodes
             for node in nodes:
                 # Check if concept is mentioned in node title or body
@@ -268,17 +271,17 @@ def extract_key_concepts(
                         properties={"confidence": 0.8},
                     )
                     concept_edges.append(edge)
-        
+
         logger.info(f"Extracted {len(concept_nodes)} concept nodes")
         return concept_nodes, concept_edges
-    
+
     except Exception as e:
         logger.error(f"Error extracting concepts: {e}")
         return [], []
 
 
 def infer_semantic_relationships(
-    nodes: List[Node], 
+    nodes: List[Node],
     edges: List[Edge],
     ollama_client: OllamaClient,
 ) -> List[Edge]:
@@ -293,17 +296,17 @@ def infer_semantic_relationships(
         New inferred edges.
     """
     logger.info("Inferring semantic relationships between nodes")
-    
+
     # This is a placeholder implementation
     # In a real implementation, we would use the LLM to infer relationships
     # between nodes based on their content
-    
+
     # For now, return an empty list
     return []
 
 
 def detect_architecture(
-    nodes: List[Node], 
+    nodes: List[Node],
     edges: List[Edge],
     repo_path: Optional[Path],
     ollama_client: OllamaClient,
@@ -320,10 +323,10 @@ def detect_architecture(
         New architecture nodes and edges.
     """
     logger.info("Detecting architectural patterns")
-    
+
     # This is a placeholder implementation
     # In a real implementation, we would analyze the codebase structure
     # to detect architectural patterns
-    
+
     # For now, return empty lists
     return [], []
