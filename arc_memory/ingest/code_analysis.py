@@ -465,9 +465,31 @@ class CodeAnalysisIngestor:
                     # (Implementation would go here)
                 except ValueError as e:
                     logger.warning(f"Could not parse JSON from LLM response for {rel_path}: {e}")
-                    # Fallback to a minimal default structure
-                    data = {"functions": [], "classes": [], "imports": [], "exports": []}
-                    logger.info(f"Using default empty structure for {rel_path}")
+
+                    # Try a more aggressive fallback approach with manual regex extraction
+                    try:
+                        # Look for imports array
+                        imports_match = re.search(r'"imports"\s*:\s*\[(.*?)\]', response, re.DOTALL)
+                        if imports_match:
+                            imports_str = imports_match.group(1)
+                            # Extract quoted strings
+                            imports = re.findall(r'"([^"]*)"', imports_str)
+                            module_node.imports = imports
+                            logger.info(f"Extracted {len(imports)} imports using regex fallback for {rel_path}")
+
+                        # Look for exports array
+                        exports_match = re.search(r'"exports"\s*:\s*\[(.*?)\]', response, re.DOTALL)
+                        if exports_match:
+                            exports_str = exports_match.group(1)
+                            # Extract quoted strings
+                            exports = re.findall(r'"([^"]*)"', exports_str)
+                            module_node.exports = exports
+                            logger.info(f"Extracted {len(exports)} exports using regex fallback for {rel_path}")
+                    except Exception as regex_error:
+                        logger.warning(f"Regex fallback also failed for {rel_path}: {regex_error}")
+                        # Use default empty structure as last resort
+                        data = {"functions": [], "classes": [], "imports": [], "exports": []}
+                        logger.info(f"Using default empty structure for {rel_path}")
                 except Exception as e:
                     logger.error(f"Error processing LLM response for {rel_path}: {e}")
             except Exception as e:
