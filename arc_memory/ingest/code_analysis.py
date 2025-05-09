@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from arc_memory.llm.ollama_client import OllamaClient
 from arc_memory.logging_conf import get_logger
+from arc_memory.process.semantic_analysis import _extract_json_from_llm_response
 from arc_memory.schema.models import (
     ClassNode,
     Edge,
@@ -434,24 +435,20 @@ class CodeAnalysisIngestor:
                 ```javascript
                 {content[:5000]}  # Limit to first 5000 chars
                 ```
+
+                Return ONLY the JSON object, nothing else. Do not include any explanations or markdown formatting.
                 """
 
                 response = self.ollama_client.generate(
-                    model="phi4-mini-reasoning",
+                    model="qwen3:4b",
                     prompt=prompt,
-                    options={"temperature": 0.1}
+                    options={"temperature": 0.2}
                 )
 
                 # Parse the response
                 try:
-                    # Extract JSON from the response
-                    json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
-                    if json_match:
-                        json_str = json_match.group(1)
-                    else:
-                        json_str = response
-
-                    data = json.loads(json_str)
+                    # Use the robust JSON extraction function
+                    data = _extract_json_from_llm_response(response)
 
                     # Update module node with imports/exports
                     if "imports" in data:
@@ -461,8 +458,13 @@ class CodeAnalysisIngestor:
 
                     # Process functions and classes
                     # (Implementation would go here)
+                except ValueError as e:
+                    logger.warning(f"Could not parse JSON from LLM response for {rel_path}: {e}")
+                    # Fallback to a minimal default structure
+                    data = {"functions": [], "classes": [], "imports": [], "exports": []}
+                    logger.info(f"Using default empty structure for {rel_path}")
                 except Exception as e:
-                    logger.error(f"Error parsing LLM response for {rel_path}: {e}")
+                    logger.error(f"Error processing LLM response for {rel_path}: {e}")
             except Exception as e:
                 logger.error(f"Error using LLM for JavaScript analysis of {rel_path}: {e}")
 
