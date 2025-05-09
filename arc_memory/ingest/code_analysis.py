@@ -468,6 +468,10 @@ class CodeAnalysisIngestor:
 
                     # Try a more aggressive fallback approach with manual regex extraction
                     try:
+                        # Initialize empty lists for imports and exports
+                        imports = []
+                        exports = []
+
                         # Look for imports array
                         imports_match = re.search(r'"imports"\s*:\s*\[(.*?)\]', response, re.DOTALL)
                         if imports_match:
@@ -485,6 +489,15 @@ class CodeAnalysisIngestor:
                             exports = re.findall(r'"([^"]*)"', exports_str)
                             module_node.exports = exports
                             logger.info(f"Extracted {len(exports)} exports using regex fallback for {rel_path}")
+
+                        # Update data variable for consistent downstream processing
+                        data = {
+                            "functions": [],
+                            "classes": [],
+                            "imports": imports,
+                            "exports": exports
+                        }
+                        logger.info(f"Created data structure from regex fallback for {rel_path}")
                     except Exception as regex_error:
                         logger.warning(f"Regex fallback also failed for {rel_path}: {regex_error}")
                         # Use default empty structure as last resort
