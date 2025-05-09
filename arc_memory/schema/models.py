@@ -33,6 +33,18 @@ class NodeType(str, Enum):
     CHANGE_PATTERN = "change_pattern"
     REFACTORING = "refactoring"
 
+    # New types for reasoning structures
+    REASONING_QUESTION = "reasoning_question"
+    REASONING_ALTERNATIVE = "reasoning_alternative"
+    REASONING_CRITERION = "reasoning_criterion"
+    REASONING_STEP = "reasoning_step"
+    REASONING_IMPLICATION = "reasoning_implication"
+
+    # New types for causal relationships
+    DECISION = "decision"  # A decision made during development
+    IMPLICATION = "implication"  # An implication of a decision
+    CODE_CHANGE = "code_change"  # A specific code change resulting from a decision
+
 
 class EdgeRel(str, Enum):
     """Types of relationships between nodes."""
@@ -60,6 +72,21 @@ class EdgeRel(str, Enum):
     FOLLOWS = "FOLLOWS"        # Change pattern follows another
     PRECEDES = "PRECEDES"      # Change pattern precedes another
     CORRELATES_WITH = "CORRELATES_WITH"  # Changes correlate with each other
+
+    # New relationships for reasoning structures
+    REASONS_ABOUT = "REASONS_ABOUT"  # Reasoning node reasons about an entity
+    HAS_ALTERNATIVE = "HAS_ALTERNATIVE"  # Question has an alternative
+    HAS_CRITERION = "HAS_CRITERION"  # Question has a criterion
+    NEXT_STEP = "NEXT_STEP"  # Step leads to the next step
+    HAS_IMPLICATION = "HAS_IMPLICATION"  # Decision has an implication
+
+    # New relationships for causal edges
+    LEADS_TO = "LEADS_TO"  # Decision leads to an implication
+    RESULTS_IN = "RESULTS_IN"  # Implication results in a code change
+    IMPLEMENTS_DECISION = "IMPLEMENTS_DECISION"  # Code change implements a decision
+    CAUSED_BY = "CAUSED_BY"  # Entity is caused by another entity
+    INFLUENCES = "INFLUENCES"  # Entity influences another entity
+    ADDRESSES = "ADDRESSES"  # Entity addresses a problem or requirement
 
 
 class Node(BaseModel):
@@ -244,3 +271,40 @@ class ChangePatternNode(Node):
     files: List[str] = Field(default_factory=list)  # Files involved
     frequency: float  # How often this pattern occurs
     impact: Dict[str, Any] = Field(default_factory=dict)  # Impact metrics
+
+
+class DecisionNode(Node):
+    """A decision made during development."""
+
+    type: NodeType = NodeType.DECISION
+    decision_type: str  # Type of decision (architectural, implementation, etc.)
+    decision_makers: List[str] = Field(default_factory=list)  # People who made the decision
+    alternatives: List[Dict[str, Any]] = Field(default_factory=list)  # Alternatives considered
+    criteria: List[Dict[str, Any]] = Field(default_factory=list)  # Criteria used for evaluation
+    confidence: float = 1.0  # Confidence score (0.0-1.0)
+    source: Optional[str] = None  # Source of the decision (commit, PR, ADR, etc.)
+
+
+class ImplicationNode(Node):
+    """An implication of a decision."""
+
+    type: NodeType = NodeType.IMPLICATION
+    implication_type: str  # Type of implication (technical, business, etc.)
+    severity: str = "medium"  # Severity of the implication (low, medium, high)
+    scope: List[str] = Field(default_factory=list)  # Scope of the implication (files, components, etc.)
+    confidence: float = 1.0  # Confidence score (0.0-1.0)
+    source: Optional[str] = None  # Source of the implication (commit, PR, ADR, etc.)
+
+
+class CodeChangeNode(Node):
+    """A specific code change resulting from a decision or implication."""
+
+    type: NodeType = NodeType.CODE_CHANGE
+    change_type: str  # Type of change (feature, bugfix, refactoring, etc.)
+    files: List[str] = Field(default_factory=list)  # Files affected by the change
+    description: str  # Description of the change
+    author: Optional[str] = None  # Author of the change
+    commit_sha: Optional[str] = None  # SHA of the commit that made the change
+    confidence: float = 1.0  # Confidence score (0.0-1.0)
+
+
