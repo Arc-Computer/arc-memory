@@ -140,7 +140,7 @@ def test_optimize_export_for_llm(mock_export_data):
     """Test optimize_export_for_llm function."""
     # Call the function
     optimized_data = optimize_export_for_llm(mock_export_data)
-    
+
     # Check results
     assert "reasoning_paths" in optimized_data
     assert "semantic_context" in optimized_data
@@ -152,17 +152,17 @@ def test_generate_common_reasoning_paths(mock_export_data):
     """Test generate_common_reasoning_paths function."""
     # Call the function
     reasoning_paths = generate_common_reasoning_paths(mock_export_data)
-    
+
     # Check results
     assert len(reasoning_paths) > 0
-    
+
     # Check that each path has the expected structure
     for path in reasoning_paths:
         assert "name" in path
         assert "description" in path
         assert "steps" in path
         assert len(path["steps"]) > 0
-        
+
         # Check that each step has the expected structure
         for step in path["steps"]:
             assert "type" in step
@@ -173,23 +173,23 @@ def test_extract_semantic_context(mock_export_data):
     """Test extract_semantic_context function."""
     # Call the function
     semantic_context = extract_semantic_context(mock_export_data)
-    
+
     # Check results
     assert "key_concepts" in semantic_context
     assert "code_entities" in semantic_context
     assert "architecture" in semantic_context
-    
+
     # Check key concepts
     assert len(semantic_context["key_concepts"]) > 0
     for concept in semantic_context["key_concepts"]:
         assert "name" in concept
         assert "definition" in concept
-    
+
     # Check code entities
     assert "functions" in semantic_context["code_entities"]
     assert "classes" in semantic_context["code_entities"]
     assert "modules" in semantic_context["code_entities"]
-    
+
     # Check architecture
     assert "services" in semantic_context["architecture"]
     assert "components" in semantic_context["architecture"]
@@ -199,19 +199,19 @@ def test_extract_temporal_patterns(mock_export_data):
     """Test extract_temporal_patterns function."""
     # Call the function
     temporal_patterns = extract_temporal_patterns(mock_export_data)
-    
+
     # Check results
     assert "change_frequency" in temporal_patterns
     assert "co_changing_files" in temporal_patterns
     assert "change_sequences" in temporal_patterns
-    
+
     # Check change frequency
     assert len(temporal_patterns["change_frequency"]) > 0
     for path, stats in temporal_patterns["change_frequency"].items():
         assert "recent_commit_count" in stats
         assert "last_modified" in stats
         assert "authors" in stats
-    
+
     # Check co-changing files
     assert len(temporal_patterns["co_changing_files"]) > 0
     for pattern in temporal_patterns["co_changing_files"]:
@@ -223,20 +223,20 @@ def test_generate_thought_structures(mock_export_data):
     """Test generate_thought_structures function."""
     # Call the function
     thought_structures = generate_thought_structures(mock_export_data)
-    
+
     # Check results
     assert len(thought_structures) > 0
-    
+
     # Check that each thought structure has the expected structure
     for thought in thought_structures:
         assert "decision_point" in thought
         assert "reasoning" in thought
-        
+
         # Check decision point
         assert "id" in thought["decision_point"]
         assert "title" in thought["decision_point"]
         assert "type" in thought["decision_point"]
-        
+
         # Check reasoning
         assert isinstance(thought["reasoning"], dict)
 
@@ -245,10 +245,10 @@ def test_generate_thought_structures(mock_export_data):
 def test_format_export_data_with_enhancement(mock_optimize, mock_export_data):
     """Test format_export_data with LLM enhancement."""
     from arc_memory.export import format_export_data
-    
+
     # Setup mock
     mock_optimize.return_value = {"enhanced": True}
-    
+
     # Convert node format to match what format_export_data expects
     nodes = []
     for node in mock_export_data["nodes"]:
@@ -265,7 +265,7 @@ def test_format_export_data_with_enhancement(mock_optimize, mock_export_data):
         if "path" in node:
             converted_node["extra"]["path"] = node["path"]
         nodes.append(converted_node)
-    
+
     # Convert edge format
     edges = []
     for edge in mock_export_data["edges"]:
@@ -276,7 +276,7 @@ def test_format_export_data_with_enhancement(mock_optimize, mock_export_data):
             "properties": {}
         }
         edges.append(converted_edge)
-    
+
     # Call the function
     result = format_export_data(
         pr_sha="abc123",
@@ -285,9 +285,9 @@ def test_format_export_data_with_enhancement(mock_optimize, mock_export_data):
         changed_files=mock_export_data["modified_files"],
         enhance_for_llm=True
     )
-    
+
     # Check results
-    assert result["schema_version"] == "0.2"
+    assert result["schema_version"] == "0.3"
     assert result["pr"]["sha"] == "abc123"
     assert len(result["nodes"]) == len(nodes)
     assert len(result["edges"]) == len(edges)
@@ -299,7 +299,7 @@ def test_format_export_data_with_enhancement(mock_optimize, mock_export_data):
 def test_format_export_data_without_enhancement(mock_optimize, mock_export_data):
     """Test format_export_data without LLM enhancement."""
     from arc_memory.export import format_export_data
-    
+
     # Convert node format to match what format_export_data expects
     nodes = []
     for node in mock_export_data["nodes"]:
@@ -316,7 +316,7 @@ def test_format_export_data_without_enhancement(mock_optimize, mock_export_data)
         if "path" in node:
             converted_node["extra"]["path"] = node["path"]
         nodes.append(converted_node)
-    
+
     # Convert edge format
     edges = []
     for edge in mock_export_data["edges"]:
@@ -327,7 +327,7 @@ def test_format_export_data_without_enhancement(mock_optimize, mock_export_data)
             "properties": {}
         }
         edges.append(converted_edge)
-    
+
     # Call the function
     result = format_export_data(
         pr_sha="abc123",
@@ -336,9 +336,9 @@ def test_format_export_data_without_enhancement(mock_optimize, mock_export_data)
         changed_files=mock_export_data["modified_files"],
         enhance_for_llm=False
     )
-    
+
     # Check results
-    assert result["schema_version"] == "0.2"
+    assert result["schema_version"] == "0.3"
     assert result["pr"]["sha"] == "abc123"
     assert len(result["nodes"]) == len(nodes)
     assert len(result["edges"]) == len(edges)
