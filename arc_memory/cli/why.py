@@ -310,6 +310,17 @@ def query(
             max_hops=max_hops
         )
         
+        # Check for error in the results
+        if "error" in query_results:
+            error_msg = query_results["error"]
+            if format == Format.JSON:
+                # For JSON format, print errors as JSON
+                print(json.dumps({"error": error_msg}))
+            else:
+                # For text format, use rich console
+                console.print(f"[red]{error_msg}[/red]")
+            return
+        
         if not query_results or "results" not in query_results:
             if format == Format.JSON:
                 # For JSON format, return empty object
