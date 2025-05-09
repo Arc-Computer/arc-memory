@@ -13,6 +13,7 @@ from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from arc_memory.llm.ollama_client import OllamaClient
 from arc_memory.logging_conf import get_logger
+from arc_memory.process.semantic_analysis import _extract_json_from_llm_response
 from arc_memory.schema.models import (
     ClassNode,
     Edge,
@@ -434,24 +435,25 @@ class CodeAnalysisIngestor:
                 ```javascript
                 {content[:5000]}  # Limit to first 5000 chars
                 ```
+
+                Return ONLY the JSON object, nothing else. Do not include any explanations or markdown formatting.
                 """
 
+                system_prompt = """You are a code analysis assistant that extracts structured information from code files.
+                Always respond with valid JSON only. Do not include any explanations, markdown formatting, or additional text.
+                Ensure all JSON keys and string values are properly quoted with double quotes."""
+
                 response = self.ollama_client.generate(
-                    model="phi4-mini-reasoning",
+                    model="qwen3:4b",
                     prompt=prompt,
-                    options={"temperature": 0.1}
+                    system=system_prompt,
+                    options={"temperature": 0.2}
                 )
 
                 # Parse the response
                 try:
-                    # Extract JSON from the response
-                    json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
-                    if json_match:
-                        json_str = json_match.group(1)
-                    else:
-                        json_str = response
-
-                    data = json.loads(json_str)
+                    # Use the robust JSON extraction function
+                    data = _extract_json_from_llm_response(response)
 
                     # Update module node with imports/exports
                     if "imports" in data:
@@ -461,8 +463,48 @@ class CodeAnalysisIngestor:
 
                     # Process functions and classes
                     # (Implementation would go here)
+                except ValueError as e:
+                    logger.warning(f"Could not parse JSON from LLM response for {rel_path}: {e}")
+
+                    # Try a more aggressive fallback approach with manual regex extraction
+                    try:
+                        # Initialize empty lists for imports and exports
+                        imports = []
+                        exports = []
+
+                        # Look for imports array
+                        imports_match = re.search(r'"imports"\s*:\s*\[(.*?)\]', response, re.DOTALL)
+                        if imports_match:
+                            imports_str = imports_match.group(1)
+                            # Extract quoted strings
+                            imports = re.findall(r'"([^"]*)"', imports_str)
+                            module_node.imports = imports
+                            logger.info(f"Extracted {len(imports)} imports using regex fallback for {rel_path}")
+
+                        # Look for exports array
+                        exports_match = re.search(r'"exports"\s*:\s*\[(.*?)\]', response, re.DOTALL)
+                        if exports_match:
+                            exports_str = exports_match.group(1)
+                            # Extract quoted strings
+                            exports = re.findall(r'"([^"]*)"', exports_str)
+                            module_node.exports = exports
+                            logger.info(f"Extracted {len(exports)} exports using regex fallback for {rel_path}")
+
+                        # Update data variable for consistent downstream processing
+                        data = {
+                            "functions": [],
+                            "classes": [],
+                            "imports": imports,
+                            "exports": exports
+                        }
+                        logger.info(f"Created data structure from regex fallback for {rel_path}")
+                    except Exception as regex_error:
+                        logger.warning(f"Regex fallback also failed for {rel_path}: {regex_error}")
+                        # Use default empty structure as last resort
+                        data = {"functions": [], "classes": [], "imports": [], "exports": []}
+                        logger.info(f"Using default empty structure for {rel_path}")
                 except Exception as e:
-                    logger.error(f"Error parsing LLM response for {rel_path}: {e}")
+                    logger.error(f"Error processing LLM response for {rel_path}: {e}")
             except Exception as e:
                 logger.error(f"Error using LLM for JavaScript analysis of {rel_path}: {e}")
 
