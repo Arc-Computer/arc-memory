@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 
 # Constants
 LINEAR_API_URL = "https://api.linear.app/graphql"
-USER_AGENT = "Arc-Memory/0.4.0"
+USER_AGENT = "Arc-Memory/0.4.1"
 
 # GraphQL queries
 ISSUES_QUERY = """

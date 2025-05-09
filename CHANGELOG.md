@@ -5,6 +5,36 @@ All notable changes to the Arc Memory SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.1] - 2025-05-09
+
+### Fixed
+- Fixed JavaScript/TypeScript LLM parsing errors by using a robust JSON extraction function
+- Addressed PR feedback for consistent downstream processing in regex fallback
+- Updated _extract_json_from_llm_response to handle responses with thinking sections
+- Improved system prompt handling for LLMs
+- Fixed temporal analysis error and standardized on Qwen3:4b model
+- Fixed Node path field error in temporal_analysis
+- Fixed FileNode properties handling in temporal_analysis
+- Fixed JSON parsing and temporal analysis: added robust JSON extraction, fixed CommitNode property access, and improved Ollama client
+- Fixed GitHub integration errors with proper null handling for PR and issue details
+
+### Added
+- Added system prompt to improve JSON generation for JavaScript/TypeScript analysis
+- Added robust regex fallback for JavaScript/TypeScript analysis when JSON parsing fails
+- Added script to create sample causal data for testing
+- Enhanced Knowledge Graph of Thoughts (KGoT) implementation to better capture decision trails
+- Implemented extraction of causal relationships from commit messages, PR descriptions, Linear tickets, and ADRs
+- Added schema models for causal edge representation (decision → implication → code-change)
+
+### Changed
+- Use generate() instead of generate_with_thinking() to avoid thinking section in JSON response
+- Optimized export for causal relationships
+- Improved build command logging and switched to Qwen 3:4b model
+- Improved CLI usability: Add --github flag and increase LLM timeout to 260 seconds
+- Updated ingestor instantiation and parameter passing
+- Improved build command structure to match CLI expectations
+- Enhanced knowledge graph: improved Ollama client parsing, added system prompt, and fixed temporal analysis
+
 ## [0.3.1] - 2025-05-1
 
 ### Added

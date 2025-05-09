@@ -41,7 +41,7 @@ DEVICE_TOKEN_URL = f"{LINEAR_URL}/oauth/token"
 OAUTH_AUTHORIZE_URL = f"{LINEAR_URL}/oauth/authorize"
 OAUTH_TOKEN_URL = f"{LINEAR_API_BASE_URL}/oauth/token"  # Note: This is api.linear.app, not linear.app
 OAUTH_REVOKE_URL = f"{LINEAR_API_BASE_URL}/oauth/revoke"
-USER_AGENT = "Arc-Memory/0.4.0"
+USER_AGENT = "Arc-Memory/0.4.1"
 
 # Encryption constants
 # Use a fixed salt for deterministic key derivation
