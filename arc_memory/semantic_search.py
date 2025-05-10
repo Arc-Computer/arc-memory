@@ -508,9 +508,17 @@ def _extract_json_from_llm_response(response: str) -> Optional[Dict[str, Any]]:
         # Check for JSON block format with code fences
         if "```json" in response:
             # Extract content between ```json and ```
-            start = response.find("```json") + 7
-            end = response.find("```", start)
-            json_str = response[start:end].strip()
+            if "```json" in response:
+                start = response.find("```json") + 7
+                end = response.find("```", start)
+                if end != -1:  # Ensure closing fence exists
+                    json_str = response[start:end].strip()
+                else:
+                    # Handle missing closing fence
+                    json_str = response[start:].strip()  # Or appropriate fallback
+            else:
+                # Handle case where no JSON block is found
+                json_str = response.strip()  # Or appropriate fallback
         elif "```" in response:
             # Extract content between ``` and ```
             start = response.find("```") + 3
