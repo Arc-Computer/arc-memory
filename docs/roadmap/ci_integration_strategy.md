@@ -16,9 +16,9 @@ As AI generates exponentially more code, the critical bottleneck shifts from *ge
 4. **Performance Optimization**: Capture agent traces to understand and improve performance
 5. **Provenance Tracking**: Record why every change was made and by whom (human or agent)
 
-## Framework-Agnostic Approach
+## Framework-Agnostic and Database-Flexible Approach
 
-Drawing inspiration from NVIDIA's AIQ framework, our CI integration will be framework-agnostic, treating all components as function calls to enable true composability. This allows teams to use Arc Memory regardless of their agent usage level.
+Drawing inspiration from NVIDIA's AIQ framework and Neo4j's GraphRAG ecosystem, our CI integration will be both framework-agnostic and database-flexible, treating all components as function calls to enable true composability. This allows teams to use Arc Memory regardless of their agent usage level and database preference (SQLite for individual developers, Neo4j for team-wide collaboration).
 
 ### For Agent-Heavy Teams
 
@@ -37,20 +37,25 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      
+
       - name: Set up Arc Memory
         uses: arc-computer/setup-arc-memory@v1
-      
+
       - name: Build Knowledge Graph
         run: arc build --github --auto-refresh
-      
+
+      - name: Configure Database
+        uses: arc-computer/setup-database@v1
+        with:
+          type: neo4j  # or sqlite for local-only usage
+
       - name: Run Agent-Based Analysis
         uses: arc-computer/arc-agent-analysis@v1
         with:
           agent-framework: langchain # or llamaindex, autogen, etc.
           analysis-type: blast-radius
           model: o4-mini
-      
+
       - name: Post Analysis Results
         uses: arc-computer/arc-pr-comment@v1
         with:
@@ -74,16 +79,16 @@ jobs:
       - uses: actions/checkout@v3
         with:
           fetch-depth: 0
-      
+
       - name: Set up Arc Memory
         uses: arc-computer/setup-arc-memory@v1
-      
+
       - name: Build Knowledge Graph
         run: arc build --github
-      
+
       - name: Analyze PR Impact
         run: arc why --pr ${{ github.event.pull_request.number }} --output-format markdown > analysis.md
-      
+
       - name: Post Analysis Results
         uses: arc-computer/arc-pr-comment@v1
         with:
@@ -110,16 +115,22 @@ jobs:
 
 ### 2. Plugin Architecture Extensions
 
-Building on Arc Memory's existing plugin architecture, we'll add CI-specific plugins:
+Building on Arc Memory's existing plugin architecture, we'll add CI-specific and database-specific plugins:
 
 ```python
 class CIPlugin(Protocol):
     def get_name(self) -> str: ...
     def get_supported_ci_systems(self) -> List[str]: ...
     def process_ci_event(self, event_type: str, payload: Dict[str, Any]) -> None: ...
+
+class DatabasePlugin(Protocol):
+    def get_name(self) -> str: ...
+    def get_supported_versions(self) -> List[str]: ...
+    def connect(self, connection_params: Dict[str, Any]) -> None: ...
+    def store_ci_data(self, data_type: str, data: Dict[str, Any]) -> None: ...
 ```
 
-This allows for extensibility to different CI systems beyond GitHub Actions.
+This allows for extensibility to different CI systems beyond GitHub Actions and different database backends (SQLite for local development, Neo4j for team-wide collaboration).
 
 ### 3. Agent Trace Collection
 
@@ -130,7 +141,7 @@ class AgentTraceCollector:
     def __init__(self, repo_path: str):
         self.repo_path = repo_path
         self.traces = []
-    
+
     def record_agent_action(self, agent_id: str, action: str, context: Dict[str, Any]):
         """Record an agent action for later analysis."""
         self.traces.append({
@@ -139,7 +150,7 @@ class AgentTraceCollector:
             "context": context,
             "timestamp": datetime.now().isoformat()
         })
-    
+
     def save_traces(self):
         """Save traces to the knowledge graph."""
         # Implementation
@@ -161,19 +172,19 @@ class CodebaseRLEnvironment:
     def __init__(self, repo_path: str):
         self.repo_path = repo_path
         self.knowledge_graph = load_knowledge_graph(repo_path)
-    
+
     def get_state(self, commit_hash: str) -> Dict[str, Any]:
         """Get the state of the codebase at a specific commit."""
         return self.knowledge_graph.get_state_at_commit(commit_hash)
-    
+
     def get_action(self, pr_number: int) -> Dict[str, Any]:
         """Get the action (code change) from a PR."""
         return self.knowledge_graph.get_pr_changes(pr_number)
-    
+
     def get_reward(self, pr_number: int) -> float:
         """Calculate the reward for a PR based on build success, test results, etc."""
         # Implementation
-    
+
     def predict_outcome(self, current_state: Dict[str, Any], proposed_action: Dict[str, Any]) -> Dict[str, Any]:
         """Predict the outcome of a proposed code change."""
         # Implementation using trained RL model
@@ -209,5 +220,29 @@ class CodebaseRLEnvironment:
 1. Implement the basic GitHub Actions components
 2. Create a proof-of-concept CI integration with a sample repository
 3. Develop the agent trace collection system
-4. Begin collecting training data for the RL environment
-5. Create documentation and examples for different team profiles
+4. Implement database adapters for SQLite and Neo4j
+5. Begin collecting training data for the RL environment
+6. Create documentation and examples for different team profiles
+7. Integrate with Neo4j GraphRAG for enhanced retrieval capabilities
+8. Develop CI workflows for both SQLite and Neo4j backends
+
+## Neo4j GraphRAG Integration
+
+To leverage Neo4j's GraphRAG capabilities in our CI integration:
+
+1. **Knowledge Graph Construction**:
+   - Use Neo4j's GraphRAG Python Package for efficient knowledge graph construction in CI environments
+   - Implement chunking and embedding generation for PR descriptions and commit messages
+   - Extract entities and relationships using LLM Graph Builder techniques
+
+2. **Vector Search Integration**:
+   - Leverage Neo4j's vector search capabilities for semantic search in CI workflows
+   - Use embeddings for finding similar code patterns and potential issues
+   - Implement hybrid retrieval for blast radius prediction
+
+3. **CI-Specific Optimizations**:
+   - Optimize Neo4j queries for CI-specific use cases
+   - Implement efficient incremental updates during CI runs
+   - Use Neo4j's transaction capabilities for atomic updates
+
+This integration will significantly enhance our CI capabilities, particularly for team environments using the cloud offering with Neo4j as the backend.

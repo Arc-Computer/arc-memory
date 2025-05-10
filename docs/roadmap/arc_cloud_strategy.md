@@ -38,8 +38,42 @@ Arc Cloud enables the transition from individual developer usage to team-wide co
 │  │             │  │ Service     │  │ Service             │  │
 │  └─────────────┘  └─────────────┘  └─────────────────────┘  │
 │                                                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │ Neo4j       │  │ Vector      │  │ GraphRAG            │  │
+│  │ GraphRAG    │  │ Search      │  │ Retrieval           │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+│                                                             │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+### Neo4j GraphRAG Integration
+
+A key enhancement to our architecture is the integration of Neo4j's GraphRAG capabilities:
+
+```bash
+┌─────────────────────────────────────────────────────────────┐
+│                                                             │
+│                  Neo4j GraphRAG Integration                 │
+│                                                             │
+│  ┌─────────────────────────┐      ┌─────────────────────┐   │
+│  │                         │      │                     │   │
+│  │  Knowledge Graph        │      │  Vector Search      │   │
+│  │  Construction           │      │  & Embeddings       │   │
+│  │                         │      │                     │   │
+│  └─────────────┬───────────┘      └─────────┬───────────┘   │
+│                │                            │               │
+│                ▼                            ▼               │
+│  ┌─────────────────────────┐      ┌─────────────────────┐   │
+│  │                         │      │                     │   │
+│  │  Entity & Relationship  │      │  Hybrid Retrieval   │   │
+│  │  Extraction             │      │  (Graph + Vector)   │   │
+│  │                         │      │                     │   │
+│  └─────────────────────────┘      └─────────────────────┘   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+This integration allows us to leverage Neo4j's built-in GraphRAG capabilities for enhanced knowledge graph construction, vector search, and hybrid retrieval, significantly accelerating our development timeline.
 
 ### Authentication and Access Control
 
@@ -78,7 +112,7 @@ Arc Cloud enables the transition from individual developer usage to team-wide co
 
 ## Selective Sync Mechanism
 
-The selective sync mechanism is the critical bridge between local Arc Memory instances and Arc Cloud. Based on our research of modern approaches like ElectricSQL, we'll implement a robust, efficient sync system.
+The selective sync mechanism is the critical bridge between local Arc Memory instances (SQLite) and Arc Cloud (Neo4j). Based on our research of modern approaches like ElectricSQL and Neo4j's GraphRAG capabilities, we'll implement a robust, efficient sync system that leverages the strengths of both database technologies.
 
 ### Technical Implementation
 
@@ -103,6 +137,14 @@ The selective sync mechanism is the critical bridge between local Arc Memory ins
 │                 │                      │                 │
 │  Sync Config    │                      │  Permissions    │
 │  & Filters      │                      │  & Policies     │
+│                 │                      │                 │
+└────────┬────────┘                      └────────┬────────┘
+         │                                        │
+         ▼                                        ▼
+┌─────────────────┐                      ┌─────────────────┐
+│                 │                      │                 │
+│  Database       │                      │  Neo4j          │
+│  Adapter        │                      │  GraphRAG       │
 │                 │                      │                 │
 └─────────────────┘                      └─────────────────┘
 ```
@@ -151,23 +193,32 @@ Developers can control what gets synced using:
 
 ### Implementation Approach
 
-Drawing inspiration from ElectricSQL's approach to Postgres-SQLite sync, we'll implement:
+Drawing inspiration from ElectricSQL's approach to Postgres-SQLite sync and Neo4j's GraphRAG capabilities, we'll implement:
 
 1. **Change Data Capture (CDC)**:
    - Track changes to local SQLite database
    - Generate change events with vector clocks
    - Queue changes for sync based on filters
+   - Leverage Neo4j's CDC capabilities for cloud-side tracking
 
-2. **Conflict Resolution**:
+2. **Database Abstraction**:
+   - Implement database adapters for both SQLite and Neo4j
+   - Use Neo4j GraphRAG Python Package for the Neo4j implementation
+   - Ensure schema compatibility between both backends
+   - Optimize for each database's strengths
+
+3. **Conflict Resolution**:
    - Last-writer-wins with vector clocks for most data
    - Merge-based resolution for compatible changes
    - Notification-based resolution for incompatible changes
+   - Use Neo4j's transaction capabilities for atomic updates
 
-3. **Efficient Transport**:
+4. **Efficient Transport**:
    - Batched updates for efficiency
    - Compression for bandwidth optimization
    - Resumable transfers for reliability
    - Background sync with configurable frequency
+   - Optimized for Neo4j's property graph model
 
 ## Differentiation
 
@@ -331,14 +382,16 @@ Maintaining high-quality data is critical for Arc Cloud's success.
    - Set up basic team structures
 
 2. **Core Cloud Infrastructure**:
-   - Set up Neo4j cloud instance
+   - Set up Neo4j cloud instance with GraphRAG capabilities
    - Implement API gateway
    - Create basic web UI
+   - Configure Neo4j for vector search and embeddings
 
 3. **Initial Sync Mechanism**:
    - Develop basic sync protocol
    - Implement read-only cloud access
    - Create simple conflict resolution
+   - Implement database adapters for SQLite and Neo4j
 
 ### Phase 2: Team Collaboration (3 months)
 
@@ -346,16 +399,25 @@ Maintaining high-quality data is critical for Arc Cloud's success.
    - Implement bidirectional sync
    - Add selective sync filters
    - Improve conflict resolution
+   - Optimize for Neo4j's transaction capabilities
 
-2. **Permissions and Access Control**:
+2. **Neo4j GraphRAG Integration**:
+   - Implement knowledge graph construction using Neo4j GraphRAG
+   - Set up vector search capabilities
+   - Create hybrid retrieval mechanisms
+   - Optimize for team-wide knowledge sharing
+
+3. **Permissions and Access Control**:
    - Implement fine-grained permissions
    - Create team and project access controls
    - Add audit logging
+   - Integrate with Neo4j's security model
 
-3. **Collaboration Features**:
+4. **Collaboration Features**:
    - Team dashboards
    - Shared annotations
    - Notification system
+   - GraphRAG-powered chat interface
 
 ### Phase 3: Differentiation (3 months)
 
@@ -435,8 +497,34 @@ Maintaining high-quality data is critical for Arc Cloud's success.
    - Learning efficiency (improvement per feedback cycle)
    - Cross-architecture generalization capability
 
+## Neo4j GraphRAG Integration Benefits
+
+Leveraging Neo4j's GraphRAG capabilities provides several key benefits for Arc Cloud:
+
+1. **Accelerated Development Timeline**:
+   - Utilize Neo4j's built-in vector search capabilities instead of building our own
+   - Leverage existing knowledge graph construction tools
+   - Adopt proven patterns for hybrid retrieval
+
+2. **Enhanced Retrieval Capabilities**:
+   - Combine graph-based and vector-based retrieval for superior results
+   - Utilize Neo4j's optimized query engine for complex graph traversals
+   - Implement efficient chunking and embedding generation
+
+3. **Improved Team Collaboration**:
+   - Enable rich knowledge sharing across teams
+   - Provide powerful visualization capabilities
+   - Support complex queries across the entire knowledge graph
+
+4. **Future-Proof Architecture**:
+   - Align with industry standards for graph-based RAG
+   - Benefit from Neo4j's ongoing improvements to their GraphRAG ecosystem
+   - Maintain compatibility with popular GenAI frameworks
+
 ## Conclusion
 
 Arc Cloud is the critical bridge between our local-first OSS strategy and our vision of a risk-aware world model for code. By focusing on selective sync, blast radius prediction, and data quality, we can create a compelling offering that differentiates from competitors like Unblocked while delivering immediate value to development teams.
 
 The success of Arc Cloud depends on executing with both technical excellence and a deep understanding of team collaboration needs. By building on the foundation of our local-first approach and extending it with cloud capabilities, we can create a seamless experience that preserves the benefits of local performance while adding the power of team-wide knowledge sharing.
+
+By leveraging Neo4j's GraphRAG capabilities, we can accelerate our development timeline while focusing on our core differentiators: blast radius prediction, temporal analysis, and causal knowledge graph. This approach ensures we can deliver a compelling product to market quickly while maintaining our unique value proposition.

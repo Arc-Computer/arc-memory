@@ -62,7 +62,7 @@ This document outlines a strategic plan to refactor Arc Memory's architecture to
 
 ## Target Architecture
 
-Drawing inspiration from NVIDIA's AIQ framework, we'll adopt a plugin-based architecture that treats all components as function calls, enabling true framework agnosticism:
+Drawing inspiration from NVIDIA's AIQ framework and Neo4j's GraphRAG approach, we'll adopt a plugin-based architecture that treats all components as function calls, enabling true framework agnosticism and database flexibility:
 
 ```bash
 ┌─────────────────────────────────────────────────────────────┐
@@ -102,7 +102,10 @@ Drawing inspiration from NVIDIA's AIQ framework, we'll adopt a plugin-based arch
 │                  Arc Memory Core SDK                        │
 │                                                             │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
-│  │ Graph DB    │  │ Ingestors   │  │ Schema              │  │
+│  │ Database    │  │ Ingestors   │  │ Schema              │  │
+│  │ Adapters    │  │             │  │                     │  │
+│  │ (SQLite/    │  │             │  │                     │  │
+│  │  Neo4j)     │  │             │  │                     │  │
 │  └─────────────┘  └─────────────┘  └─────────────────────┘  │
 │                                                             │
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
@@ -120,29 +123,67 @@ Drawing inspiration from NVIDIA's AIQ framework, we'll adopt a plugin-based arch
 └─────────────────────────────────────────────────────────────┘
 ```
 
+### Database Abstraction Layer
+
+A key enhancement to our architecture is the addition of a database abstraction layer that supports both SQLite (for local usage) and Neo4j (for cloud):
+
+```bash
+┌─────────────────────────────────────────────────────────────┐
+│                  Database Abstraction Layer                 │
+│                                                             │
+│  ┌─────────────────────────┐      ┌─────────────────────┐   │
+│  │                         │      │                     │   │
+│  │  SQLite Adapter         │      │  Neo4j Adapter      │   │
+│  │  (Local-First)          │      │  (Cloud)            │   │
+│  │                         │      │                     │   │
+│  └─────────────┬───────────┘      └─────────┬───────────┘   │
+│                │                            │               │
+│                ▼                            ▼               │
+│  ┌─────────────────────────┐      ┌─────────────────────┐   │
+│  │                         │      │                     │   │
+│  │  SQLite                 │      │  Neo4j GraphRAG     │   │
+│  │  Knowledge Graph        │      │  Knowledge Graph    │   │
+│  │                         │      │                     │   │
+│  └─────────────────────────┘      └─────────────────────┘   │
+│                                                             │
+└─────────────────────────────────────────────────────────────┘
+```
+
+This approach allows us to leverage Neo4j's GraphRAG capabilities in our cloud offering while maintaining our local-first SQLite implementation for individual developers.
+
 ## Refactoring Phases
 
-### Phase 1: Core SDK Extraction
+### Phase 1: Core SDK Extraction and Database Abstraction
 
 1. **Extract Core Logic from CLI Commands**
    - Refactor each CLI command to call a corresponding SDK function
    - Move business logic from CLI layer to SDK layer
    - Ensure SDK functions return structured data objects
+   - Design with database abstraction in mind
 
-2. **Define Clear Return Types**
+2. **Implement Database Abstraction Layer**
+   - Create interfaces that work with both SQLite and Neo4j
+   - Implement SQLite adapter first with Neo4j-compatible patterns
+   - Design schema to be compatible with Neo4j's property graph model
+   - Align with Neo4j GraphRAG Python Package API patterns
+
+3. **Define Clear Return Types**
    - Create dataclasses/Pydantic models for all return types
    - Include metadata fields (confidence, sources, timestamps)
    - Support serialization to/from JSON
+   - Ensure compatibility with Neo4j's data types
 
-3. **Implement Error Handling Strategy**
+4. **Implement Error Handling Strategy**
    - Define exception hierarchy
    - Add context information to exceptions
    - Create recovery mechanisms where appropriate
+   - Handle database-specific errors consistently
 
-4. **Add Async Support**
+5. **Add Async Support**
    - Create async versions of key functions
    - Ensure compatibility with async agent frameworks
    - Maintain synchronous versions for backward compatibility
+   - Support async database operations for both backends
 
 ### Phase 2: Extending Plugin System and Building Framework Adapters
 
@@ -270,6 +311,9 @@ Arc Memory already has a robust plugin architecture for data ingestion. We'll bu
    - **LLM Adapter Plugins** (new): Integrate with LLM providers
    - **Tool Adapter Plugins** (new): Convert functions to tool formats
    - **Memory Adapter Plugins** (new): Integrate with memory systems
+   - **Database Adapter Plugins** (new): Support different database backends
+     - SQLite Adapter: For local-first usage
+     - Neo4j Adapter: For cloud offering, leveraging GraphRAG capabilities
 
 4. **Function-First Design**
    - Treat all components (agents, tools, workflows) as simple function calls
@@ -418,11 +462,14 @@ To ensure rapid adoption, we'll create a frictionless onboarding experience:
 
 1. Begin Phase 1 by extracting core logic from the `build`, `why`, and `relate` commands
 2. Create initial SDK function signatures and return types with standardized interfaces
-3. Analyze and document the existing plugin architecture in `arc_memory/plugins/`
-4. Extend the existing `IngestorRegistry` to create a generalized `PluginRegistry`
-5. Implement new plugin protocols for framework adapters and other plugin types
-6. Create proof-of-concept adapters for LangChain and OpenAI function calling
-7. Update project roadmap to reflect the extended plugin architecture
+3. Design and implement the database abstraction layer for SQLite and Neo4j
+4. Analyze and document the existing plugin architecture in `arc_memory/plugins/`
+5. Extend the existing `IngestorRegistry` to create a generalized `PluginRegistry`
+6. Implement new plugin protocols for framework adapters and database adapters
+7. Create proof-of-concept adapters for LangChain and OpenAI function calling
+8. Implement SQLite adapter with Neo4j-compatible patterns
+9. Review Neo4j GraphRAG Python Package API for alignment
+10. Update project roadmap to reflect the extended plugin architecture and database abstraction
 
 ## Implementation Example Building on Existing Plugin Architecture
 
@@ -520,3 +567,83 @@ result = memory.query_knowledge_graph("What was the reasoning behind the auth re
 ```
 
 This approach builds upon the existing plugin architecture while extending it to support framework adapters and other plugin types, maintaining backward compatibility with existing plugins.
+
+## Neo4j Integration Strategy
+
+To ensure a smooth transition from local SQLite to cloud Neo4j, we'll implement the following:
+
+### 1. Database Adapter Implementation
+
+```python
+# Database adapter protocol
+class DatabaseAdapter(Protocol):
+    def get_name(self) -> str: ...
+    def get_supported_versions(self) -> List[str]: ...
+    def connect(self, connection_params: Dict[str, Any]) -> None: ...
+    def disconnect(self) -> None: ...
+    def is_connected(self) -> bool: ...
+    def execute_query(self, query: str, params: Optional[Dict[str, Any]] = None) -> Any: ...
+    def begin_transaction(self) -> Any: ...
+    def commit_transaction(self, transaction: Any) -> None: ...
+    def rollback_transaction(self, transaction: Any) -> None: ...
+
+# SQLite adapter implementation
+class SQLiteAdapter:
+    def get_name(self) -> str:
+        return "sqlite"
+
+    def get_supported_versions(self) -> List[str]:
+        return ["3.0.0", "3.1.0"]
+
+    # Implementation of other methods...
+
+# Neo4j adapter implementation
+class Neo4jAdapter:
+    def get_name(self) -> str:
+        return "neo4j"
+
+    def get_supported_versions(self) -> List[str]:
+        return ["5.0.0", "5.1.0"]
+
+    # Implementation leveraging Neo4j GraphRAG Python Package...
+```
+
+### 2. GraphRAG Integration
+
+We'll align our API design with Neo4j's GraphRAG Python Package to ensure compatibility:
+
+1. **Knowledge Graph Construction**:
+   - Adopt similar patterns for entity and relationship extraction
+   - Use compatible schema definitions
+   - Implement chunking and embedding generation
+
+2. **Vector Search Integration**:
+   - Support Neo4j's vector search capabilities
+   - Implement compatible embedding models
+   - Use similar query patterns for hybrid retrieval
+
+3. **Retrieval Augmentation**:
+   - Implement GraphRAG-compatible retrieval methods
+   - Support both vector and graph-based retrieval
+   - Enable hybrid retrieval strategies
+
+### 3. Migration Path
+
+To ensure a smooth transition for users:
+
+1. **Transparent Database Switching**:
+   - Allow switching between SQLite and Neo4j with minimal code changes
+   - Provide migration utilities for existing SQLite databases
+   - Implement automatic schema mapping
+
+2. **Feature Parity**:
+   - Ensure all features work with both backends
+   - Optimize performance for each backend
+   - Provide backend-specific optimizations when appropriate
+
+3. **Cloud Sync**:
+   - Implement selective sync between local SQLite and cloud Neo4j
+   - Support bidirectional updates
+   - Ensure conflict resolution
+
+By leveraging Neo4j's GraphRAG capabilities while maintaining our local-first approach, we can provide a seamless experience for both individual developers and teams, accelerating our roadmap while preserving our unique value proposition.

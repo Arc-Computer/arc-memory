@@ -232,7 +232,7 @@ Arc Memory's RL system creates a powerful data flywheel effect:
 
 Following the Nemotron architecture approach, our implementation strategy consists of a comprehensive three-phase training pipeline followed by continuous improvement:
 
-```
+```bash
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                                                                         │
 │                     Arc Memory Training Pipeline                        │
