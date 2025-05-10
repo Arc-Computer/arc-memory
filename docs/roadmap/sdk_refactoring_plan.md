@@ -1,0 +1,522 @@
+# Arc Memory SDK Refactoring Plan
+
+## Business Context
+
+Arc Memory occupies a unique position in the AI memory and knowledge graph landscape:
+
+### Competitive Landscape
+- **Horizontal Memory Solutions** (Letta, Mem0, Zep): Offer general-purpose memory for AI agents across domains, focusing on conversation context and personalization.
+- **Knowledge Graph Platforms** (WhyHow): Provide semantic structure for RAG pipelines with a focus on determinism and accuracy.
+- **Code Context Tools** (Unblocked): Surface contextual information about code to improve developer productivity.
+
+### Arc Memory's Differentiation
+- **Vertical Data Model**: Unlike horizontal players, Arc stores causal edges (decision > implication > code-change) gathered directly from GitHub, Linear, Notion, etc.
+- **Core Workflow Integration**: Surfaces memory in the diff where engineers live, improving the code review process rather than requiring teams to adopt a separate memory API.
+- **High-Stakes ICP**: Focused on Fintech, blockchain, and payment-rail providers who place the highest value on mitigating downtime and incident-response overhead (~$15k/min downtime cost).
+- **RL Environment Foundation**: Treats the repository as an RL environment, predicting blast-radius before merge and enabling parallel agent workflows.
+
+### Strategic Direction
+The scalability of Arc Memory depends on how quickly we can ship the RL environment loop that enables us to move beyond "deep research for codebases" to a real-time knowledge graph of code for parallel workflows based on active changes and decisions. This SDK refactoring is a critical step in that direction.
+
+### Go-to-Market Developer Experience
+
+For Arc Memory to succeed, we need to make it exceptionally easy for developers to integrate and derive value quickly. Here's how our approach compares to competitors:
+
+#### Quick Start Experience
+- **Competitors' Approaches**:
+  - **Letta/Mem0/Zep**: Require setting up memory stores, configuring persistence, and managing context windows.
+  - **WhyHow**: Requires knowledge graph expertise and schema definition.
+  - **Unblocked**: Offers quick IDE plugin installation but limited to passive context retrieval.
+
+- **Arc Memory's Approach**:
+  1. **Zero-Config Graph Building**: `pip install arc-memory && arc build` automatically builds a knowledge graph from Git history, GitHub issues/PRs, and other connected sources.
+  2. **Instant Agent Integration**: `from arc_memory import ArcAgent; agent = ArcAgent(repo_path="./")` creates an agent with full knowledge of the codebase.
+  3. **Framework Adapters**: Pre-built adapters for popular agent frameworks (LangChain, LlamaIndex, etc.) enable one-line integration.
+  4. **Progressive Value**: Immediate value from basic queries, with increasing returns as the graph builds over time.
+
+#### Time-to-Value
+- **Arc Memory**: Delivers value in three stages:
+  1. **Immediate** (minutes): Basic code context and relationship queries
+  2. **Short-term** (hours): Temporal analysis and reasoning about code evolution
+  3. **Long-term** (days): Predictive insights about change impacts and blast radius
+
+This approach ensures developers can start using Arc Memory with minimal friction while still benefiting from its advanced capabilities as they invest more time.
+
+## Overview
+
+This document outlines a strategic plan to refactor Arc Memory's architecture to prioritize agent integration while maintaining CLI functionality for human users. The goal is to transform Arc Memory into a powerful tool that can be seamlessly integrated into agent workflows while preserving the user experience for direct human interaction.
+
+## Current Architecture Assessment
+
+### Strengths
+- Strong CLI interface with intuitive commands
+- Robust knowledge graph foundation
+- Bi-temporal data model
+- Plugin architecture for data sources
+
+### Limitations
+- SDK functionality is secondary to CLI
+- Agent integration requires subprocess spawning
+- Return formats optimized for human readability, not machine consumption
+- Limited programmatic composability
+
+## Target Architecture
+
+Drawing inspiration from NVIDIA's AIQ framework, we'll adopt a plugin-based architecture that treats all components as function calls, enabling true framework agnosticism:
+
+```bash
+┌─────────────────────────────────────────────────────────────┐
+│                     Agent Frameworks                        │
+│  (LangChain, LlamaIndex, AutoGen, CrewAI, Function Calling) │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Arc Memory Plugin System                   │
+│                                                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │ Framework   │  │ LLM         │  │ Tool                │  │
+│  │ Adapters    │  │ Adapters    │  │ Adapters            │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Arc Memory Core Functions                  │
+│                                                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │ Query API   │  │ Context API │  │ Temporal Analysis   │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+│                                                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │ Graph Build │  │ Auto-Refresh│  │ Relationship API    │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+│                                                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │ Code Explain│  │ Reasoning   │  │ Semantic Search     │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+└───────────────────────┬─────────────────────────────────────┘
+                        │
+                        ▼
+┌─────────────────────────────────────────────────────────────┐
+│                  Arc Memory Core SDK                        │
+│                                                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │ Graph DB    │  │ Ingestors   │  │ Schema              │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+│                                                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │ LLM Client  │  │ Auth        │  │ Utils               │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+                        ▲
+                        │
+┌───────────────────────┴─────────────────────────────────────┐
+│                  Arc Memory CLI                             │
+│                                                             │
+│  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────┐  │
+│  │ Commands    │  │ Formatting  │  │ Interactive Mode    │  │
+│  └─────────────┘  └─────────────┘  └─────────────────────┘  │
+└─────────────────────────────────────────────────────────────┘
+```
+
+## Refactoring Phases
+
+### Phase 1: Core SDK Extraction
+
+1. **Extract Core Logic from CLI Commands**
+   - Refactor each CLI command to call a corresponding SDK function
+   - Move business logic from CLI layer to SDK layer
+   - Ensure SDK functions return structured data objects
+
+2. **Define Clear Return Types**
+   - Create dataclasses/Pydantic models for all return types
+   - Include metadata fields (confidence, sources, timestamps)
+   - Support serialization to/from JSON
+
+3. **Implement Error Handling Strategy**
+   - Define exception hierarchy
+   - Add context information to exceptions
+   - Create recovery mechanisms where appropriate
+
+4. **Add Async Support**
+   - Create async versions of key functions
+   - Ensure compatibility with async agent frameworks
+   - Maintain synchronous versions for backward compatibility
+
+### Phase 2: Extending Plugin System and Building Framework Adapters
+
+1. **Extend Existing Plugin Architecture**
+   - Analyze and document the current `IngestorPlugin` and `IngestorRegistry` implementation
+   - Create a generalized `PluginRegistry` that can handle multiple plugin types
+   - Implement namespaced entry point discovery for different plugin categories
+   - Maintain backward compatibility with existing ingestor plugins
+
+2. **Create Core Function Interfaces**
+   - Define standard interfaces for all core functions based on existing patterns
+   - Implement function registration and discovery mechanisms
+   - Create function metadata and schema definitions
+   - Build function composition and chaining capabilities
+
+3. **Develop Framework Adapters as Plugins**
+   - Create LangChain adapter plugin following the existing plugin pattern
+     ```python
+     # Example usage
+     from arc_memory.plugins.frameworks import langchain
+     tools = langchain.get_tools()
+     agent = langchain.create_agent(tools=tools)
+     ```
+   - Implement LlamaIndex adapter plugin
+   - Build OpenAI function calling adapter
+   - Add AutoGen and CrewAI adapters
+   - Create framework-agnostic default interface
+
+4. **Optimize for Agent Workflows**
+   - Add streaming response support
+   - Implement progressive result generation
+   - Create context-aware response formatting
+   - Design for multi-turn conversations with context retention
+   - Build observability and tracing capabilities
+
+### Phase 3: CLI Refactoring
+
+1. **Update CLI to Use SDK**
+   - Refactor all CLI commands to use the new SDK
+   - Ensure backward compatibility for command syntax
+   - Add new capabilities exposed by the SDK
+
+2. **Enhance CLI Output Formats**
+   - Add JSON output option for all commands
+   - Implement machine-readable logging
+   - Create structured error reporting
+
+3. **Add Interactive Mode Improvements**
+   - Implement auto-completion based on graph content
+   - Add context-aware suggestions
+   - Create visualization options for complex results
+
+### Phase 4: Documentation and Examples
+
+1. **Create SDK Documentation**
+   - Generate API reference documentation
+   - Write usage guides for common scenarios
+   - Add architecture documentation
+
+2. **Develop Integration Examples**
+   - Create examples for each supported agent framework
+   - Build Jupyter notebooks demonstrating workflows
+   - Add CI integration templates
+
+3. **Update User Documentation**
+   - Revise CLI documentation
+   - Add agent integration guides
+   - Create migration guide for existing users
+
+## Implementation Guidelines
+
+### SDK Design Principles
+
+1. **Agent-First Design**
+   - Optimize function signatures for agent usage
+   - Provide context-rich responses
+   - Support natural language interfaces
+
+2. **Composability**
+   - Design functions that can be easily chained
+   - Avoid global state where possible
+   - Use consistent parameter naming
+
+3. **Progressive Disclosure**
+   - Provide simple interfaces for common tasks
+   - Allow access to advanced functionality when needed
+   - Use sensible defaults with override options
+
+4. **Performance Awareness**
+   - Optimize for low latency in agent scenarios
+   - Support batching for efficiency
+   - Implement caching where appropriate
+
+### Extending the Existing Plugin Architecture
+
+Arc Memory already has a robust plugin architecture for data ingestion. We'll build upon this foundation to create a comprehensive framework-agnostic system:
+
+1. **Unified Plugin Discovery**
+   - Leverage the existing entry points-based discovery mechanism (`arc_memory.plugins`)
+   - Extend with additional namespaces for new plugin types:
+     ```python
+     # pyproject.toml
+     [project.entry-points."arc_memory.plugins.ingestors"]
+     custom-source = "my_package.my_module:CustomIngestor"
+
+     [project.entry-points."arc_memory.plugins.frameworks"]
+     langchain = "my_package.adapters:LangChainAdapter"
+     ```
+   - Maintain backward compatibility with existing plugins
+
+2. **Expanded Plugin Protocols**
+   - Keep the existing `IngestorPlugin` protocol for data sources
+   - Add new protocols for different plugin types:
+     ```python
+     class FrameworkAdapterPlugin(Protocol):
+         def get_name(self) -> str: ...
+         def get_supported_versions(self) -> List[str]: ...
+         def adapt_functions(self, functions: List[Callable]) -> Any: ...
+     ```
+   - Support both class-based and function-based plugin implementations
+
+3. **Comprehensive Plugin Types**
+   - **Ingestor Plugins** (existing): Ingest data from various sources
+   - **Framework Adapter Plugins** (new): Connect to agent frameworks
+   - **LLM Adapter Plugins** (new): Integrate with LLM providers
+   - **Tool Adapter Plugins** (new): Convert functions to tool formats
+   - **Memory Adapter Plugins** (new): Integrate with memory systems
+
+4. **Function-First Design**
+   - Treat all components (agents, tools, workflows) as simple function calls
+   - Enable true composability: build once, reuse anywhere
+   - Allow mixing and matching components from different frameworks
+
+### Developer Onboarding Experience
+
+To ensure rapid adoption, we'll create a frictionless onboarding experience:
+
+1. **One-Line Installation**
+   ```bash
+   pip install arc-memory
+   ```
+
+2. **Quick Start Templates**
+   - GitHub repository with ready-to-use examples for common frameworks
+   - Copy-paste snippets for immediate integration
+
+3. **Framework-Specific Starter Kits**
+   - LangChain: `from arc_memory.plugins import langchain; tools = langchain.get_tools()`
+   - LlamaIndex: `from arc_memory.plugins import llamaindex; retriever = llamaindex.get_retriever()`
+   - Function Calling: `from arc_memory.plugins import openai; tools = openai.get_tools()`
+   - Framework-agnostic: `from arc_memory import ArcMemory; memory = ArcMemory(repo_path="./")`
+
+4. **Interactive Tutorials**
+   - Jupyter notebooks with step-by-step guides
+   - VS Code Dev Containers with pre-configured environments
+
+5. **CI/CD Integration Examples**
+   - GitHub Actions workflow templates
+   - GitLab CI pipeline examples
+   - Jenkins job configurations
+
+### Testing Strategy
+
+1. **Unit Testing**
+   - Achieve high coverage of SDK functions
+   - Test edge cases and error conditions
+   - Use parameterized tests for variations
+
+2. **Integration Testing**
+   - Test with actual agent frameworks
+   - Verify end-to-end workflows
+   - Include performance benchmarks
+
+3. **Agent Simulation Testing**
+   - Create simulated agent interactions
+   - Test complex multi-step workflows
+   - Verify context preservation
+
+## Key SDK Functions
+
+### Query API
+- `query_knowledge_graph(question: str) -> QueryResult`
+- `find_entities(query: str, entity_type: Optional[NodeType] = None) -> List[Entity]`
+- `get_entity_details(entity_id: str) -> EntityDetails`
+- `find_relationships(source_id: str, target_id: Optional[str] = None, relationship_type: Optional[EdgeRel] = None) -> List[Relationship]`
+- `search(query: str, filters: Optional[Dict] = None, limit: int = 10) -> List[SearchResult]`
+
+### Graph Building API
+- `build_graph(sources: List[DataSource], options: BuildOptions) -> BuildResult`
+- `update_graph(since: Optional[datetime] = None) -> UpdateResult`
+- `register_data_source(source: DataSource) -> None`
+- `get_build_status() -> BuildStatus`
+- `schedule_auto_refresh(interval: timedelta) -> None`
+
+### Temporal Analysis API
+- `analyze_timeline(entity_id: str, start_time: Optional[datetime] = None, end_time: Optional[datetime] = None) -> Timeline`
+- `find_related_changes(entity_id: str, time_window: timedelta) -> List[Change]`
+- `identify_development_phases() -> List[DevelopmentPhase]`
+- `compare_entity_at_times(entity_id: str, time1: datetime, time2: datetime) -> EntityComparison`
+
+### Context API
+- `get_context_for_file(file_path: str, line_range: Optional[Tuple[int, int]] = None) -> FileContext`
+- `get_context_for_function(function_name: str) -> FunctionContext`
+- `get_context_for_pr(pr_number: int) -> PRContext`
+- `get_context_for_issue(issue_number: int) -> IssueContext`
+- `get_context_for_commit(commit_hash: str) -> CommitContext`
+
+### Code Explanation API
+- `explain_code(file_path: str, line_range: Optional[Tuple[int, int]] = None) -> CodeExplanation`
+- `explain_function(function_name: str) -> FunctionExplanation`
+- `explain_change(commit_hash: str, file_path: Optional[str] = None) -> ChangeExplanation`
+- `explain_pr(pr_number: int) -> PRExplanation`
+
+### Reasoning API
+- `trace_reasoning(entity_id: str, question: str) -> ReasoningTrace`
+- `explain_relationship(source_id: str, target_id: str) -> RelationshipExplanation`
+- `identify_patterns(entity_ids: List[str]) -> List[Pattern]`
+- `generate_insights(entity_id: str) -> List[Insight]`
+
+### Semantic Search API
+- `semantic_search(query: str, limit: int = 10) -> List[SearchResult]`
+- `find_similar_code(code_snippet: str, limit: int = 10) -> List[CodeSearchResult]`
+- `find_similar_entities(entity_id: str, limit: int = 10) -> List[SimilarEntity]`
+- `search_by_concept(concept: str, limit: int = 10) -> List[ConceptSearchResult]`
+
+## Migration Path
+
+1. **Gradual Transition**
+   - Implement SDK functions alongside existing CLI
+   - Add deprecation warnings for direct CLI usage patterns
+   - Provide migration examples
+
+2. **Version Strategy**
+   - Release SDK as v0.4.0 (alpha)
+   - Reach feature parity at v0.5.0 (beta)
+   - Stabilize API at v1.0.0
+
+3. **Backward Compatibility**
+   - Maintain CLI functionality
+   - Support existing scripts and workflows
+   - Provide compatibility layers where needed
+
+## Success Metrics
+
+1. **Agent Integration**
+   - Number of supported agent frameworks
+   - Ease of integration (measured by lines of code)
+   - Query latency in agent contexts
+
+2. **Developer Experience**
+   - SDK documentation completeness
+   - Example coverage for common scenarios
+   - Community feedback and adoption
+   - Time-to-first-value (target: <5 minutes)
+
+3. **Performance**
+   - Query response time
+   - Memory usage
+   - Throughput for batch operations
+
+4. **Adoption Metrics**
+   - Number of repositories using Arc Memory
+   - Percentage of users integrating with agents vs. CLI-only
+   - Retention rate after initial setup
+   - Frequency of API calls per repository
+
+5. **Competitive Positioning**
+   - Feature parity with competitors on core functionality
+   - Unique value metrics (e.g., accuracy of blast radius prediction)
+   - Time-to-value compared to competitors
+
+## Next Steps
+
+1. Begin Phase 1 by extracting core logic from the `build`, `why`, and `relate` commands
+2. Create initial SDK function signatures and return types with standardized interfaces
+3. Analyze and document the existing plugin architecture in `arc_memory/plugins/`
+4. Extend the existing `IngestorRegistry` to create a generalized `PluginRegistry`
+5. Implement new plugin protocols for framework adapters and other plugin types
+6. Create proof-of-concept adapters for LangChain and OpenAI function calling
+7. Update project roadmap to reflect the extended plugin architecture
+
+## Implementation Example Building on Existing Plugin Architecture
+
+Here's a simplified example of how we can extend the existing plugin architecture to support framework adapters:
+
+```python
+# Existing IngestorPlugin protocol (already implemented)
+class IngestorPlugin(Protocol):
+    def get_name(self) -> str: ...
+    def get_node_types(self) -> List[str]: ...
+    def get_edge_types(self) -> List[str]: ...
+    def ingest(self, last_processed: Optional[Dict[str, Any]] = None) -> tuple[List[Node], List[Edge], Dict[str, Any]]: ...
+
+# New FrameworkAdapterPlugin protocol
+class FrameworkAdapterPlugin(Protocol):
+    def get_name(self) -> str: ...
+    def get_supported_versions(self) -> List[str]: ...
+    def adapt_functions(self, functions: List[Callable]) -> Any: ...
+
+# Generalized PluginRegistry that extends the existing IngestorRegistry pattern
+class PluginRegistry:
+    def __init__(self):
+        self.ingestors = {}  # Existing ingestor plugins
+        self.framework_adapters = {}  # New framework adapter plugins
+        # Other plugin types...
+
+    def register_ingestor(self, ingestor: IngestorPlugin) -> None:
+        self.ingestors[ingestor.get_name()] = ingestor
+
+    def register_framework_adapter(self, adapter: FrameworkAdapterPlugin) -> None:
+        self.framework_adapters[adapter.get_name()] = adapter
+
+    # Other registration methods...
+
+# Enhanced discover_plugins function that builds on the existing one
+def discover_plugins() -> PluginRegistry:
+    registry = PluginRegistry()
+
+    # Register built-in ingestors (existing functionality)
+    registry.register_ingestor(GitIngestor())
+    registry.register_ingestor(GitHubIngestor())
+    registry.register_ingestor(ADRIngestor())
+
+    # Register built-in framework adapters (new functionality)
+    registry.register_framework_adapter(LangChainAdapter())
+    registry.register_framework_adapter(LlamaIndexAdapter())
+
+    # Discover and register third-party plugins from entry points
+    for entry_point in pkg_resources.iter_entry_points("arc_memory.plugins.ingestors"):
+        try:
+            plugin_class = entry_point.load()
+            registry.register_ingestor(plugin_class())
+        except Exception as e:
+            logger.warning(f"Failed to load ingestor plugin {entry_point.name}: {e}")
+
+    for entry_point in pkg_resources.iter_entry_points("arc_memory.plugins.frameworks"):
+        try:
+            plugin_class = entry_point.load()
+            registry.register_framework_adapter(plugin_class())
+        except Exception as e:
+            logger.warning(f"Failed to load framework adapter plugin {entry_point.name}: {e}")
+
+    return registry
+
+# LangChain adapter implementation following the existing plugin pattern
+class LangChainAdapter:
+    def get_name(self) -> str:
+        return "langchain"
+
+    def get_supported_versions(self) -> List[str]:
+        return ["0.1.0", "0.2.0"]
+
+    def adapt_functions(self, functions: List[Callable]) -> Any:
+        from langchain.agents import Tool
+
+        tools = []
+        for func in functions:
+            tools.append(Tool(
+                name=func.__name__,
+                func=func,
+                description=func.__doc__
+            ))
+
+        return tools
+
+# Usage in LangChain
+from arc_memory.plugins.frameworks import langchain
+tools = langchain.get_tools()
+agent = langchain.create_agent(tools=tools)
+
+# Usage without framework
+from arc_memory import ArcMemory
+memory = ArcMemory(repo_path="./")
+result = memory.query_knowledge_graph("What was the reasoning behind the auth refactor?")
+```
+
+This approach builds upon the existing plugin architecture while extending it to support framework adapters and other plugin types, maintaining backward compatibility with existing plugins.
