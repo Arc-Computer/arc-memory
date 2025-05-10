@@ -49,7 +49,7 @@ jobs:
         with:
           agent-framework: langchain # or llamaindex, autogen, etc.
           analysis-type: blast-radius
-          model: gpt-4-1106-preview
+          model: o4-mini
       
       - name: Post Analysis Results
         uses: arc-computer/arc-pr-comment@v1
