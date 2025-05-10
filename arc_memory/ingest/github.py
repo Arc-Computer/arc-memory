@@ -194,31 +194,40 @@ class GitHubIngestor:
                         pr_nodes.append(pr_node)
 
                         # Create mention edges from PR body
-                        if pr["body"]:
-                            mention_edges = fetcher.create_mention_edges(
-                                pr_node.id, pr["body"], issues, prs
-                            )
-                            pr_edges.extend(mention_edges)
+                        try:
+                            if pr.get("body"):
+                                mention_edges = fetcher.create_mention_edges(
+                                    pr_node.id, pr.get("body"), issues, prs
+                                )
+                                pr_edges.extend(mention_edges)
+                        except Exception as e:
+                            logger.warning(f"Error creating mention edges from PR body for PR #{pr['number']}: {e}")
 
                         # Create mention edges from PR comments
-                        if pr_details.get("comments"):
-                            for comment in pr_details["comments"]:
-                                if comment.get("body"):
-                                    comment_mention_edges = fetcher.create_mention_edges(
-                                        pr_node.id, comment["body"], issues, prs
-                                    )
-                                    pr_edges.extend(comment_mention_edges)
+                        try:
+                            if pr_details and isinstance(pr_details, dict) and pr_details.get("comments"):
+                                for comment in pr_details["comments"]:
+                                    if comment and isinstance(comment, dict) and comment.get("body"):
+                                        comment_mention_edges = fetcher.create_mention_edges(
+                                            pr_node.id, comment.get("body"), issues, prs
+                                        )
+                                        pr_edges.extend(comment_mention_edges)
+                        except Exception as e:
+                            logger.warning(f"Error creating mention edges from PR comments for PR #{pr['number']}: {e}")
 
                         # Create MERGES edge if PR has a merge commit
-                        if pr_node.merged_commit_sha:
-                            pr_edges.append(
-                                Edge(
-                                    src=pr_node.id,
-                                    dst=pr_node.merged_commit_sha,
-                                    rel=EdgeRel.MERGES,
-                                    properties={"merged_at": pr_node.merged_at.isoformat() if pr_node.merged_at else None},
+                        try:
+                            if pr_node.merged_commit_sha:
+                                pr_edges.append(
+                                    Edge(
+                                        src=pr_node.id,
+                                        dst=pr_node.merged_commit_sha,
+                                        rel=EdgeRel.MERGES,
+                                        properties={"merged_at": pr_node.merged_at.isoformat() if pr_node.merged_at else None},
+                                    )
                                 )
-                            )
+                        except Exception as e:
+                            logger.warning(f"Error creating MERGES edge for PR #{pr['number']}: {e}")
                     except Exception as e:
                         logger.error(f"Error processing PR #{pr['number']}: {e}")
                         # Continue with the next PR
@@ -245,20 +254,26 @@ class GitHubIngestor:
                         issue_nodes.append(issue_node)
 
                         # Create mention edges from issue body
-                        if issue["body"]:
-                            mention_edges = fetcher.create_mention_edges(
-                                issue_node.id, issue["body"], issues, prs
-                            )
-                            issue_edges.extend(mention_edges)
+                        try:
+                            if issue.get("body"):
+                                mention_edges = fetcher.create_mention_edges(
+                                    issue_node.id, issue.get("body"), issues, prs
+                                )
+                                issue_edges.extend(mention_edges)
+                        except Exception as e:
+                            logger.warning(f"Error creating mention edges from issue body for issue #{issue['number']}: {e}")
 
                         # Create mention edges from issue comments
-                        if issue_details.get("comments"):
-                            for comment in issue_details["comments"]:
-                                if comment.get("body"):
-                                    comment_mention_edges = fetcher.create_mention_edges(
-                                        issue_node.id, comment["body"], issues, prs
-                                    )
-                                    issue_edges.extend(comment_mention_edges)
+                        try:
+                            if issue_details and isinstance(issue_details, dict) and issue_details.get("comments"):
+                                for comment in issue_details["comments"]:
+                                    if comment and isinstance(comment, dict) and comment.get("body"):
+                                        comment_mention_edges = fetcher.create_mention_edges(
+                                            issue_node.id, comment.get("body"), issues, prs
+                                        )
+                                        issue_edges.extend(comment_mention_edges)
+                        except Exception as e:
+                            logger.warning(f"Error creating mention edges from issue comments for issue #{issue['number']}: {e}")
                     except Exception as e:
                         logger.error(f"Error processing issue #{issue['number']}: {e}")
                         # Continue with the next issue

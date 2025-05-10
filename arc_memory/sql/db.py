@@ -211,8 +211,16 @@ def init_db(db_path: Optional[Path] = None, test_mode: bool = False) -> Any:
                 type TEXT NOT NULL,
                 title TEXT,
                 body TEXT,
+                timestamp TEXT,
                 extra TEXT
             )
+            """
+        )
+
+        # Create index on timestamp column
+        conn.execute(
+            """
+            CREATE INDEX IF NOT EXISTS idx_nodes_timestamp ON nodes(timestamp)
             """
         )
 
@@ -575,16 +583,22 @@ def add_nodes_and_edges(
         with conn:
             # Add nodes
             for node in nodes:
+                # Extract timestamp from node
+                timestamp_str = None
+                if hasattr(node, 'ts') and node.ts:
+                    timestamp_str = node.ts.isoformat()
+
                 conn.execute(
                     """
-                    INSERT OR REPLACE INTO nodes(id, type, title, body, extra)
-                    VALUES(?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO nodes(id, type, title, body, timestamp, extra)
+                    VALUES(?, ?, ?, ?, ?, ?)
                     """,
                     (
                         node.id,
                         node.type.value,
                         node.title,
                         node.body,
+                        timestamp_str,
                         json.dumps(node.extra, cls=DateTimeEncoder),
                     ),
                 )
@@ -796,7 +810,7 @@ def get_node_by_id(conn_or_path: Union[Any, Path, str], node_id: str) -> Optiona
     try:
         cursor = conn.execute(
             """
-            SELECT id, type, title, body, extra
+            SELECT id, type, title, body, timestamp, extra
             FROM nodes
             WHERE id = ?
             """,
@@ -810,7 +824,8 @@ def get_node_by_id(conn_or_path: Union[Any, Path, str], node_id: str) -> Optiona
             "type": row[1],
             "title": row[2],
             "body": row[3],
-            "extra": json.loads(row[4]) if row[4] else {},
+            "timestamp": row[4],
+            "extra": json.loads(row[5]) if row[5] else {},
         }
     except Exception as e:
         logger.error(f"Failed to get node by ID: {e}")
@@ -1024,13 +1039,14 @@ def build_networkx_graph(conn: Any) -> Any:
         G = nx.DiGraph()
 
         # Add nodes
-        cursor = conn.execute("SELECT id, type, title, extra FROM nodes")
+        cursor = conn.execute("SELECT id, type, title, timestamp, extra FROM nodes")
         for row in cursor:
             G.add_node(
                 row[0],
                 type=row[1],
                 title=row[2],
-                extra=json.loads(row[3]) if row[3] else {},
+                timestamp=row[3],
+                extra=json.loads(row[4]) if row[4] else {},
             )
 
         # Add edges
