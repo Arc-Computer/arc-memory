@@ -359,41 +359,44 @@ def query(
                     md_content += f"### {result['type'].capitalize()}: {result['title']}\n\n"
                     md_content += f"**ID**: {result['id']}  \n"
                     if "timestamp" in result:
-                        md_content += f"**Timestamp**: {result['timestamp'] or 'N/A'}  \n"
+                        md_content += f"**Timestamp**: {result.get('timestamp') or 'N/A'}  \n"
                     if "relevance" in result:
-                        md_content += f"**Relevance**: {result['relevance']}  \n"
+                        md_content += f"**Relevance**: {result.get('relevance')}  \n"
                     
                     # Add type-specific details
                     if result["type"] == "commit":
                         if "author" in result:
-                            md_content += f"**Author**: {result['author']}  \n"
+                            md_content += f"**Author**: {result.get('author')}  \n"
                         if "sha" in result:
-                            md_content += f"**SHA**: {result['sha']}  \n"
+                            md_content += f"**SHA**: {result.get('sha')}  \n"
                     elif result["type"] == "pr":
                         if "number" in result:
-                            md_content += f"**PR**: #{result['number']}  \n"
+                            md_content += f"**PR**: #{result.get('number')}  \n"
                         if "state" in result:
-                            md_content += f"**State**: {result['state']}  \n"
+                            md_content += f"**State**: {result.get('state')}  \n"
                         if "url" in result:
-                            md_content += f"**URL**: {result['url']}  \n"
+                            md_content += f"**URL**: {result.get('url')}  \n"
                     elif result["type"] == "issue":
                         if "number" in result:
-                            md_content += f"**Issue**: #{result['number']}  \n"
+                            md_content += f"**Issue**: #{result.get('number')}  \n"
                         if "state" in result:
-                            md_content += f"**State**: {result['state']}  \n"
+                            md_content += f"**State**: {result.get('state')}  \n"
                         if "url" in result:
-                            md_content += f"**URL**: {result['url']}  \n"
+                            md_content += f"**URL**: {result.get('url')}  \n"
                     elif result["type"] == "adr":
                         if "status" in result:
-                            md_content += f"**Status**: {result['status']}  \n"
+                            md_content += f"**Status**: {result.get('status')}  \n"
                         if "decision_makers" in result:
-                            md_content += f"**Decision Makers**: {', '.join(result['decision_makers'])}  \n"
+                            decision_makers = result.get('decision_makers', [])
+                            if not isinstance(decision_makers, list):
+                                decision_makers = []
+                            md_content += f"**Decision Makers**: {', '.join(decision_makers)}  \n"
                         if "path" in result:
-                            md_content += f"**Path**: {result['path']}  \n"
+                            md_content += f"**Path**: {result.get('path')}  \n"
                     
                     # Add reasoning if available
                     if "reasoning" in result:
-                        md_content += f"\n{result['reasoning']}\n"
+                        md_content += f"\n{result.get('reasoning')}  \n"
                     
                     md_content += "\n---\n\n"
             
