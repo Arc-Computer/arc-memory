@@ -255,115 +255,193 @@ class GitHubFetcher:
         Returns:
             A PRNode object.
         """
-        # Extract basic PR information
-        pr_id = pr_data["id"]
-        pr_number = pr_data["number"]
-        title = pr_data["title"]
-        body = pr_data["body"] or ""
-        state = pr_data["state"]
-        created_at = datetime.fromisoformat(pr_data["createdAt"].replace("Z", "+00:00"))
-        updated_at = datetime.fromisoformat(pr_data["updatedAt"].replace("Z", "+00:00"))
-        url = pr_data["url"]
+        try:
+            # Validate pr_data
+            if not pr_data or not isinstance(pr_data, dict):
+                logger.error(f"Invalid PR data: {pr_data}")
+                raise ValueError("Invalid PR data format")
 
-        # Extract author information
-        author = pr_data.get("author", {})
-        author_login = author.get("login") if author else None
+            # Extract basic PR information with safety checks
+            pr_id = pr_data.get("id")
+            if not pr_id:
+                logger.error(f"PR data missing ID: {pr_data}")
+                raise ValueError("PR data missing ID")
 
-        # Extract merge information
-        merged_at = None
-        if pr_data.get("mergedAt"):
-            merged_at = datetime.fromisoformat(pr_data["mergedAt"].replace("Z", "+00:00"))
+            pr_number = pr_data.get("number")
+            title = pr_data.get("title", "Untitled PR")
+            body = pr_data.get("body") or ""
+            state = pr_data.get("state", "unknown")
+            url = pr_data.get("url", "")
 
-        merged_commit_sha = None
-        if pr_data.get("mergeCommit", {}) and pr_data["mergeCommit"].get("oid"):
-            merged_commit_sha = pr_data["mergeCommit"]["oid"]
+            # Parse timestamps with error handling
+            created_at = None
+            updated_at = None
 
-        # Create extra data
-        extra = {
-            "author": author_login,
-            "baseRefName": pr_data.get("baseRefName"),
-            "headRefName": pr_data.get("headRefName"),
-            "created_at": created_at.isoformat(),
-            "updated_at": updated_at.isoformat(),
-        }
+            if pr_data.get("createdAt"):
+                try:
+                    created_at = datetime.fromisoformat(pr_data["createdAt"].replace("Z", "+00:00"))
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Error parsing createdAt for PR #{pr_number}: {e}")
+                    created_at = datetime.now()  # Fallback to current time
 
-        # Safely add details data
-        if details is not None:
-            # Add file information
-            if "files" in details:
-                extra["files"] = [
-                    {
-                        "filename": file["filename"],
-                        "additions": file.get("additions", 0),
-                        "deletions": file.get("deletions", 0),
-                        "changes": file.get("changes", 0),
-                    }
-                    for file in details["files"]
-                ]
+            if pr_data.get("updatedAt"):
+                try:
+                    updated_at = datetime.fromisoformat(pr_data["updatedAt"].replace("Z", "+00:00"))
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Error parsing updatedAt for PR #{pr_number}: {e}")
+                    updated_at = datetime.now()  # Fallback to current time
 
-            # Add review information
-            if "reviews" in details:
-                extra["reviews"] = [
-                    {
-                        "author": review.get("user", {}).get("login"),
-                        "state": review.get("state"),
-                        "body": review.get("body"),
-                        "submitted_at": review.get("submitted_at"),
-                    }
-                    for review in details["reviews"]
-                ]
+            if not created_at:
+                created_at = datetime.now()  # Fallback if no created_at timestamp
 
-            # Add comment information
-            if "comments" in details:
-                extra["comments"] = [
-                    {
-                        "author": comment.get("user", {}).get("login"),
-                        "body": comment.get("body"),
-                        "created_at": comment.get("created_at"),
-                    }
-                    for comment in details["comments"]
-                ]
+            if not updated_at:
+                updated_at = created_at  # Fallback if no updated_at timestamp
 
-            # Add commit information
-            if "commits" in details:
-                extra["commits"] = [
-                    {
-                        "sha": commit.get("sha"),
-                        "message": commit.get("commit", {}).get("message"),
-                        "author": commit.get("author", {}).get("login") or commit.get("commit", {}).get("author", {}).get("name"),
-                        "url": commit.get("html_url"),
-                    }
-                    for commit in details["commits"]
-                ]
+            # Extract author information safely
+            author = pr_data.get("author", {})
+            author_login = author.get("login") if author and isinstance(author, dict) else None
 
-            # Add review comment information (inline comments)
-            if "review_comments" in details:
-                extra["review_comments"] = [
-                    {
-                        "author": comment.get("user", {}).get("login"),
-                        "body": comment.get("body"),
-                        "created_at": comment.get("created_at"),
-                        "path": comment.get("path"),
-                        "position": comment.get("position"),
-                        "diff_hunk": comment.get("diff_hunk"),
-                    }
-                    for comment in details["review_comments"]
-                ]
+            # Extract merge information safely
+            merged_at = None
+            if pr_data.get("mergedAt"):
+                try:
+                    merged_at = datetime.fromisoformat(pr_data["mergedAt"].replace("Z", "+00:00"))
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Error parsing mergedAt for PR #{pr_number}: {e}")
 
-        # Create the PR node
-        return PRNode(
-            id=pr_id,
-            title=title,
-            body=body,
-            ts=created_at,
-            number=pr_number,
-            state=state,
-            merged_at=merged_at,
-            merged_by=None,  # Not available in the current data
-            merged_commit_sha=merged_commit_sha,
-            url=url,
-            extra=extra,
-        )
+            merged_commit_sha = None
+            merge_commit = pr_data.get("mergeCommit", {})
+            if merge_commit and isinstance(merge_commit, dict) and merge_commit.get("oid"):
+                merged_commit_sha = merge_commit["oid"]
+
+            # Create extra data
+            extra = {
+                "author": author_login,
+                "baseRefName": pr_data.get("baseRefName"),
+                "headRefName": pr_data.get("headRefName"),
+                "created_at": created_at.isoformat(),
+                "updated_at": updated_at.isoformat(),
+            }
+
+            # Safely add details data
+            if details is not None and isinstance(details, dict):
+                # Add file information
+                if "files" in details and isinstance(details["files"], list):
+                    extra["files"] = []
+                    for file in details["files"]:
+                        if file and isinstance(file, dict):
+                            extra["files"].append({
+                                "filename": file.get("filename", "unknown"),
+                                "additions": file.get("additions", 0),
+                                "deletions": file.get("deletions", 0),
+                                "changes": file.get("changes", 0),
+                            })
+
+                # Add review information
+                if "reviews" in details and isinstance(details["reviews"], list):
+                    extra["reviews"] = []
+                    for review in details["reviews"]:
+                        if review and isinstance(review, dict):
+                            user = review.get("user", {})
+                            extra["reviews"].append({
+                                "author": user.get("login") if user and isinstance(user, dict) else None,
+                                "state": review.get("state"),
+                                "body": review.get("body"),
+                                "submitted_at": review.get("submitted_at"),
+                            })
+
+                # Add comment information
+                if "comments" in details and isinstance(details["comments"], list):
+                    extra["comments"] = []
+                    for comment in details["comments"]:
+                        if comment and isinstance(comment, dict):
+                            user = comment.get("user", {})
+                            extra["comments"].append({
+                                "author": user.get("login") if user and isinstance(user, dict) else None,
+                                "body": comment.get("body"),
+                                "created_at": comment.get("created_at"),
+                            })
+
+                # Add commit information
+                if "commits" in details and isinstance(details["commits"], list):
+                    extra["commits"] = []
+                    for commit in details["commits"]:
+                        if commit and isinstance(commit, dict):
+                            commit_data = commit.get("commit", {})
+                            author_data = commit.get("author", {})
+                            commit_author_data = commit_data.get("author", {}) if isinstance(commit_data, dict) else {}
+
+                            author_name = None
+                            if isinstance(author_data, dict) and author_data.get("login"):
+                                author_name = author_data.get("login")
+                            elif isinstance(commit_author_data, dict) and commit_author_data.get("name"):
+                                author_name = commit_author_data.get("name")
+
+                            extra["commits"].append({
+                                "sha": commit.get("sha"),
+                                "message": commit_data.get("message") if isinstance(commit_data, dict) else None,
+                                "author": author_name,
+                                "url": commit.get("html_url"),
+                            })
+
+                # Add review comment information (inline comments)
+                if "review_comments" in details and isinstance(details["review_comments"], list):
+                    extra["review_comments"] = []
+                    for comment in details["review_comments"]:
+                        if comment and isinstance(comment, dict):
+                            user = comment.get("user", {})
+                            extra["review_comments"].append({
+                                "author": user.get("login") if user and isinstance(user, dict) else None,
+                                "body": comment.get("body"),
+                                "created_at": comment.get("created_at"),
+                                "path": comment.get("path"),
+                                "position": comment.get("position"),
+                                "diff_hunk": comment.get("diff_hunk"),
+                            })
+
+            # Create the PR node
+            return PRNode(
+                id=pr_id,
+                title=title,
+                body=body,
+                ts=created_at,
+                number=pr_number,
+                state=state,
+                merged_at=merged_at,
+                merged_by=None,  # Not available in the current data
+                merged_commit_sha=merged_commit_sha,
+                url=url,
+                extra=extra,
+            )
+        except Exception as e:
+            logger.error(f"Error creating PR node for PR #{pr_data.get('number', 'unknown')}: {e}")
+            # Create a minimal PR node with the available data
+            try:
+                pr_id = pr_data.get("id") if pr_data and isinstance(pr_data, dict) else f"pr:unknown-{datetime.now().timestamp()}"
+                pr_number = pr_data.get("number") if pr_data and isinstance(pr_data, dict) else 0
+                return PRNode(
+                    id=pr_id,
+                    title="Error Processing PR",
+                    body=f"Error: {str(e)}",
+                    ts=datetime.now(),
+                    number=pr_number,
+                    state="unknown",
+                    url="",
+                    extra={"error": str(e)},
+                )
+            except Exception as inner_e:
+                logger.error(f"Critical error creating fallback PR node: {inner_e}")
+                # Last resort fallback
+                return PRNode(
+                    id=f"pr:error-{datetime.now().timestamp()}",
+                    title="Error Processing PR",
+                    body="Critical error occurred",
+                    ts=datetime.now(),
+                    number=0,
+                    state="error",
+                    url="",
+                    extra={"critical_error": True},
+                )
 
     def create_issue_node(self, issue_data: Dict[str, Any], details: Optional[Dict[str, Any]]) -> IssueNode:
         """Create an IssueNode from issue data.
@@ -375,109 +453,209 @@ class GitHubFetcher:
         Returns:
             An IssueNode object.
         """
-        # Extract basic issue information
-        issue_id = issue_data["id"]
-        issue_number = issue_data["number"]
-        title = issue_data["title"]
-        body = issue_data["body"] or ""
-        state = issue_data["state"]
-        created_at = datetime.fromisoformat(issue_data["createdAt"].replace("Z", "+00:00"))
-        updated_at = datetime.fromisoformat(issue_data["updatedAt"].replace("Z", "+00:00"))
-        url = issue_data["url"]
+        try:
+            # Validate issue_data
+            if not issue_data or not isinstance(issue_data, dict):
+                logger.error(f"Invalid issue data: {issue_data}")
+                raise ValueError("Invalid issue data format")
 
-        # Extract author information
-        author = issue_data.get("author", {})
-        author_login = author.get("login") if author else None
+            # Extract basic issue information with safety checks
+            issue_id = issue_data.get("id")
+            if not issue_id:
+                logger.error(f"Issue data missing ID: {issue_data}")
+                raise ValueError("Issue data missing ID")
 
-        # Extract closed_at information
-        closed_at = None
-        if issue_data.get("closedAt"):
-            closed_at = datetime.fromisoformat(issue_data["closedAt"].replace("Z", "+00:00"))
+            issue_number = issue_data.get("number")
+            title = issue_data.get("title", "Untitled Issue")
+            body = issue_data.get("body") or ""
+            state = issue_data.get("state", "unknown")
+            url = issue_data.get("url", "")
 
-        # Extract labels
-        labels = []
-        if issue_data.get("labels", {}) and issue_data["labels"].get("nodes"):
-            labels = [label["name"] for label in issue_data["labels"]["nodes"]]
+            # Parse timestamps with error handling
+            created_at = None
+            updated_at = None
 
-        # Create extra data
-        extra = {
-            "author": author_login,
-            "created_at": created_at.isoformat(),
-            "updated_at": updated_at.isoformat(),
-        }
+            if issue_data.get("createdAt"):
+                try:
+                    created_at = datetime.fromisoformat(issue_data["createdAt"].replace("Z", "+00:00"))
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Error parsing createdAt for issue #{issue_number}: {e}")
+                    created_at = datetime.now()  # Fallback to current time
 
-        # Safely add details data
-        if details is not None:
-            # Add comment information
-            if "comments" in details:
-                extra["comments"] = [
-                    {
-                        "author": comment.get("user", {}).get("login"),
-                        "body": comment.get("body"),
-                        "created_at": comment.get("created_at"),
-                    }
-                    for comment in details["comments"]
-                ]
+            if issue_data.get("updatedAt"):
+                try:
+                    updated_at = datetime.fromisoformat(issue_data["updatedAt"].replace("Z", "+00:00"))
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Error parsing updatedAt for issue #{issue_number}: {e}")
+                    updated_at = datetime.now()  # Fallback to current time
 
-            # Add events information
-            if "events" in details:
-                extra["events"] = [
-                    {
-                        "event": event.get("event"),
-                        "actor": event.get("actor", {}).get("login"),
-                        "created_at": event.get("created_at"),
-                        "label": event.get("label", {}).get("name") if event.get("label") else None,
-                        "assignee": event.get("assignee", {}).get("login") if event.get("assignee") else None,
-                    }
-                    for event in details["events"]
-                ]
+            if not created_at:
+                created_at = datetime.now()  # Fallback if no created_at timestamp
 
-            # Add timeline information
-            if "timeline" in details:
-                extra["timeline"] = [
-                    {
-                        "event": item.get("event"),
-                        "actor": item.get("actor", {}).get("login") if item.get("actor") else None,
-                        "created_at": item.get("created_at"),
-                        # Include additional fields based on event type
-                        **({
-                            "label": item.get("label", {}).get("name")
-                        } if item.get("event") == "labeled" or item.get("event") == "unlabeled" else {}),
-                        **({
-                            "assignee": item.get("assignee", {}).get("login")
-                        } if item.get("event") == "assigned" or item.get("event") == "unassigned" else {}),
-                        **({
-                            "milestone": item.get("milestone", {}).get("title")
-                        } if item.get("event") == "milestoned" or item.get("event") == "demilestoned" else {}),
-                        **({
-                            "rename": {
-                                "from": item.get("rename", {}).get("from"),
-                                "to": item.get("rename", {}).get("to"),
+            if not updated_at:
+                updated_at = created_at  # Fallback if no updated_at timestamp
+
+            # Extract author information safely
+            author = issue_data.get("author", {})
+            author_login = author.get("login") if author and isinstance(author, dict) else None
+
+            # Extract closed_at information safely
+            closed_at = None
+            if issue_data.get("closedAt"):
+                try:
+                    closed_at = datetime.fromisoformat(issue_data["closedAt"].replace("Z", "+00:00"))
+                except (ValueError, TypeError) as e:
+                    logger.warning(f"Error parsing closedAt for issue #{issue_number}: {e}")
+
+            # Extract labels safely
+            labels = []
+            labels_data = issue_data.get("labels", {})
+            if labels_data and isinstance(labels_data, dict) and labels_data.get("nodes"):
+                nodes = labels_data.get("nodes", [])
+                if isinstance(nodes, list):
+                    for label in nodes:
+                        if label and isinstance(label, dict) and "name" in label:
+                            labels.append(label["name"])
+
+            # Create extra data
+            extra = {
+                "author": author_login,
+                "created_at": created_at.isoformat(),
+                "updated_at": updated_at.isoformat(),
+            }
+
+            # Safely add details data
+            if details is not None and isinstance(details, dict):
+                # Add comment information
+                if "comments" in details and isinstance(details["comments"], list):
+                    extra["comments"] = []
+                    for comment in details["comments"]:
+                        if comment and isinstance(comment, dict):
+                            user = comment.get("user", {})
+                            extra["comments"].append({
+                                "author": user.get("login") if user and isinstance(user, dict) else None,
+                                "body": comment.get("body"),
+                                "created_at": comment.get("created_at"),
+                            })
+
+                # Add events information
+                if "events" in details and isinstance(details["events"], list):
+                    extra["events"] = []
+                    for event in details["events"]:
+                        if event and isinstance(event, dict):
+                            actor = event.get("actor", {})
+                            label = event.get("label", {})
+                            assignee = event.get("assignee", {})
+
+                            event_data = {
+                                "event": event.get("event"),
+                                "actor": actor.get("login") if actor and isinstance(actor, dict) else None,
+                                "created_at": event.get("created_at"),
+                                "label": label.get("name") if label and isinstance(label, dict) else None,
+                                "assignee": assignee.get("login") if assignee and isinstance(assignee, dict) else None,
                             }
-                        } if item.get("event") == "renamed" else {}),
-                        **({
-                            "cross_reference": {
-                                "source": item.get("source", {}).get("issue", {}).get("number"),
-                                "type": "pr" if item.get("source", {}).get("issue", {}).get("pull_request") else "issue",
-                            }
-                        } if item.get("event") == "cross-referenced" else {}),
-                    }
-                    for item in details["timeline"]
-                ]
+                            extra["events"].append(event_data)
 
-        # Create the issue node
-        return IssueNode(
-            id=issue_id,
-            title=title,
-            body=body,
-            ts=created_at,
-            number=issue_number,
-            state=state,
-            closed_at=closed_at,
-            labels=labels,
-            url=url,
-            extra=extra,
-        )
+                # Add timeline information
+                if "timeline" in details and isinstance(details["timeline"], list):
+                    extra["timeline"] = []
+                    for item in details["timeline"]:
+                        if item and isinstance(item, dict):
+                            try:
+                                timeline_item = {
+                                    "event": item.get("event"),
+                                    "actor": None,
+                                    "created_at": item.get("created_at"),
+                                }
+
+                                # Add actor if available
+                                actor = item.get("actor", {})
+                                if actor and isinstance(actor, dict):
+                                    timeline_item["actor"] = actor.get("login")
+
+                                # Add event-specific fields
+                                event_type = item.get("event")
+
+                                if event_type in ["labeled", "unlabeled"]:
+                                    label = item.get("label", {})
+                                    if label and isinstance(label, dict):
+                                        timeline_item["label"] = label.get("name")
+
+                                elif event_type in ["assigned", "unassigned"]:
+                                    assignee = item.get("assignee", {})
+                                    if assignee and isinstance(assignee, dict):
+                                        timeline_item["assignee"] = assignee.get("login")
+
+                                elif event_type in ["milestoned", "demilestoned"]:
+                                    milestone = item.get("milestone", {})
+                                    if milestone and isinstance(milestone, dict):
+                                        timeline_item["milestone"] = milestone.get("title")
+
+                                elif event_type == "renamed":
+                                    rename = item.get("rename", {})
+                                    if rename and isinstance(rename, dict):
+                                        timeline_item["rename"] = {
+                                            "from": rename.get("from"),
+                                            "to": rename.get("to"),
+                                        }
+
+                                elif event_type == "cross-referenced":
+                                    source = item.get("source", {})
+                                    if source and isinstance(source, dict):
+                                        issue = source.get("issue", {})
+                                        if issue and isinstance(issue, dict):
+                                            timeline_item["cross_reference"] = {
+                                                "source": issue.get("number"),
+                                                "type": "pr" if issue.get("pull_request") else "issue",
+                                            }
+
+                                extra["timeline"].append(timeline_item)
+                            except Exception as e:
+                                logger.warning(f"Error processing timeline item for issue #{issue_number}: {e}")
+                                # Continue with next timeline item
+
+            # Create the issue node
+            return IssueNode(
+                id=issue_id,
+                title=title,
+                body=body,
+                ts=created_at,
+                number=issue_number,
+                state=state,
+                closed_at=closed_at,
+                labels=labels,
+                url=url,
+                extra=extra,
+            )
+        except Exception as e:
+            logger.error(f"Error creating issue node for issue #{issue_data.get('number', 'unknown')}: {e}")
+            # Create a minimal issue node with the available data
+            try:
+                issue_id = issue_data.get("id") if issue_data and isinstance(issue_data, dict) else f"issue:unknown-{datetime.now().timestamp()}"
+                issue_number = issue_data.get("number") if issue_data and isinstance(issue_data, dict) else 0
+                return IssueNode(
+                    id=issue_id,
+                    title="Error Processing Issue",
+                    body=f"Error: {str(e)}",
+                    ts=datetime.now(),
+                    number=issue_number,
+                    state="unknown",
+                    url="",
+                    extra={"error": str(e)},
+                )
+            except Exception as inner_e:
+                logger.error(f"Critical error creating fallback issue node: {inner_e}")
+                # Last resort fallback
+                return IssueNode(
+                    id=f"issue:error-{datetime.now().timestamp()}",
+                    title="Error Processing Issue",
+                    body="Critical error occurred",
+                    ts=datetime.now(),
+                    number=0,
+                    state="error",
+                    url="",
+                    extra={"critical_error": True},
+                )
 
     def extract_mentions(self, text: str) -> List[str]:
         """Extract mentions from text.
@@ -491,6 +669,10 @@ class GitHubFetcher:
         # This is a simple implementation that extracts GitHub-style mentions
         # A more sophisticated implementation would handle different types of mentions
         import re
+
+        # Return empty list if text is None or empty
+        if not text:
+            return []
 
         mentions = []
 
@@ -520,12 +702,21 @@ class GitHubFetcher:
         Returns:
             A list of mention edges.
         """
+        # We already handle None/empty text in extract_mentions, so we can call it directly
         edges = []
         mentions = self.extract_mentions(text)
 
-        # Create a mapping of issue/PR numbers to IDs
-        issue_map = {f"#{issue['number']}": issue["id"] for issue in repo_issues}
-        pr_map = {f"#{pr['number']}": pr["id"] for pr in repo_prs}
+        # Create a mapping of issue/PR numbers to IDs with safety checks
+        issue_map = {}
+        pr_map = {}
+
+        for issue in repo_issues:
+            if issue and isinstance(issue, dict) and 'number' in issue and 'id' in issue:
+                issue_map[f"#{issue['number']}"] = issue["id"]
+
+        for pr in repo_prs:
+            if pr and isinstance(pr, dict) and 'number' in pr and 'id' in pr:
+                pr_map[f"#{pr['number']}"] = pr["id"]
 
         # Create edges for each mention
         for mention in mentions:
@@ -647,7 +838,7 @@ class GitHubFetcher:
 
                     # Fetch additional details
                     details = self.fetch_pr_details_sync(owner, repo, pr_number)
-                    
+
                     # If we couldn't get details, create a minimal details object
                     if details is None:
                         details = {"files": [], "reviews": [], "comments": [], "commits": [], "review_comments": []}
