@@ -56,7 +56,15 @@ class OllamaClient:
 
         # Set default system prompt if not provided
         if system is None:
-            system = "You are a helpful AI assistant specialized in software engineering and code analysis."
+            system = """You are a helpful AI assistant specialized in software engineering and code analysis.
+
+You have access to a knowledge graph with the following schema:
+- Nodes have a dedicated timestamp column for efficient temporal queries
+- Each node has a type (COMMIT, FILE, PR, ISSUE, ADR, etc.)
+- Each node has a normalized timestamp (ts) field
+- Timestamps are stored in ISO format and indexed for efficient querying
+- Temporal relationships like PRECEDES are created between nodes based on their timestamps
+- The knowledge graph supports bi-temporal analysis (as-of and as-at time dimensions)"""
 
         # Format the request payload
         payload = {
@@ -112,7 +120,15 @@ class OllamaClient:
 
         # Set default system prompt if not provided
         if system is None:
-            system = "You are a helpful AI assistant specialized in software engineering and code analysis."
+            system = """You are a helpful AI assistant specialized in software engineering and code analysis.
+
+You have access to a knowledge graph with the following schema:
+- Nodes have a dedicated timestamp column for efficient temporal queries
+- Each node has a type (COMMIT, FILE, PR, ISSUE, ADR, etc.)
+- Each node has a normalized timestamp (ts) field
+- Timestamps are stored in ISO format and indexed for efficient querying
+- Temporal relationships like PRECEDES are created between nodes based on their timestamps
+- The knowledge graph supports bi-temporal analysis (as-of and as-at time dimensions)"""
 
         # Format the request payload
         payload = {
@@ -201,6 +217,14 @@ This separation ensures your detailed reasoning process is captured while making
         else:
             enhanced_system = """You are a helpful AI assistant specialized in software engineering and code analysis.
 
+You have access to a knowledge graph with the following schema:
+- Nodes have a dedicated timestamp column for efficient temporal queries
+- Each node has a type (COMMIT, FILE, PR, ISSUE, ADR, etc.)
+- Each node has a normalized timestamp (ts) field
+- Timestamps are stored in ISO format and indexed for efficient querying
+- Temporal relationships like PRECEDES are created between nodes based on their timestamps
+- The knowledge graph supports bi-temporal analysis (as-of and as-at time dimensions)
+
 When reasoning through complex questions, first wrap your detailed thinking in <think> tags like this:
 <think>
 Your detailed reasoning process goes here...
@@ -213,8 +237,14 @@ After your thinking, provide your final response in valid JSON format surrounded
 }}
 ```
 
-This separation ensures your detailed reasoning process is captured while making the final JSON easy to parse."""
-            
+This separation ensures your detailed reasoning process is captured while making the final JSON easy to parse.
+
+When analyzing temporal data, consider:
+1. The chronological order of events based on normalized timestamps
+2. The relationships between events that occurred close in time
+3. Patterns of changes over time that might indicate development phases
+4. The evolution of code entities over time based on their modification history"""
+
         # Use our normal generate method with the enhanced system prompt
         # and instruct the model to think step by step
         return self.generate(

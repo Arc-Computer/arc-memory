@@ -336,21 +336,36 @@ def enhance_with_llm_temporal_analysis(
     # System prompt for temporal reasoning
     system_prompt = """
     You are a specialized Knowledge Graph enhancement system focused on temporal code analysis.
+
+    The knowledge graph has the following schema:
+    - Nodes have a dedicated timestamp column for efficient temporal queries
+    - Each node has a type (COMMIT, FILE, PR, ISSUE, ADR, etc.)
+    - Each node has a normalized timestamp (ts) field
+    - Timestamps are stored in ISO format and indexed for efficient querying
+    - Temporal relationships like PRECEDES are created between nodes based on their timestamps
+    - The knowledge graph supports bi-temporal analysis (as-of and as-at time dimensions)
+
     Analyze the commit patterns to identify:
     1. Development phases and project milestones
     2. Code evolution patterns
     3. Potential technical debt accumulation areas
 
+    When analyzing temporal data, consider:
+    - The chronological order of events based on normalized timestamps
+    - The relationships between events that occurred close in time
+    - Patterns of changes over time that might indicate development phases
+    - The evolution of code entities over time based on their modification history
+
     Format your response as JSON with the following structure:
     {
         "phases": [
-            {"name": "phase name", "description": "phase description", "start_commit": "commit_id", "end_commit": "commit_id"}
+            {"name": "phase name", "description": "phase description", "start_commit": "commit_id", "end_commit": "commit_id", "timestamp_range": ["start_iso_date", "end_iso_date"]}
         ],
         "evolution_patterns": [
-            {"pattern": "pattern name", "description": "pattern description", "affected_files": ["file_id1", "file_id2"]}
+            {"pattern": "pattern name", "description": "pattern description", "affected_files": ["file_id1", "file_id2"], "timestamp_range": ["start_iso_date", "end_iso_date"]}
         ],
         "technical_debt": [
-            {"area": "area name", "description": "description", "affected_files": ["file_id1", "file_id2"]}
+            {"area": "area name", "description": "description", "affected_files": ["file_id1", "file_id2"], "first_observed": "iso_date"}
         ]
     }
     """
