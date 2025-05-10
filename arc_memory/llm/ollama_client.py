@@ -32,7 +32,7 @@ class OllamaClient:
 
     def generate(
         self,
-        model: str = "qwen3:4b",
+        model: str = "gemma3:27b-it-qat",
         prompt: str = "",
         system: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
@@ -85,7 +85,7 @@ class OllamaClient:
 
     def generate_with_streaming(
         self,
-        model: str = "qwen3:4b",
+        model: str = "gemma3:27b-it-qat",
         prompt: str = "",
         system: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
@@ -165,7 +165,7 @@ class OllamaClient:
 
     def generate_with_thinking(
         self,
-        model: str = "qwen3:4b",
+        model: str = "gemma3:27b-it-qat",
         prompt: str = "",
         system: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None
@@ -181,15 +181,46 @@ class OllamaClient:
         Returns:
             The generated response with thinking.
         """
-        # Add thinking directive explicitly for Qwen3 models
-        if not prompt.endswith("/think") and not "/think" in prompt:
-            prompt = f"{prompt} /think"
+        # Modify the system prompt to include instructions for thinking and JSON format
+        if system:
+            enhanced_system = f"""{system}
 
-        # Use our normal generate method with the thinking prompt
+When reasoning through complex questions, first wrap your detailed thinking in <think> tags like this:
+<think>
+Your detailed reasoning process goes here...
+</think>
+
+After your thinking, provide your final response in valid JSON format surrounded by triple backticks:
+```json
+{{
+  "your": "json response"
+}}
+```
+
+This separation ensures your detailed reasoning process is captured while making the final JSON easy to parse."""
+        else:
+            enhanced_system = """You are a helpful AI assistant specialized in software engineering and code analysis.
+
+When reasoning through complex questions, first wrap your detailed thinking in <think> tags like this:
+<think>
+Your detailed reasoning process goes here...
+</think>
+
+After your thinking, provide your final response in valid JSON format surrounded by triple backticks:
+```json
+{{
+  "your": "json response"
+}}
+```
+
+This separation ensures your detailed reasoning process is captured while making the final JSON easy to parse."""
+            
+        # Use our normal generate method with the enhanced system prompt
+        # and instruct the model to think step by step
         return self.generate(
             model=model,
-            prompt=prompt,
-            system=system,
+            prompt=f"{prompt} (Think step by step, then provide your final answer as valid JSON.)",
+            system=enhanced_system,
             options=options
         )
 
@@ -245,7 +276,7 @@ class OllamaClient:
             return False
 
 
-def ensure_ollama_available(model: str = "qwen3:4b") -> bool:
+def ensure_ollama_available(model: str = "gemma3:27b-it-qat") -> bool:
     """Ensure Ollama and the required model are available.
 
     This function checks if Ollama is installed and running, and if the

@@ -149,6 +149,11 @@ arc why file path/to/file.py 42
 
 # Show decision trail for a specific commit
 arc why commit abc123
+
+# Ask natural language questions about your codebase
+arc why query "Who implemented the authentication feature?"
+arc why query "Why was the database schema changed last month?"
+arc why query "What decision led to using SQLite instead of PostgreSQL?"
 ```
 
 [Learn more about decision trails →](./docs/cli/why.md)
@@ -191,6 +196,11 @@ Let's walk through a complete example of using Arc to understand a code change:
    ```
 
    This will show you the decision trail leading to this code, including related issues, PRs, and commits.
+
+   Or, ask a direct question in natural language:
+   ```bash
+   arc why query "Why was rate limiting added to the users endpoint?"
+   ```
 
 4. Export the knowledge graph for PR review:
    ```bash

@@ -54,6 +54,46 @@ arc why file src/main.py 42 --format markdown
 arc why file src/main.py 42 --debug
 ```
 
+### `arc why query`
+
+Ask natural language questions about your codebase and get contextual answers.
+
+```bash
+arc why query QUESTION [OPTIONS]
+```
+
+This command leverages a local LLM to analyze your question, search the knowledge graph for relevant information, and provide a comprehensive answer with supporting evidence.
+
+#### Arguments
+
+- `QUESTION`: Natural language question to ask about the codebase.
+
+#### Options
+
+- `--max-results`, `-m INTEGER`: Maximum number of results to return (default: 5).
+- `--depth`, `-d TEXT`: Search depth (shallow, medium, deep) (default: medium).
+- `--format`, `-f [text|json|markdown]`: Output format (default: text).
+- `--debug`: Enable debug logging.
+
+#### Example
+
+```bash
+# Ask who implemented a feature
+arc why query "Who implemented the authentication feature?"
+
+# Ask about architectural decisions
+arc why query "Why was the database schema changed last month?"
+
+# Ask about specific technical choices
+arc why query "What decision led to using SQLite instead of PostgreSQL?"
+
+# Ask with deeper search
+arc why query "How has the API evolved since version 0.2.0?" --depth deep
+
+# Output in JSON format
+arc why query "Who implemented the authentication feature?" --format json
+```
+
 ## Output Formats
 
 ### Text Format
@@ -99,9 +139,39 @@ The decision trail shows the history of a specific line in a file, including:
 
 This helps you understand not just what changed, but why it changed, who made the decision, and what the rationale was.
 
+## Natural Language Queries
+
+The `arc why query` command allows you to ask questions about your codebase in natural language. This is powered by a local LLM (using Ollama with the Qwen3:4b model) that analyzes your question, searches the knowledge graph for relevant information, and provides a comprehensive answer.
+
+The response includes:
+- A brief summary of the answer
+- Query understanding (how the system interpreted your question)
+- A detailed answer with reasoning
+- Supporting evidence from the knowledge graph with citations
+- A confidence level indicating how well the available information answers your question
+
+### Requirements for Natural Language Queries
+
+- A built knowledge graph (run `arc build` first)
+- [Ollama](https://ollama.ai) installed locally
+- The Qwen3:4b model pulled (happens automatically on first use)
+
+### Query Types
+
+You can ask various types of questions, such as:
+
+- **Who questions**: "Who implemented feature X?"
+- **Why questions**: "Why was X changed to Y?"
+- **What questions**: "What decision led to using X technology?"
+- **When questions**: "When was feature X added?"
+- **How questions**: "How has component X evolved over time?"
+
+The system will search for relevant commits, PRs, issues, and ADRs to provide context-rich answers.
+
 ## Requirements
 
 - A built knowledge graph (run `arc build` first)
 - Git repository with commit history
 - Optional: GitHub PRs and issues (requires GitHub authentication)
 - Optional: ADRs in the repository
+- For natural language queries: Ollama and the Qwen3:4b model
