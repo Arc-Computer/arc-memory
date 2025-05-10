@@ -60,7 +60,7 @@ def debug_log(
         # Create a timestamped file name
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{timestamp}_{func_name}.json"
-        filepath = debug_dir / filename
+        filepath = Path(debug_dir) / filename
         
         # Prepare debug data
         debug_data = {
