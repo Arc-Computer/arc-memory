@@ -38,7 +38,7 @@ logger = get_logger(__name__)
 
 # Constants
 GITHUB_GRAPHQL_URL = "https://api.github.com/graphql"
-USER_AGENT = "Arc-Memory/0.4.1"  # TODO: Use version from a central version file
+USER_AGENT = "Arc-Memory/0.4.2"  # TODO: Use version from a central version file
 REQUEST_TIMEOUT = 9  # GitHub has a 10-second timeout, so we use 9 seconds
 MAX_RETRIES = 5  # Maximum number of retries for rate-limited requests
 MAX_CONCURRENT_REQUESTS = 10  # GitHub allows up to 100, but we use a lower limit to be safe

@@ -155,7 +155,10 @@ def file(
                     if "status" in result:
                         md_content += f"**Status**: {result['status']}  \n"
                     if "decision_makers" in result:
-                        md_content += f"**Decision Makers**: {', '.join(result['decision_makers'])}  \n"
+                        decision_makers = result.get('decision_makers', [])
+                        if not isinstance(decision_makers, list):
+                            decision_makers = []
+                        md_content += f"**Decision Makers**: {', '.join(decision_makers)}  \n"
                     if "path" in result:
                         md_content += f"**Path**: {result['path']}  \n"
                 

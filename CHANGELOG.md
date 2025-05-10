@@ -5,6 +5,14 @@ All notable changes to the Arc Memory SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.4.2] - 2025-05-10
+
+### Fixed
+- Fixed redundant conditional check in JSON extraction function
+- Improved defensive programming with `.get()` method calls for node attribute access
+- Added type validation for decision_makers field to ensure it's always a list
+- Enhanced error handling for incomplete data structures in the knowledge graph search
+
 ## [0.4.1] - 2025-05-09
 
 ### Fixed
