@@ -161,7 +161,9 @@ This frontier research positions Arc Memory at the forefront of the next paradig
 
 ## Customer Focus: Fintech and Blockchain
 
-Our initial customer segment is mid-market fintech and blockchain companies with 50-100 engineers. These companies are ideal early adopters because:
+Our initial customer segment is open source maintainers in blockchain/infrastructure, followed by mid-market fintech and blockchain companies with 50-100 engineers. For a detailed analysis of our target users, value propositions, and go-to-market execution plan, see our [Go-To-Market Strategy](GTM.md).
+
+These customers are ideal early adopters because:
 
 1. **High Cost of Downtime**: ~$15k/min makes risk reduction extremely valuable
 2. **Regulatory Requirements**: Need for audit trails and decision tracing
@@ -174,6 +176,8 @@ For these customers, Arc Memory provides immediate value by:
 - Preventing risky changes through blast radius prediction
 - Accelerating onboarding by preserving institutional knowledge
 - Enabling safer agent deployment through shared memory
+
+Our primary lighthouse customer is Protocol Labs (Filecoin and IPFS), where we have strong access and leverage to gather feedback and demonstrate value.
 
 ## Differentiation Strategy
 
