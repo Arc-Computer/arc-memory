@@ -110,8 +110,8 @@ def file(
         except Exception as e:
             error_msg = f"Error: {e}"
             if format == Format.JSON:
-                # For JSON format, print errors to stderr
-                print(error_msg, file=sys.stderr)
+                # For JSON format, print errors as JSON
+                print(json.dumps({"error": error_msg}))
             else:
                 # For text format, use rich console
                 console.print(f"[red]{error_msg}[/red]")
@@ -129,6 +129,7 @@ def file(
                 console.print(
                     f"[yellow]No history found for {file_path}:{line_number}[/yellow]"
                 )
+            # Return with success code
             return
 
         # Output based on format
@@ -353,6 +354,7 @@ def query(
             else:
                 # For text format, use rich console
                 console.print(f"[red]{error_msg}[/red]")
+            # Return with success code
             return
 
         if not query_results or "results" not in query_results:
@@ -367,6 +369,7 @@ def query(
                 console.print(
                     "Try rephrasing your question or using more specific terms."
                 )
+            # Return with success code
             return
 
         # Output based on format

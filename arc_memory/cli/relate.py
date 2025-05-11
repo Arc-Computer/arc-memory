@@ -148,8 +148,8 @@ def node(
         except Exception as e:
             error_msg = f"Error: {e}"
             if format == Format.JSON:
-                # For JSON format, print errors to stderr
-                print(error_msg, file=sys.stderr)
+                # For JSON format, print errors as JSON
+                print(json.dumps({"error": error_msg}))
             else:
                 # For text format, use rich console
                 console.print(f"[red]{error_msg}[/red]")
@@ -167,6 +167,7 @@ def node(
                 console.print(
                     f"[yellow]No related nodes found for {entity_id}[/yellow]"
                 )
+            # Return with success code
             return
 
         # Output based on format
