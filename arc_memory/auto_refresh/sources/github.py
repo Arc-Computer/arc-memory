@@ -54,6 +54,7 @@ def refresh() -> bool:
 
         # Ingest data from GitHub
         logger.info(f"Ingesting data from GitHub repository at {repo_path}")
+        print(f"DEBUG: repo_path={repo_path}, token={token[:5]}...")
         nodes, edges, _ = ingestor.ingest(
             repo_path=repo_path,
             token=token,
