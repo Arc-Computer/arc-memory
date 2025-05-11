@@ -106,3 +106,9 @@ class ExportError(ArcError):
     """Error raised when exporting the graph fails."""
 
     pass
+
+
+class AutoRefreshError(ArcError):
+    """Error raised when auto-refresh operations fail."""
+
+    pass
