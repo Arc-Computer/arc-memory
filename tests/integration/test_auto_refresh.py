@@ -150,8 +150,8 @@ class TestAutoRefreshIntegration(unittest.TestCase):
         with patch("arc_memory.auto_refresh.core.check_refresh_needed") as mock_check:
             mock_check.return_value = (True, two_hours_ago)
 
-            # Mock the save_refresh_timestamp function
-            with patch("arc_memory.auto_refresh.core.save_refresh_timestamp") as mock_save:
+            # Mock the adapter's save_refresh_timestamp method
+            with patch.object(self.adapter.__class__, "save_refresh_timestamp") as mock_save:
                 # Refresh the source
                 result = refresh_source("github", min_interval=timedelta(hours=1))
 
@@ -233,8 +233,8 @@ class TestAutoRefreshIntegration(unittest.TestCase):
         recent_ts = now - timedelta(minutes=30)
         self.adapter.save_refresh_timestamp("github", recent_ts)
 
-        # Mock the save_refresh_timestamp function
-        with patch("arc_memory.auto_refresh.core.save_refresh_timestamp") as mock_save:
+        # Mock the adapter's save_refresh_timestamp method
+        with patch.object(self.adapter.__class__, "save_refresh_timestamp") as mock_save:
             # Force refresh the source
             result = refresh_source("github", force=True, min_interval=timedelta(hours=1))
 

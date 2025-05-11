@@ -21,20 +21,24 @@ class TestAutoRefresh(unittest.TestCase):
         """Set up test environment."""
         # Create patches for the metadata functions
         self.get_refresh_timestamp_patcher = patch("arc_memory.auto_refresh.core.get_refresh_timestamp")
-        self.save_refresh_timestamp_patcher = patch("arc_memory.auto_refresh.core.save_refresh_timestamp")
         self.get_all_refresh_timestamps_patcher = patch("arc_memory.auto_refresh.core.get_all_refresh_timestamps")
+
+        # Create a mock adapter
+        self.mock_adapter = MagicMock()
+        self.mock_adapter.save_refresh_timestamp = MagicMock()
+        self.get_adapter_patcher = patch("arc_memory.auto_refresh.core.get_adapter", return_value=self.mock_adapter)
 
         # Start the patches
         self.mock_get_refresh_timestamp = self.get_refresh_timestamp_patcher.start()
-        self.mock_save_refresh_timestamp = self.save_refresh_timestamp_patcher.start()
         self.mock_get_all_refresh_timestamps = self.get_all_refresh_timestamps_patcher.start()
+        self.mock_get_adapter = self.get_adapter_patcher.start()
 
     def tearDown(self):
         """Clean up test environment."""
         # Stop the patches
         self.get_refresh_timestamp_patcher.stop()
-        self.save_refresh_timestamp_patcher.stop()
         self.get_all_refresh_timestamps_patcher.stop()
+        self.get_adapter_patcher.stop()
 
     def test_check_refresh_needed_never_refreshed(self):
         """Test checking if a source needs refreshing when it has never been refreshed."""
@@ -127,7 +131,7 @@ class TestAutoRefresh(unittest.TestCase):
                 # Verify the mocks were called correctly
                 mock_check_refresh_needed.assert_called_once_with("github", None, None)
                 mock_refresh_func.assert_called_once()
-                self.mock_save_refresh_timestamp.assert_called_once()
+                self.mock_adapter.save_refresh_timestamp.assert_called_once()
 
     @patch("arc_memory.auto_refresh.core.refresh_source")
     def test_refresh_all_sources(self, mock_refresh_source):
