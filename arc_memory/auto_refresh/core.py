@@ -177,14 +177,15 @@ def refresh_source(
                 return False
 
         # Import the source-specific refresh module dynamically
+        import importlib
         try:
-            import importlib
             module_name = f"arc_memory.auto_refresh.sources.{source}"
             module = importlib.import_module(module_name)
             refresh_func = getattr(module, "refresh")
         except (ImportError, AttributeError) as e:
             error_msg = f"Source '{source}' is not supported for auto-refresh: {e}"
             logger.error(error_msg)
+            # Raise the exception to prevent further execution
             raise AutoRefreshError(
                 error_msg,
                 details={
