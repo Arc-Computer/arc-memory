@@ -483,3 +483,19 @@ class Neo4jAdapter:
         # This is a stub implementation that will be completed in a future release
         logger.warning(f"Neo4j adapter get_refresh_timestamp is a stub implementation (source={source})")
         return None
+
+    def get_all_refresh_timestamps(self) -> Dict[str, datetime]:
+        """Get all refresh timestamps.
+
+        Returns:
+            A dictionary mapping source names to refresh timestamps.
+
+        Raises:
+            DatabaseError: If getting the timestamps fails.
+        """
+        if not self.is_connected():
+            raise DatabaseError("Not connected to database")
+
+        # This is a stub implementation that will be completed in a future release
+        logger.warning("Neo4j adapter get_all_refresh_timestamps is a stub implementation")
+        return {}

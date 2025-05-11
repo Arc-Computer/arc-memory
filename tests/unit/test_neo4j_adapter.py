@@ -186,6 +186,10 @@ class TestNeo4jAdapter(unittest.TestCase):
             timestamp = self.adapter.get_refresh_timestamp("github")
             self.assertIsNone(timestamp)
 
+            # Get all refresh timestamps
+            timestamps = self.adapter.get_all_refresh_timestamps()
+            self.assertEqual(timestamps, {})
+
         # Check that warnings were logged for all stub methods
         self.assertGreater(len(cm.output), 10)
         for log in cm.output:

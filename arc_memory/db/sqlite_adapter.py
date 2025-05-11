@@ -260,44 +260,42 @@ class SQLiteAdapter:
             raise DatabaseError("Not connected to database")
 
         try:
-            # Begin transaction
-            with self.conn:
-                # Add nodes
-                for node in nodes:
-                    # Extract timestamp from node
-                    timestamp_str = None
-                    if hasattr(node, 'ts') and node.ts:
-                        timestamp_str = node.ts.isoformat()
+            # Add nodes
+            for node in nodes:
+                # Extract timestamp from node
+                timestamp_str = None
+                if hasattr(node, 'ts') and node.ts:
+                    timestamp_str = node.ts.isoformat()
 
-                    self.conn.execute(
-                        """
-                        INSERT OR REPLACE INTO nodes(id, type, title, body, timestamp, extra)
-                        VALUES(?, ?, ?, ?, ?, ?)
-                        """,
-                        (
-                            node.id,
-                            node.type.value,
-                            node.title,
-                            node.body,
-                            timestamp_str,
-                            json.dumps(node.extra, cls=DateTimeEncoder),
-                        ),
-                    )
+                self.conn.execute(
+                    """
+                    INSERT OR REPLACE INTO nodes(id, type, title, body, timestamp, extra)
+                    VALUES(?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        node.id,
+                        node.type.value,
+                        node.title,
+                        node.body,
+                        timestamp_str,
+                        json.dumps(node.extra, cls=DateTimeEncoder),
+                    ),
+                )
 
-                # Add edges
-                for edge in edges:
-                    self.conn.execute(
-                        """
-                        INSERT OR REPLACE INTO edges(src, dst, rel, properties)
-                        VALUES(?, ?, ?, ?)
-                        """,
-                        (
-                            edge.src,
-                            edge.dst,
-                            edge.rel.value,
-                            json.dumps(edge.properties, cls=DateTimeEncoder),
-                        ),
-                    )
+            # Add edges
+            for edge in edges:
+                self.conn.execute(
+                    """
+                    INSERT OR REPLACE INTO edges(src, dst, rel, properties)
+                    VALUES(?, ?, ?, ?)
+                    """,
+                    (
+                        edge.src,
+                        edge.dst,
+                        edge.rel.value,
+                        json.dumps(edge.properties, cls=DateTimeEncoder),
+                    ),
+                )
 
             logger.info(f"Added {len(nodes)} nodes and {len(edges)} edges to database")
         except Exception as e:
@@ -609,7 +607,8 @@ class SQLiteAdapter:
             raise DatabaseError("Not connected to database")
 
         try:
-            self.conn.execute("BEGIN TRANSACTION")
+            # Explicitly begin a transaction
+            self.conn.execute("BEGIN")
             return self.conn
         except Exception as e:
             error_msg = f"Failed to begin transaction: {e}"
@@ -636,8 +635,8 @@ class SQLiteAdapter:
             raise DatabaseError("Not connected to database")
 
         try:
-            # For SQLite, we ignore the transaction parameter and use the connection directly
-            self.conn.execute("COMMIT")
+            # For SQLite, we use the connection's commit method
+            self.conn.commit()
         except Exception as e:
             error_msg = f"Failed to commit transaction: {e}"
             logger.error(error_msg)
@@ -663,8 +662,8 @@ class SQLiteAdapter:
             raise DatabaseError("Not connected to database")
 
         try:
-            # For SQLite, we ignore the transaction parameter and use the connection directly
-            self.conn.execute("ROLLBACK")
+            # For SQLite, we use the connection's rollback method
+            self.conn.rollback()
         except Exception as e:
             error_msg = f"Failed to rollback transaction: {e}"
             logger.error(error_msg)
@@ -859,6 +858,39 @@ class SQLiteAdapter:
                 error_msg,
                 details={
                     "source": source,
+                    "error": str(e),
+                }
+            )
+
+    def get_all_refresh_timestamps(self) -> Dict[str, datetime]:
+        """Get all refresh timestamps.
+
+        Returns:
+            A dictionary mapping source names to refresh timestamps.
+
+        Raises:
+            DatabaseError: If getting the timestamps fails.
+        """
+        if not self.is_connected():
+            raise DatabaseError("Not connected to database")
+
+        try:
+            cursor = self.conn.execute(
+                """
+                SELECT source, timestamp
+                FROM refresh_timestamps
+                """
+            )
+            timestamps = {}
+            for row in cursor:
+                timestamps[row[0]] = datetime.fromisoformat(row[1])
+            return timestamps
+        except Exception as e:
+            error_msg = f"Failed to get all refresh timestamps: {e}"
+            logger.error(error_msg)
+            raise DatabaseError(
+                error_msg,
+                details={
                     "error": str(e),
                 }
             )
