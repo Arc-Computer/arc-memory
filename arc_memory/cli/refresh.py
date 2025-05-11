@@ -82,7 +82,7 @@ def callback(
     })
 
     try:
-        # Ensure the database is connected
+        # Ensure the database is connected and initialized
         from arc_memory.db import get_adapter
         from arc_memory.sql.db import get_db_path
 
@@ -90,6 +90,8 @@ def callback(
         if not adapter.is_connected():
             db_path = get_db_path()
             adapter.connect({"db_path": str(db_path)})
+            # Initialize the database schema to ensure tables exist
+            adapter.init_db()
 
         # Determine which sources to refresh
         sources_to_refresh = None  # Default: auto-detect in refresh_all_sources
@@ -113,7 +115,7 @@ def callback(
         if not silent:
             console.print(f"\n🔄 [bold]Arc Memory Refresh[/bold]")
             console.print("===================")
-            if source:
+            if source is not None:
                 console.print(f"Refreshing source: [bold]{source.value}[/bold]")
             else:
                 console.print("Refreshing sources that need updating")
@@ -163,7 +165,7 @@ def status(
     track_cli_command("refresh", subcommand="status", args={"debug": debug})
 
     try:
-        # Ensure the database is connected
+        # Ensure the database is connected and initialized
         from arc_memory.db import get_adapter
         from arc_memory.sql.db import get_db_path
 
@@ -171,6 +173,8 @@ def status(
         if not adapter.is_connected():
             db_path = get_db_path()
             adapter.connect({"db_path": str(db_path)})
+            # Initialize the database schema to ensure tables exist
+            adapter.init_db()
 
         # Get the last refresh timestamps
         timestamps = get_all_refresh_timestamps()
@@ -255,7 +259,7 @@ def schedule_command(
     })
 
     try:
-        # Ensure the database is connected
+        # Ensure the database is connected and initialized
         from arc_memory.db import get_adapter
         from arc_memory.sql.db import get_db_path
 
@@ -263,6 +267,8 @@ def schedule_command(
         if not adapter.is_connected():
             db_path = get_db_path()
             adapter.connect({"db_path": str(db_path)})
+            # Initialize the database schema to ensure tables exist
+            adapter.init_db()
 
         # Update the refresh interval in the config
         update_config("refresh", "interval_hours", interval_hours)
@@ -303,7 +309,7 @@ def unschedule_command(
     track_cli_command("refresh", subcommand="unschedule", args={"debug": debug})
 
     try:
-        # Ensure the database is connected
+        # Ensure the database is connected and initialized
         from arc_memory.db import get_adapter
         from arc_memory.sql.db import get_db_path
 
@@ -311,6 +317,8 @@ def unschedule_command(
         if not adapter.is_connected():
             db_path = get_db_path()
             adapter.connect({"db_path": str(db_path)})
+            # Initialize the database schema to ensure tables exist
+            adapter.init_db()
 
         # Unschedule the refresh
         success = unschedule_refresh()
