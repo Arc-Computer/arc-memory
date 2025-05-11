@@ -99,13 +99,26 @@ def file(
             sys.exit(1)
 
         # Trace the history
-        results = trace_history_for_file_line(
-            db_path,
-            file_path,
-            line_number,
-            max_results,
-            max_hops
-        )
+        try:
+            results = trace_history_for_file_line(
+                db_path,
+                file_path,
+                line_number,
+                max_results,
+                max_hops
+            )
+        except Exception as e:
+            error_msg = f"Error: {e}"
+            if format == Format.JSON:
+                # For JSON format, print errors to stderr
+                print(error_msg, file=sys.stderr)
+            else:
+                # For text format, use rich console
+                console.print(f"[red]{error_msg}[/red]")
+
+            # Track error
+            track_command_usage("why_file", success=False, error=e, context=context)
+            sys.exit(1)
 
         if not results:
             if format == Format.JSON:
@@ -125,12 +138,12 @@ def file(
         elif format == Format.MARKDOWN:
             # Markdown output
             md_content = f"# Decision Trail for {file_path}:{line_number}\n\n"
-            
+
             for result in results:
                 md_content += f"## {result['type'].capitalize()}: {result['title']}\n\n"
                 md_content += f"**ID**: {result['id']}  \n"
                 md_content += f"**Timestamp**: {result['timestamp'] or 'N/A'}  \n\n"
-                
+
                 # Add type-specific details
                 if result["type"] == "commit":
                     if "author" in result:
@@ -161,22 +174,22 @@ def file(
                         md_content += f"**Decision Makers**: {', '.join(decision_makers)}  \n"
                     if "path" in result:
                         md_content += f"**Path**: {result['path']}  \n"
-                
+
                 md_content += "\n---\n\n"
-            
+
             # Print markdown
             console.print(Markdown(md_content))
         else:
             # Text output - use rich table and panels
-            console.print(Panel(f"[bold]Decision Trail for {file_path}:{line_number}[/bold]", 
+            console.print(Panel(f"[bold]Decision Trail for {file_path}:{line_number}[/bold]",
                                style="green"))
-            
+
             for result in results:
                 # Create a panel for each result
                 title = f"[bold]{result['type'].upper()}[/bold]: {result['title']}"
                 content = f"ID: {result['id']}\n"
                 content += f"Timestamp: {result['timestamp'] or 'N/A'}\n\n"
-                
+
                 # Add type-specific details
                 if result["type"] == "commit":
                     if "author" in result:
@@ -204,7 +217,7 @@ def file(
                         content += f"Decision Makers: {', '.join(result['decision_makers'])}\n"
                     if "path" in result:
                         content += f"Path: {result['path']}"
-                
+
                 # Determine panel style based on node type
                 style = {
                     "commit": "cyan",
@@ -213,7 +226,7 @@ def file(
                     "adr": "blue",
                     "file": "magenta"
                 }.get(result["type"], "white")
-                
+
                 console.print(Panel(content, title=title, style=style))
 
     except Exception as e:
@@ -225,7 +238,7 @@ def file(
         else:
             # For text format, use rich console
             console.print(f"[red]{error_msg}[/red]")
-        
+
         # Track error
         track_command_usage("why_file", success=False, error=e, context=context)
         sys.exit(1)
@@ -238,7 +251,7 @@ def query(
         5, "--max-results", "-m", help="Maximum number of results to return"
     ),
     depth: str = typer.Option(
-        "medium", "--depth", "-d", 
+        "medium", "--depth", "-d",
         help="Search depth (shallow, medium, deep)"
     ),
     format: Format = typer.Option(
@@ -294,25 +307,43 @@ def query(
 
         # Import the natural language query processor
         from arc_memory.semantic_search import process_query
-        
+
         # Process the natural language query
         console.print(Panel("[bold yellow]Processing your question...[/bold yellow]"))
-        
+
         # Convert depth string to max_hops parameter
         max_hops = {
             "shallow": 2,
             "medium": 3,
             "deep": 4
         }.get(depth.lower(), 3)
-        
+
         # Process the query and get results
-        query_results = process_query(
-            db_path,
-            question,
-            max_results=max_results,
-            max_hops=max_hops
-        )
-        
+        try:
+            query_results = process_query(
+                db_path,
+                question,
+                max_results=max_results,
+                max_hops=max_hops
+            )
+        except Exception as e:
+            error_msg = str(e)
+            if "Ollama" in error_msg:
+                error_msg = f"Ollama is not available: {error_msg}"
+            else:
+                error_msg = f"Error: {error_msg}"
+
+            if format == Format.JSON:
+                # For JSON format, print errors as JSON
+                print(json.dumps({"error": error_msg}))
+            else:
+                # For text format, use rich console
+                console.print(f"[red]{error_msg}[/red]")
+
+            # Track error
+            track_command_usage("why_query", success=False, error=e, context=context)
+            sys.exit(1)
+
         # Check for error in the results
         if "error" in query_results:
             error_msg = query_results["error"]
@@ -323,7 +354,7 @@ def query(
                 # For text format, use rich console
                 console.print(f"[red]{error_msg}[/red]")
             return
-        
+
         if not query_results or "results" not in query_results:
             if format == Format.JSON:
                 # For JSON format, return empty object
@@ -337,7 +368,7 @@ def query(
                     "Try rephrasing your question or using more specific terms."
                 )
             return
-        
+
         # Output based on format
         if format == Format.JSON:
             # JSON output - print directly to stdout
@@ -345,19 +376,19 @@ def query(
         elif format == Format.MARKDOWN:
             # Markdown output
             md_content = f"# Answer: {query_results.get('summary', 'No summary available')}\n\n"
-            
+
             # Add understanding section
             if "understanding" in query_results:
                 md_content += f"## Query Understanding\n\n{query_results['understanding']}\n\n"
-            
+
             # Add main answer
             if "answer" in query_results:
                 md_content += f"## Detailed Answer\n\n{query_results['answer']}\n\n"
-            
+
             # Add supporting evidence
             if "results" in query_results and query_results["results"]:
                 md_content += "## Supporting Evidence\n\n"
-                
+
                 for result in query_results["results"]:
                     md_content += f"### {result['type'].capitalize()}: {result['title']}\n\n"
                     md_content += f"**ID**: {result['id']}  \n"
@@ -365,7 +396,7 @@ def query(
                         md_content += f"**Timestamp**: {result.get('timestamp') or 'N/A'}  \n"
                     if "relevance" in result:
                         md_content += f"**Relevance**: {result.get('relevance')}  \n"
-                    
+
                     # Add type-specific details
                     if result["type"] == "commit":
                         if "author" in result:
@@ -396,43 +427,43 @@ def query(
                             md_content += f"**Decision Makers**: {', '.join(decision_makers)}  \n"
                         if "path" in result:
                             md_content += f"**Path**: {result.get('path')}  \n"
-                    
+
                     # Add reasoning if available
                     if "reasoning" in result:
                         md_content += f"\n{result.get('reasoning')}  \n"
-                    
+
                     md_content += "\n---\n\n"
-            
+
             # Add confidence level
             if "confidence" in query_results:
                 md_content += f"## Confidence\n\n{query_results['confidence']}/10\n\n"
-            
+
             # Print markdown
             console.print(Markdown(md_content))
         else:
             # Text output - use rich panels
             # Main answer panel
             summary = query_results.get("summary", "No summary available")
-            console.print(Panel(f"[bold]{summary}[/bold]", 
-                              title="[bold green]Answer[/bold green]", 
+            console.print(Panel(f"[bold]{summary}[/bold]",
+                              title="[bold green]Answer[/bold green]",
                               style="green"))
-            
+
             # Query understanding panel
             if "understanding" in query_results:
-                console.print(Panel(query_results["understanding"], 
-                                 title="[bold blue]Query Understanding[/bold blue]", 
+                console.print(Panel(query_results["understanding"],
+                                 title="[bold blue]Query Understanding[/bold blue]",
                                  style="blue"))
-            
+
             # Detailed answer panel
             if "answer" in query_results:
-                console.print(Panel(query_results["answer"], 
-                                 title="[bold yellow]Detailed Answer[/bold yellow]", 
+                console.print(Panel(query_results["answer"],
+                                 title="[bold yellow]Detailed Answer[/bold yellow]",
                                  style="yellow"))
-            
+
             # Supporting evidence
             if "results" in query_results and query_results["results"]:
                 console.print("\n[bold]Supporting Evidence:[/bold]")
-                
+
                 for result in query_results["results"]:
                     # Create a panel for each result
                     title = f"[bold]{result['type'].upper()}[/bold]: {result['title']}"
@@ -441,7 +472,7 @@ def query(
                         content += f"Timestamp: {result['timestamp'] or 'N/A'}\n"
                     if "relevance" in result:
                         content += f"Relevance: {result['relevance']}\n\n"
-                    
+
                     # Add type-specific details
                     if result["type"] == "commit":
                         if "author" in result:
@@ -469,11 +500,11 @@ def query(
                             content += f"Decision Makers: {', '.join(result['decision_makers'])}\n"
                         if "path" in result:
                             content += f"Path: {result['path']}\n"
-                    
+
                     # Add reasoning if available
                     if "reasoning" in result:
                         content += f"\n{result['reasoning']}"
-                    
+
                     # Determine panel style based on node type
                     style = {
                         "commit": "cyan",
@@ -482,9 +513,9 @@ def query(
                         "adr": "blue",
                         "file": "magenta"
                     }.get(result["type"], "white")
-                    
+
                     console.print(Panel(content, title=title, style=style))
-            
+
             # Confidence level
             if "confidence" in query_results:
                 console.print(f"\n[bold]Confidence:[/bold] {query_results['confidence']}/10")
@@ -498,7 +529,7 @@ def query(
         else:
             # For text format, use rich console
             console.print(f"[red]{error_msg}[/red]")
-        
+
         # Track error
         track_command_usage("why_query", success=False, error=e, context=context)
         sys.exit(1)
