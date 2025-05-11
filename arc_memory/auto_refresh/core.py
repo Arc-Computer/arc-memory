@@ -4,8 +4,12 @@ This module provides the core functionality for automatically refreshing the kno
 with the latest data from various sources.
 """
 
-from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple
+from datetime import datetime
+from datetime import timedelta
+from typing import Dict
+from typing import List
+from typing import Optional
+from typing import Tuple
 
 from arc_memory.db import get_adapter
 from arc_memory.db.metadata import (
@@ -55,11 +59,17 @@ def check_refresh_needed(
         needs_refresh = time_since_refresh >= min_interval
 
         if needs_refresh:
-            logger.info(f"Source '{source}' needs refreshing (last refresh: {last_refresh.isoformat()}, "
-                       f"interval: {time_since_refresh})")
+            logger.info(
+                f"Source '{source}' needs refreshing "
+                f"(last refresh: {last_refresh.isoformat()}, "
+                f"interval: {time_since_refresh})"
+            )
         else:
-            logger.debug(f"Source '{source}' does not need refreshing (last refresh: {last_refresh.isoformat()}, "
-                        f"interval: {time_since_refresh})")
+            logger.debug(
+                f"Source '{source}' does not need refreshing "
+                f"(last refresh: {last_refresh.isoformat()}, "
+                f"interval: {time_since_refresh})"
+            )
 
         return needs_refresh, last_refresh
     except Exception as e:
@@ -168,8 +178,9 @@ def refresh_source(
 
         # Import the source-specific refresh module dynamically
         try:
+            import importlib
             module_name = f"arc_memory.auto_refresh.sources.{source}"
-            module = __import__(module_name, fromlist=["refresh"])
+            module = importlib.import_module(module_name)
             refresh_func = getattr(module, "refresh")
         except (ImportError, AttributeError) as e:
             error_msg = f"Source '{source}' is not supported for auto-refresh: {e}"

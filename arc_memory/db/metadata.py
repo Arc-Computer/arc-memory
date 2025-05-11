@@ -14,6 +14,20 @@ from arc_memory.logging_conf import get_logger
 logger = get_logger(__name__)
 
 
+def ensure_adapter_connected(adapter):
+    """Ensure the adapter is connected to the database.
+
+    Args:
+        adapter: The database adapter to check and connect if needed.
+    """
+    if not adapter.is_connected():
+        from arc_memory.sql.db import get_db_path
+        db_path = get_db_path()
+        adapter.connect({"db_path": str(db_path)})
+        # Initialize the database schema to ensure tables exist
+        adapter.init_db()
+
+
 def save_refresh_timestamp(source: str, timestamp: datetime, adapter_type: Optional[str] = None) -> None:
     """Save the last refresh timestamp for a source.
 
@@ -28,12 +42,7 @@ def save_refresh_timestamp(source: str, timestamp: datetime, adapter_type: Optio
     adapter = get_adapter(adapter_type)
 
     # Ensure the adapter is connected
-    if not adapter.is_connected():
-        from arc_memory.sql.db import get_db_path
-        db_path = get_db_path()
-        adapter.connect({"db_path": str(db_path)})
-        # Initialize the database schema to ensure tables exist
-        adapter.init_db()
+    ensure_adapter_connected(adapter)
 
     try:
         adapter.save_refresh_timestamp(source, timestamp)
@@ -67,12 +76,7 @@ def get_refresh_timestamp(source: str, adapter_type: Optional[str] = None) -> Op
     adapter = get_adapter(adapter_type)
 
     # Ensure the adapter is connected
-    if not adapter.is_connected():
-        from arc_memory.sql.db import get_db_path
-        db_path = get_db_path()
-        adapter.connect({"db_path": str(db_path)})
-        # Initialize the database schema to ensure tables exist
-        adapter.init_db()
+    ensure_adapter_connected(adapter)
 
     try:
         timestamp = adapter.get_refresh_timestamp(source)
@@ -108,12 +112,7 @@ def get_all_refresh_timestamps(adapter_type: Optional[str] = None) -> Dict[str, 
     adapter = get_adapter(adapter_type)
 
     # Ensure the adapter is connected
-    if not adapter.is_connected():
-        from arc_memory.sql.db import get_db_path
-        db_path = get_db_path()
-        adapter.connect({"db_path": str(db_path)})
-        # Initialize the database schema to ensure tables exist
-        adapter.init_db()
+    ensure_adapter_connected(adapter)
 
     try:
         # Use the adapter's get_all_refresh_timestamps method
