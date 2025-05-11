@@ -26,7 +26,7 @@ def save_refresh_timestamp(source: str, timestamp: datetime, adapter_type: Optio
         DatabaseError: If saving the timestamp fails.
     """
     adapter = get_adapter(adapter_type)
-    
+
     try:
         adapter.save_refresh_timestamp(source, timestamp)
         logger.info(f"Saved refresh timestamp for {source}: {timestamp.isoformat()}")
@@ -57,7 +57,7 @@ def get_refresh_timestamp(source: str, adapter_type: Optional[str] = None) -> Op
         DatabaseError: If getting the timestamp fails.
     """
     adapter = get_adapter(adapter_type)
-    
+
     try:
         timestamp = adapter.get_refresh_timestamp(source)
         if timestamp:
@@ -89,32 +89,11 @@ def get_all_refresh_timestamps(adapter_type: Optional[str] = None) -> Dict[str, 
     Raises:
         DatabaseError: If getting the timestamps fails.
     """
-    # This is a convenience function that retrieves all refresh timestamps
-    # from the metadata table. It's not directly supported by the adapter interface,
-    # so we implement it here using the adapter's get_all_metadata method.
     adapter = get_adapter(adapter_type)
-    
+
     try:
-        # For SQLite, we can query the refresh_timestamps table directly
-        if adapter.get_name() == "sqlite":
-            if not adapter.is_connected():
-                raise DatabaseError("Not connected to database")
-                
-            cursor = adapter.conn.execute(
-                """
-                SELECT source, timestamp
-                FROM refresh_timestamps
-                """
-            )
-            timestamps = {}
-            for row in cursor:
-                timestamps[row[0]] = datetime.fromisoformat(row[1])
-            return timestamps
-        else:
-            # For other adapters, we'll need to implement this differently
-            # or add a method to the adapter interface
-            logger.warning(f"get_all_refresh_timestamps not fully implemented for {adapter.get_name()} adapter")
-            return {}
+        # Use the adapter's get_all_refresh_timestamps method
+        return adapter.get_all_refresh_timestamps()
     except Exception as e:
         error_msg = f"Failed to get all refresh timestamps: {e}"
         logger.error(error_msg)
@@ -138,7 +117,7 @@ def save_metadata(key: str, value: Any, adapter_type: Optional[str] = None) -> N
         DatabaseError: If saving the metadata fails.
     """
     adapter = get_adapter(adapter_type)
-    
+
     try:
         adapter.save_metadata(key, value)
         logger.info(f"Saved metadata for {key}")
@@ -169,7 +148,7 @@ def get_metadata(key: str, default: Any = None, adapter_type: Optional[str] = No
         DatabaseError: If getting the metadata fails.
     """
     adapter = get_adapter(adapter_type)
-    
+
     try:
         value = adapter.get_metadata(key, default)
         logger.debug(f"Retrieved metadata for {key}")
@@ -199,7 +178,7 @@ def get_all_metadata(adapter_type: Optional[str] = None) -> Dict[str, Any]:
         DatabaseError: If getting the metadata fails.
     """
     adapter = get_adapter(adapter_type)
-    
+
     try:
         metadata = adapter.get_all_metadata()
         logger.debug(f"Retrieved all metadata ({len(metadata)} keys)")

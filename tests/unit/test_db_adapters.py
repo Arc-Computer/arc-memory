@@ -213,6 +213,18 @@ class TestSQLiteAdapter(unittest.TestCase):
         timestamp = self.adapter.get_refresh_timestamp("non_existent_source")
         self.assertIsNone(timestamp)
 
+        # Save another refresh timestamp
+        later = datetime.now()
+        self.adapter.save_refresh_timestamp("linear", later)
+
+        # Get all refresh timestamps
+        timestamps = self.adapter.get_all_refresh_timestamps()
+        self.assertEqual(len(timestamps), 2)
+        self.assertIn("github", timestamps)
+        self.assertIn("linear", timestamps)
+        self.assertEqual(timestamps["github"].isoformat(), now.isoformat())
+        self.assertEqual(timestamps["linear"].isoformat(), later.isoformat())
+
     def test_transactions(self):
         """Test transaction support."""
         # Connect to the database
