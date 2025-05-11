@@ -15,8 +15,11 @@ from arc_memory.logging_conf import get_logger
 logger = get_logger(__name__)
 
 
-def refresh() -> bool:
+def refresh(adapter=None) -> bool:
     """Refresh the knowledge graph with the latest data from GitHub.
+
+    Args:
+        adapter: The database adapter to use. If None, a new adapter will be created.
 
     Returns:
         True if the refresh was successful, False otherwise.
@@ -53,7 +56,6 @@ def refresh() -> bool:
 
         # Ingest data from GitHub
         logger.info(f"Ingesting data from GitHub repository at {repo_path}")
-        print(f"DEBUG: repo_path={repo_path}, token={token[:5]}...")
         nodes, edges, _ = ingestor.ingest(
             repo_path=repo_path,
             token=token,
@@ -64,15 +66,16 @@ def refresh() -> bool:
         if nodes or edges:
             logger.info(f"Adding {len(nodes)} nodes and {len(edges)} edges to the knowledge graph")
 
-            # Get a database connection
-            from arc_memory.db import get_adapter
-            from arc_memory.sql.db import get_db_path
+            # Use the provided adapter or get a new one
+            if adapter is None:
+                from arc_memory.db import get_adapter
+                from arc_memory.sql.db import get_db_path
 
-            adapter = get_adapter()
-            if not adapter.is_connected():
-                db_path = get_db_path()
-                adapter.connect({"db_path": str(db_path)})
-                adapter.init_db()
+                adapter = get_adapter()
+                if not adapter.is_connected():
+                    db_path = get_db_path()
+                    adapter.connect({"db_path": str(db_path)})
+                    adapter.init_db()
 
             # Add nodes and edges directly using the adapter
             adapter.add_nodes_and_edges(nodes, edges)
