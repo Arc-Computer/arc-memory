@@ -41,7 +41,8 @@ class TestRelateCommand(unittest.TestCase):
 
         # Check only that the command executed without crashing
         # This is platform-independent and works in both local and CI environments
-        assert result.exit_code != None  # Just verify we got some exit code
+        assert result.exit_code is not None  # Just verify we got some exit code
+
 
         # Check result
         # In CI, the output might be captured differently
