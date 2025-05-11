@@ -7,20 +7,13 @@ from various sources, either manually or automatically on a schedule.
 import sys
 from datetime import datetime, timedelta
 from enum import Enum
-from pathlib import Path
-from typing import List, Optional
+from typing import Optional
 
 import typer
 from rich.console import Console
-from rich.panel import Panel
 from rich.table import Table
 
-from arc_memory.auto_refresh.core import (
-    check_refresh_needed,
-    get_sources_needing_refresh,
-    refresh_all_sources,
-    refresh_source,
-)
+from arc_memory.auto_refresh.core import refresh_all_sources
 from arc_memory.config import get_config, update_config
 from arc_memory.db.metadata import get_all_refresh_timestamps
 from arc_memory.errors import AutoRefreshError
@@ -89,17 +82,27 @@ def callback(
     })
 
     try:
+        # Ensure the database is connected
+        from arc_memory.db import get_adapter
+        from arc_memory.sql.db import get_db_path
+
+        adapter = get_adapter()
+        if not adapter.is_connected():
+            db_path = get_db_path()
+            adapter.connect({"db_path": str(db_path)})
+
         # Determine which sources to refresh
-        sources_to_refresh = []
-        if source == Source.ALL or source is None:
-            # Refresh all sources or auto-detect
-            sources_to_refresh = None  # None means auto-detect in refresh_all_sources
-        elif source == Source.GITHUB:
-            sources_to_refresh = ["github"]
-        elif source == Source.LINEAR:
-            sources_to_refresh = ["linear"]
-        elif source == Source.ADR:
-            sources_to_refresh = ["adr"]
+        sources_to_refresh = None  # Default: auto-detect in refresh_all_sources
+        if source is not None:
+            if source == Source.ALL:
+                # Refresh all sources explicitly
+                sources_to_refresh = ["github", "linear", "adr"]
+            elif source == Source.GITHUB:
+                sources_to_refresh = ["github"]
+            elif source == Source.LINEAR:
+                sources_to_refresh = ["linear"]
+            elif source == Source.ADR:
+                sources_to_refresh = ["adr"]
 
         # Get the refresh interval from config
         config = get_config()
@@ -125,11 +128,11 @@ def callback(
             table = Table(show_header=True)
             table.add_column("Source")
             table.add_column("Status")
-            
+
             for source_name, refreshed in results.items():
                 status = "[green]Refreshed[/green]" if refreshed else "[yellow]Skipped[/yellow]"
                 table.add_row(source_name, status)
-            
+
             console.print(table)
             console.print("\n[green]✓ Refresh completed successfully[/green]")
 
@@ -160,31 +163,40 @@ def status(
     track_cli_command("refresh", subcommand="status", args={"debug": debug})
 
     try:
+        # Ensure the database is connected
+        from arc_memory.db import get_adapter
+        from arc_memory.sql.db import get_db_path
+
+        adapter = get_adapter()
+        if not adapter.is_connected():
+            db_path = get_db_path()
+            adapter.connect({"db_path": str(db_path)})
+
         # Get the last refresh timestamps
         timestamps = get_all_refresh_timestamps()
-        
+
         # Get the refresh schedule
         is_scheduled = is_refresh_scheduled()
         schedule = get_refresh_schedule() if is_scheduled else None
-        
+
         # Get the refresh interval from config
         config = get_config()
         refresh_interval_hours = config.get("refresh", {}).get("interval_hours", 24)
-        
+
         # Print status
         console.print("\n🔄 [bold]Arc Memory Refresh Status[/bold]")
         console.print("==========================")
-        
+
         # Print last refresh times
         console.print("\n[bold]Last Refresh Times:[/bold]")
         table = Table(show_header=True)
         table.add_column("Source")
         table.add_column("Last Refresh")
         table.add_column("Status")
-        
+
         now = datetime.now()
         min_interval = timedelta(hours=refresh_interval_hours)
-        
+
         for source in ["github", "linear", "adr"]:
             last_refresh = timestamps.get(source)
             if last_refresh:
@@ -196,9 +208,9 @@ def status(
                 table.add_row(source, f"{last_refresh_str} {time_since_str}", status)
             else:
                 table.add_row(source, "[grey]Never[/grey]", "[yellow]Needs refresh[/yellow]")
-        
+
         console.print(table)
-        
+
         # Print schedule status
         console.print("\n[bold]Auto-Refresh Schedule:[/bold]")
         if is_scheduled:
@@ -209,7 +221,7 @@ def status(
         else:
             console.print("[yellow]✗ Auto-refresh is not scheduled[/yellow]")
             console.print("Run 'arc refresh schedule' to set up auto-refresh")
-        
+
     except Exception as e:
         console.print(f"\n[red]Error getting refresh status: {e}[/red]")
         logger.error(f"Error getting refresh status: {e}")
@@ -243,12 +255,21 @@ def schedule_command(
     })
 
     try:
+        # Ensure the database is connected
+        from arc_memory.db import get_adapter
+        from arc_memory.sql.db import get_db_path
+
+        adapter = get_adapter()
+        if not adapter.is_connected():
+            db_path = get_db_path()
+            adapter.connect({"db_path": str(db_path)})
+
         # Update the refresh interval in the config
         update_config("refresh", "interval_hours", interval_hours)
-        
+
         # Schedule the refresh
         success = schedule_refresh(interval_hours)
-        
+
         if success:
             console.print(f"\n[green]✓ Auto-refresh scheduled successfully (every {interval_hours} hours)[/green]")
             console.print("The knowledge graph will be automatically refreshed at the specified interval.")
@@ -256,7 +277,7 @@ def schedule_command(
             console.print("\n[yellow]⚠ Auto-refresh scheduling partially succeeded[/yellow]")
             console.print("The configuration was updated, but the system scheduler could not be set up.")
             console.print("You may need to set up the scheduler manually. See the documentation for details.")
-        
+
     except Exception as e:
         console.print(f"\n[red]Error scheduling auto-refresh: {e}[/red]")
         logger.error(f"Error scheduling auto-refresh: {e}")
@@ -282,15 +303,24 @@ def unschedule_command(
     track_cli_command("refresh", subcommand="unschedule", args={"debug": debug})
 
     try:
+        # Ensure the database is connected
+        from arc_memory.db import get_adapter
+        from arc_memory.sql.db import get_db_path
+
+        adapter = get_adapter()
+        if not adapter.is_connected():
+            db_path = get_db_path()
+            adapter.connect({"db_path": str(db_path)})
+
         # Unschedule the refresh
         success = unschedule_refresh()
-        
+
         if success:
             console.print("\n[green]✓ Auto-refresh unscheduled successfully[/green]")
         else:
             console.print("\n[yellow]⚠ Failed to unschedule auto-refresh[/yellow]")
             console.print("The scheduled task could not be removed. You may need to remove it manually.")
-        
+
     except Exception as e:
         console.print(f"\n[red]Error unscheduling auto-refresh: {e}[/red]")
         logger.error(f"Error unscheduling auto-refresh: {e}")
