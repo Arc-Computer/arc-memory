@@ -7,7 +7,7 @@ temporal understanding and reasoning capabilities.
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 from arc_memory.llm.ollama_client import OllamaClient
 from arc_memory.logging_conf import get_logger
@@ -333,6 +333,10 @@ def enhance_with_llm_temporal_analysis(
     Returns:
         New nodes and edges derived from LLM analysis.
     """
+    # Import modules needed for this function
+    import json
+    import re
+
     # System prompt for temporal reasoning
     system_prompt = """
     You are a specialized Knowledge Graph enhancement system focused on temporal code analysis.
@@ -410,11 +414,6 @@ def enhance_with_llm_temporal_analysis(
             system=system_prompt,
             options={"temperature": 0.1}
         )
-
-        # Parse the LLM response
-        # Extract JSON from the response
-        import json
-        import re
 
         # Try to extract JSON from the response
         json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)

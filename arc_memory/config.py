@@ -4,10 +4,9 @@ This module provides functions for loading and saving configuration settings.
 """
 
 import json
-import os
 import uuid
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 from arc_memory.logging_conf import get_logger
 from arc_memory.sql.db import ensure_arc_dir
@@ -27,6 +26,14 @@ DEFAULT_CONFIG = {
     "mcp": {
         "host": "127.0.0.1",
         "port": 8000,
+    },
+    "refresh": {
+        "interval_hours": 24,  # Default refresh interval in hours
+        "scheduled": False,  # Whether auto-refresh is scheduled
+        "last_run": None,  # Last time auto-refresh was run
+    },
+    "database": {
+        "adapter": "sqlite",  # Default database adapter
     }
 }
 

@@ -120,6 +120,26 @@ def ensure_arc_dir() -> Path:
     return arc_dir
 
 
+def get_db_path() -> Path:
+    """Get the path to the database file.
+
+    This function checks the environment variable ARC_DB_PATH first,
+    and falls back to the default path if not set.
+
+    Returns:
+        The path to the database file.
+    """
+    import os
+
+    # Check environment variable first
+    env_path = os.environ.get("ARC_DB_PATH")
+    if env_path:
+        return Path(env_path)
+
+    # Fall back to default path
+    return DEFAULT_DB_PATH
+
+
 def init_db(db_path: Optional[Path] = None, test_mode: bool = False) -> Any:
     """Initialize the database.
 

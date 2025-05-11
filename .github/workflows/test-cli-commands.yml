@@ -35,8 +35,10 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
+        # Pin specific versions of typer and click to ensure compatibility
+        pip install click==8.1.7 typer==0.9.0 rich==13.3.5
         pip install -e .
-        pip install pytest pytest-mock typer rich
+        pip install pytest pytest-mock
 
     - name: Run CLI command tests
       run: |
@@ -53,12 +55,13 @@ jobs:
     - name: Verify CLI help text
       run: |
         # Verify that the CLI help text is correct
-        python -m arc_memory --help
-        python -m arc_memory relate --help
-        python -m arc_memory why --help
-        python -m arc_memory build --help
-        python -m arc_memory auth --help
-        python -m arc_memory serve --help
+        # Use the installed 'arc' command instead of python -m arc_memory
+        arc --help
+        arc relate --help
+        arc why --help
+        arc build --help
+        arc auth --help
+        arc serve --help
 
     - name: Verify telemetry documentation consistency
       run: |

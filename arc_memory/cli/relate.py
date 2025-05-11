@@ -142,8 +142,21 @@ def node(
             sys.exit(1)
 
         # Get related nodes
-        conn = get_connection(db_path)
-        related_nodes = get_related_nodes(conn, entity_id, max_results, relationship_type)
+        try:
+            conn = get_connection(db_path)
+            related_nodes = get_related_nodes(conn, entity_id, max_results, relationship_type)
+        except Exception as e:
+            error_msg = f"Error: {e}"
+            if format == Format.JSON:
+                # For JSON format, print errors as JSON
+                print(json.dumps({"error": error_msg}))
+            else:
+                # For text format, use rich console
+                console.print(f"[red]{error_msg}[/red]")
+
+            # Track error
+            track_command_usage("relate_node", success=False, error=e, context=context)
+            sys.exit(1)
 
         if not related_nodes:
             if format == Format.JSON:
@@ -154,6 +167,7 @@ def node(
                 console.print(
                     f"[yellow]No related nodes found for {entity_id}[/yellow]"
                 )
+            # Return with success code
             return
 
         # Output based on format
