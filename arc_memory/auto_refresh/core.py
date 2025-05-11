@@ -173,7 +173,7 @@ def refresh_source(
         if not force:
             needs_refresh, last_refresh = check_refresh_needed(source, min_interval, adapter_type)
             if not needs_refresh:
-                logger.info(f"Skipping refresh for source '{source}' (last refresh: {last_refresh.isoformat()})")
+                logger.info(f"Skipping refresh for source '{source}' (last refresh: {last_refresh.isoformat() if last_refresh else 'never'})")
                 return False
 
         # Import the source-specific refresh module dynamically
