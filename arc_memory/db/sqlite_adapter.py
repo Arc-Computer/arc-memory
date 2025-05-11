@@ -818,7 +818,7 @@ class SQLiteAdapter:
                 error_msg,
                 details={
                     "source": source,
-                    "timestamp": timestamp_str,
+                    "timestamp": timestamp.isoformat() if timestamp else None,
                     "error": str(e),
                 }
             )
