@@ -35,8 +35,11 @@ def refresh(adapter=None) -> bool:
             logger.error(error_msg)
             raise GitHubAuthError(error_msg)
 
-        # Get the last refresh timestamp
-        last_refresh = get_refresh_timestamp("github")
+        # Get the last refresh timestamp using the provided adapter
+        if adapter:
+            last_refresh = adapter.get_refresh_timestamp("github")
+        else:
+            last_refresh = get_refresh_timestamp("github")
 
         # Get the current repository path
         import os
