@@ -10,7 +10,6 @@ from typing import Dict, List, Optional, Tuple
 from arc_memory.db import get_adapter
 from arc_memory.db.metadata import (
     get_refresh_timestamp,
-    save_refresh_timestamp,
     get_all_refresh_timestamps,
 )
 from arc_memory.errors import AutoRefreshError
@@ -187,10 +186,22 @@ def refresh_source(
         logger.info(f"Refreshing source '{source}'")
         refresh_func(adapter)
 
-        # Update the refresh timestamp
+        # Update the refresh timestamp directly using the adapter
         now = datetime.now()
-        save_refresh_timestamp(source, now, adapter_type)
-        logger.info(f"Successfully refreshed source '{source}' at {now.isoformat()}")
+        try:
+            adapter.save_refresh_timestamp(source, now)
+            logger.info(f"Successfully refreshed source '{source}' at {now.isoformat()}")
+        except Exception as e:
+            error_msg = f"Failed to save refresh timestamp for {source}: {e}"
+            logger.error(error_msg)
+            raise AutoRefreshError(
+                error_msg,
+                details={
+                    "source": source,
+                    "timestamp": now.isoformat(),
+                    "error": str(e),
+                }
+            )
 
         return True
     except Exception as e:
