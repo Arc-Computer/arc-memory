@@ -11,7 +11,6 @@ from arc_memory.db.metadata import get_refresh_timestamp
 from arc_memory.errors import AutoRefreshError, GitHubAuthError
 from arc_memory.ingest.github import GitHubIngestor
 from arc_memory.logging_conf import get_logger
-from arc_memory.sql.db import add_nodes_and_edges
 
 logger = get_logger(__name__)
 
@@ -64,7 +63,20 @@ def refresh() -> bool:
         # Add the nodes and edges to the knowledge graph
         if nodes or edges:
             logger.info(f"Adding {len(nodes)} nodes and {len(edges)} edges to the knowledge graph")
-            add_nodes_and_edges(nodes, edges)
+
+            # Get a database connection
+            from arc_memory.db import get_adapter
+            from arc_memory.sql.db import get_db_path
+
+            adapter = get_adapter()
+            if not adapter.is_connected():
+                db_path = get_db_path()
+                adapter.connect({"db_path": str(db_path)})
+                adapter.init_db()
+
+            # Add nodes and edges directly using the adapter
+            adapter.add_nodes_and_edges(nodes, edges)
+
             logger.info("Successfully added GitHub data to the knowledge graph")
         else:
             logger.info("No new data to add from GitHub")
