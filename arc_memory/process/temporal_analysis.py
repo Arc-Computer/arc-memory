@@ -4,11 +4,10 @@ This module provides functions for enhancing the knowledge graph with
 temporal understanding and reasoning capabilities.
 """
 
-import json
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import List, Optional, Tuple
 
 from arc_memory.llm.ollama_client import OllamaClient
 from arc_memory.logging_conf import get_logger
@@ -334,6 +333,10 @@ def enhance_with_llm_temporal_analysis(
     Returns:
         New nodes and edges derived from LLM analysis.
     """
+    # Import modules needed for this function
+    import json
+    import re
+
     # System prompt for temporal reasoning
     system_prompt = """
     You are a specialized Knowledge Graph enhancement system focused on temporal code analysis.
@@ -411,11 +414,6 @@ def enhance_with_llm_temporal_analysis(
             system=system_prompt,
             options={"temperature": 0.1}
         )
-
-        # Parse the LLM response
-        # Extract JSON from the response
-        import json
-        import re
 
         # Try to extract JSON from the response
         json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
@@ -537,123 +535,3 @@ def slugify(text: str) -> str:
     if not slug:
         slug = "unknown"
     return slug
-
-
-def create_temporal_indices(nodes: List[Node]) -> Dict[NodeType, List[Tuple[datetime, Node]]]:
-    """Create temporal indices for nodes by type.
-
-    Args:
-        nodes: List of nodes to index.
-
-    Returns:
-        Dictionary mapping node types to lists of (timestamp, node) tuples,
-        sorted by timestamp.
-    """
-    indices = defaultdict(list)
-
-    for node in nodes:
-        # Get the timestamp from the node
-        ts = normalize_timestamp(node)
-        if ts:
-            indices[node.type].append((ts, node))
-
-    # Sort each index by timestamp
-    for node_type in indices:
-        indices[node_type].sort(key=lambda x: x[0])
-
-    return indices
-
-
-def analyze_temporal_patterns(
-    nodes: List[Node],
-    edges: List[Edge],
-    indices: Dict[NodeType, List[Tuple[datetime, Node]]]
-) -> List[Edge]:
-    """Analyze temporal patterns in the knowledge graph.
-
-    Args:
-        nodes: List of nodes.
-        edges: List of edges.
-        indices: Temporal indices created by create_temporal_indices.
-
-    Returns:
-        List of new edges representing temporal patterns.
-    """
-    new_edges = []
-
-    # Create FOLLOWS/PRECEDES edges between sequential commits
-    if NodeType.COMMIT in indices and len(indices[NodeType.COMMIT]) > 1:
-        commit_index = indices[NodeType.COMMIT]
-
-        for i in range(len(commit_index) - 1):
-            ts1, node1 = commit_index[i]
-            ts2, node2 = commit_index[i + 1]
-
-            # Calculate time delta in seconds
-            time_delta = (ts2 - ts1).total_seconds()
-
-            # Create FOLLOWS edge (newer -> older)
-            new_edges.append(Edge(
-                src=node2.id,
-                dst=node1.id,
-                rel=EdgeRel.FOLLOWS,
-                properties={
-                    "time_delta": time_delta,
-                    "inferred": True,
-                }
-            ))
-
-            # Create PRECEDES edge (older -> newer)
-            new_edges.append(Edge(
-                src=node1.id,
-                dst=node2.id,
-                rel=EdgeRel.PRECEDES,
-                properties={
-                    "time_delta": time_delta,
-                    "inferred": True,
-                }
-            ))
-
-    return new_edges
-
-
-def analyze_developer_workflows(
-    nodes: List[Node],
-    edges: List[Edge],
-    indices: Dict[NodeType, List[Tuple[datetime, Node]]]
-) -> Tuple[List[Node], List[Edge]]:
-    """Analyze developer workflows in the knowledge graph.
-
-    Args:
-        nodes: List of nodes.
-        edges: List of edges.
-        indices: Temporal indices created by create_temporal_indices.
-
-    Returns:
-        Tuple of (new nodes, new edges) representing developer workflows.
-    """
-    # This is a placeholder implementation
-    # In a real implementation, this would analyze developer workflows
-    # and create nodes and edges representing those workflows
-    return [], []
-
-
-def dynamic_adaptation_for_temporal_reasoning(
-    nodes: List[Node],
-    edges: List[Edge],
-    ollama_client: Optional[OllamaClient]
-) -> Tuple[List[Node], List[Edge]]:
-    """Dynamically adapt temporal reasoning based on the knowledge graph.
-
-    Args:
-        nodes: List of nodes.
-        edges: List of edges.
-        ollama_client: Optional Ollama client for LLM processing.
-
-    Returns:
-        Tuple of (enhanced nodes, enhanced edges).
-    """
-    # This is a placeholder implementation
-    # In a real implementation, this would use the LLM to adapt
-    # temporal reasoning based on the knowledge graph
-    return nodes, edges
