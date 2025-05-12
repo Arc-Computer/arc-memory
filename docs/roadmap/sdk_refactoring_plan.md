@@ -60,6 +60,32 @@ This document outlines a strategic plan to refactor Arc Memory's architecture to
 - Return formats optimized for human readability, not machine consumption
 - Limited programmatic composability
 
+## Framework-Agnostic Design Philosophy
+
+Our SDK refactoring is explicitly designed to follow the framework-agnostic approach pioneered by NVIDIA's Agent Intelligence Toolkit (AIQ). This philosophy has several key principles:
+
+1. **Functions as the Universal Interface**
+   - Treat all components (agents, tools, workflows) as simple function calls
+   - Provide a consistent interface regardless of the underlying framework
+   - Enable easy composition of different components
+
+2. **Building on Existing Plugin Architecture**
+   - Leverage and extend our existing plugin system documented in `docs/api/plugins.md`
+   - Apply the same patterns that work for our `IngestorPlugin` to framework adapters
+   - Use entry points for discoverable, extensible components
+
+3. **True Framework Neutrality**
+   - Support multiple agent frameworks without favoring any particular one
+   - Allow developers to use Arc Memory with their framework of choice
+   - Provide adapters for popular frameworks (LangChain, OpenAI, etc.) while maintaining a core that's framework-independent
+
+4. **Composition and Reuse**
+   - Design components that can be easily combined
+   - Support mixing tools from different frameworks
+   - Enable progressive enhancement of agent capabilities
+
+By following this approach, we ensure that Arc Memory can be used with any agent framework, current or future, without requiring users to replatform or rewrite their code. This maximizes the utility and longevity of our SDK in a rapidly evolving AI ecosystem.
+
 ## Target Architecture
 
 Drawing inspiration from NVIDIA's Agent Intelligence Toolkit (AIQ) framework-agnostic approach and Neo4j's GraphRAG approach, we'll adopt a plugin-based architecture that treats all components as function calls, enabling true framework agnosticism and database flexibility:
@@ -263,6 +289,197 @@ This approach allows us to leverage Neo4j's GraphRAG capabilities in our cloud o
    - Support batching for efficiency
    - Implement caching where appropriate
 
+### Progressive Disclosure Strategy
+
+The "progressive disclosure" principle is a key aspect of our SDK design that requires detailed planning and implementation. This approach ensures that developers can start using the SDK quickly and expand their usage as their needs grow.
+
+#### Multiple API Layers
+
+1. **Basic API Layer**
+   - Simple function signatures with minimal required parameters
+   - Sensible defaults for all optional parameters
+   - Focus on the most common use cases
+   ```python
+   # Basic API example
+   def query_knowledge_graph(question: str) -> QueryResult:
+       """Query the knowledge graph with a natural language question."""
+       # Implementation with sensible defaults
+   ```
+
+2. **Advanced API Layer**
+   - Extended function signatures with additional parameters
+   - Fine-grained control over behavior
+   - Support for advanced use cases
+   ```python
+   # Advanced API example
+   def query_knowledge_graph_advanced(
+       question: str,
+       max_results: int = 5,
+       confidence_threshold: float = 0.7,
+       search_strategy: str = "semantic",
+       context_size: int = 3
+   ) -> DetailedQueryResult:
+       """Query the knowledge graph with advanced options."""
+       # Implementation with customizable behavior
+   ```
+
+3. **Expert API Layer**
+   - Hooks for customizing behavior with callbacks
+   - Access to internal components and states
+   - Support for integration with custom workflows
+   ```python
+   # Expert API example
+   def query_knowledge_graph_with_callback(
+       question: str,
+       pre_process: Optional[Callable] = None,
+       post_process: Optional[Callable] = None,
+       # other parameters
+   ) -> QueryResult:
+       """Query the knowledge graph with custom pre/post-processing."""
+       # Implementation with extensibility hooks
+   ```
+
+#### Implementation Guidelines for Progressive Disclosure
+
+1. **Documentation Stratification**
+   - Basic tutorials and quick starts focus on simple APIs
+   - Advanced guides detail additional parameters and options
+   - Expert documentation covers customization hooks and internal architecture
+
+2. **API Discovery Paths**
+   - Design clear paths for developers to discover advanced options
+   - Use IDE hints (docstrings, method signatures) to guide discovery
+   - Provide examples that progressively introduce more complex features
+
+3. **Method Organization**
+   - Group methods logically by functionality
+   - Use consistent naming patterns to indicate complexity level
+     - Basic: `method_name()`
+     - Advanced: `method_name_advanced()` or `method_name_with_options()`
+     - Expert: `method_name_with_callback()` or `method_name_custom()`
+
+4. **Testing Strategy**
+   - Test basic functionality with default parameters
+   - Test advanced options with various combinations
+   - Test customization hooks with mock callbacks
+
+### Backward Compatibility Strategy
+
+Maintaining backward compatibility is critical during this refactoring to ensure existing users can continue to use Arc Memory without disruption while transitioning to the SDK at their own pace.
+
+#### CLI Command Preservation
+
+1. **Command Functionality**
+   - Preserve all existing CLI command syntax and behavior
+   - Ensure output formats remain consistent for scripts that parse CLI output
+   - Maintain all current command options and flags
+
+2. **Implementation Approach**
+   - Refactor CLI commands to use the new SDK internally
+   - Add adapter layers where necessary to transform SDK outputs to CLI-friendly formats
+   - Keep all current CLI entry points functional
+   ```python
+   # Example of CLI command using SDK internally
+   @app.command()
+   def why(entity: str, format: str = "text"):
+       """Find the reasoning behind a code change, decision, or component."""
+       # Use SDK internally but preserve CLI output format
+       memory = ArcMemory(repo_path="./")
+       result = memory.query_knowledge_graph(f"Why {entity}?")
+
+       # Format result for CLI output to maintain backward compatibility
+       if format == "text":
+           echo_text_format(result)
+       elif format == "json":
+           echo_json_format(result)
+   ```
+
+#### Configuration Compatibility
+
+1. **Configuration Files**
+   - Support existing configuration file formats and locations
+   - Gracefully handle missing new configuration options
+   - Provide migration utilities for updating configuration files
+
+2. **Environment Variables**
+   - Maintain support for existing environment variables
+   - Add new environment variables with a consistent naming scheme
+   - Document compatibility between old and new variables
+
+#### Data Format Compatibility
+
+1. **Database Schema**
+   - Ensure backward compatibility with existing SQLite databases
+   - Provide automatic migration for database schema changes
+   - Support reading from old format and writing to new format
+
+2. **Export/Import Formats**
+   - Maintain compatibility with existing export formats
+   - Add version indicators to new export formats
+   - Provide conversion utilities between format versions
+
+#### Deprecation Strategy
+
+1. **Phased Approach**
+   - Phase 1: Introduce SDK while maintaining full backward compatibility
+   - Phase 2: Add deprecation warnings for features slated for removal
+   - Phase 3: Remove deprecated features in major version updates
+
+2. **Deprecation Warnings**
+   - Add clear deprecation warnings with migration paths
+   - Provide specific timelines for feature removal
+   - Include links to documentation on how to migrate
+   ```python
+   def deprecated_method(param):
+       warnings.warn(
+           "deprecated_method is deprecated and will be removed in version 2.0.0. "
+           "Use new_method instead. See https://docs.example.com/migration for details.",
+           DeprecationWarning,
+           stacklevel=2
+       )
+       # Call new implementation
+       return new_method(param)
+   ```
+
+3. **Documentation**
+   - Clearly mark deprecated features in documentation
+   - Provide migration guides for moving from old to new patterns
+   - Offer code examples showing both old and new approaches side by side
+
+#### Testing for Backward Compatibility
+
+1. **Regression Testing**
+   - Comprehensive test suite for existing CLI functionality
+   - Integration tests that verify backward compatibility
+   - Automated checks for breaking changes
+
+2. **Compatibility Matrix**
+   - Define and test compatibility with previous versions
+   - Document supported upgrade paths
+   - Verify interoperability between components at different versions
+
+3. **User Acceptance Testing**
+   - Test with real-world repositories and workflows
+   - Engage existing users in beta testing
+   - Prioritize fixing backward compatibility issues
+
+#### Migration Support
+
+1. **Migration Utilities**
+   - Provide scripts for migrating from CLI-based workflows to SDK
+   - Create tools for updating configuration files and data formats
+   - Build linters to identify deprecated usage patterns
+
+2. **Transition Documentation**
+   - Create comprehensive migration guides
+   - Provide examples of migrating common workflows
+   - Document equivalences between old and new approaches
+
+3. **Support Timeline**
+   - Clearly communicate support timeline for legacy features
+   - Provide long-term support for critical backward compatibility
+   - Plan migration windows timed with major releases
+
 ### Extending the Existing Plugin Architecture
 
 Arc Memory already has a robust plugin architecture for data ingestion. We'll build upon this foundation to create a comprehensive framework-agnostic system:
@@ -446,66 +663,803 @@ To ensure rapid adoption, we'll create a frictionless onboarding experience:
 
 ## Implementation Plan
 
-Building on our existing database abstraction layer (PR #53), we'll implement the SDK refactoring through the following 7 PRs:
+Building on our existing database abstraction layer (PR #53), we'll implement the SDK refactoring through the following refined PRs:
 
-### PR 1: Core SDK Structure and Return Types
-- Create the basic SDK structure with the `ArcMemory` class
-- Define data models for return types
-- Implement the framework adapter protocol and registry
-- Implement exception hierarchy for error handling
+### PR 1: Core SDK Structure and Database Integration
 
-### PR 2: Extract Core Command Logic
-- Extract logic from CLI commands into SDK methods
-- Implement core API functions (Query API, Context API, etc.)
-- Ensure backward compatibility
-- Add comprehensive tests
+#### Overview
+PR 1 will establish the foundation for the Arc Memory SDK by creating the core `Arc` class, integrating with the existing database adapters, defining return types, and implementing the framework adapter protocol.
+
+#### Key Components
+
+1. **Core `Arc` Class**:
+   - Main entry point for SDK users
+   - Connection to database layer through adapters
+   - Core methods for accessing the knowledge graph
+
+2. **Return Types and Data Models**:
+   - Structured return types for SDK functions
+   - Serialization/deserialization capability
+   - Simple, focused types for essential data
+
+3. **Database Adapter Integration**:
+   - Leverage existing database adapters (`sqlite_adapter.py`, `neo4j_adapter.py`)
+   - Implement dependency injection for adapters
+   - Create factory method for getting appropriate adapter
+
+4. **Framework Adapter Protocol**:
+   - Define interface for framework adapters
+   - Create adapter registry mechanism
+   - Support discovery of adapters via entry points
+
+5. **Error Handling**:
+   - Implement exception hierarchy
+   - Add context information to exceptions
+   - Ensure user-friendly error messages
+
+#### Files to Create/Modify
+
+1. **New Files**:
+   - `arc_memory/sdk/__init__.py`: Package initialization
+   - `arc_memory/sdk/core.py`: Core `Arc` class implementation
+   - `arc_memory/sdk/models.py`: Return type models
+   - `arc_memory/sdk/adapters/__init__.py`: Adapter package initialization
+   - `arc_memory/sdk/adapters/base.py`: Framework adapter protocol
+   - `arc_memory/sdk/adapters/registry.py`: Adapter registry
+   - `tests/sdk/test_core.py`: Tests for core functionality
+   - `tests/sdk/test_models.py`: Tests for return type models
+   - `tests/sdk/test_adapters.py`: Tests for adapter functionality
+
+2. **Files to Modify**:
+   - `arc_memory/__init__.py`: Expose `Arc` class
+   - `arc_memory/errors.py`: Add SDK-specific exceptions
+   - `pyproject.toml`: Add entry points for framework adapters
+
+#### Detailed Implementation Plan
+
+##### 1. Core `Arc` Class Implementation (`arc_memory/sdk/core.py`)
+
+The `Arc` class will be the main entry point for SDK users, providing access to the knowledge graph through a clean, intuitive interface:
+
+```python
+class Arc:
+    """Main entry point for the Arc Memory SDK.
+
+    This class provides access to the knowledge graph through a clean, intuitive interface.
+    It connects to the database layer through adapters and provides core methods for
+    accessing the knowledge graph.
+
+    Args:
+        repo_path: Path to the repository to analyze.
+        adapter_type: Type of database adapter to use. If None, uses the configured adapter.
+    """
+
+    def __init__(
+        self,
+        repo_path: Union[str, Path],
+        adapter_type: Optional[str] = None
+    ) -> None:
+        self.repo_path = Path(repo_path)
+        self.adapter = get_adapter(adapter_type)
+
+        # Connect to the database
+        self._ensure_connected()
+
+    def _ensure_connected(self) -> None:
+        """Ensure the adapter is connected to the database."""
+        if not self.adapter.is_connected():
+            from arc_memory.sql.db import get_db_path
+            db_path = get_db_path()
+            self.adapter.connect({"db_path": str(db_path)})
+            # Initialize the database schema to ensure tables exist
+            self.adapter.init_db()
+
+    # Core methods for accessing the knowledge graph
+    def query(self, question: str) -> QueryResult:
+        """Query the knowledge graph with a natural language question.
+
+        Args:
+            question: The natural language question to ask.
+
+        Returns:
+            A QueryResult containing the answer and supporting evidence.
+        """
+        # Implementation will be added in PR 2a
+        pass
+
+    def get_node_by_id(self, node_id: str) -> Optional[EntityDetails]:
+        """Get a node by its ID.
+
+        Args:
+            node_id: The ID of the node.
+
+        Returns:
+            The node details, or None if it doesn't exist.
+        """
+        self._ensure_connected()
+        node = self.adapter.get_node_by_id(node_id)
+        if node is None:
+            return None
+
+        # Get relationships for this node
+        outgoing = self.adapter.get_edges_by_src(node_id)
+        incoming = self.adapter.get_edges_by_dst(node_id)
+
+        # Convert to EntityDetails model
+        return EntityDetails.from_node_and_edges(node, outgoing, incoming)
+
+    def add_nodes_and_edges(self, nodes: List[Node], edges: List[Edge]) -> None:
+        """Add nodes and edges to the knowledge graph.
+
+        Args:
+            nodes: The nodes to add.
+            edges: The edges to add.
+        """
+        self._ensure_connected()
+        self.adapter.add_nodes_and_edges(nodes, edges)
+```
+
+##### 2. Return Type Models (`arc_memory/sdk/models.py`)
+
+Define structured return types for SDK functions:
+
+```python
+class QueryResult(BaseModel):
+    """Result of a query to the knowledge graph."""
+
+    answer: str
+    confidence: float = 1.0
+    sources: List[Dict[str, Any]] = Field(default_factory=list)
+
+class EntityDetails(BaseModel):
+    """Detailed information about an entity in the knowledge graph."""
+
+    id: str
+    type: NodeType
+    title: Optional[str] = None
+    body: Optional[str] = None
+    properties: Dict[str, Any] = Field(default_factory=dict)
+    relationships: List[Dict[str, Any]] = Field(default_factory=list)
+
+    @classmethod
+    def from_node_and_edges(
+        cls,
+        node: Dict[str, Any],
+        outgoing: List[Dict[str, Any]],
+        incoming: List[Dict[str, Any]]
+    ) -> "EntityDetails":
+        """Create an EntityDetails instance from a node and its edges."""
+        relationships = []
+
+        for edge in outgoing:
+            relationships.append({
+                "direction": "outgoing",
+                "type": edge["rel"],
+                "target_id": edge["dst"],
+                "properties": edge.get("properties", {})
+            })
+
+        for edge in incoming:
+            relationships.append({
+                "direction": "incoming",
+                "type": edge["rel"],
+                "source_id": edge["src"],
+                "properties": edge.get("properties", {})
+            })
+
+        return cls(
+            id=node["id"],
+            type=node["type"],
+            title=node.get("title"),
+            body=node.get("body"),
+            properties=node.get("extra", {}),
+            relationships=relationships
+        )
+```
+
+##### 3. Framework Adapter Protocol (`arc_memory/sdk/adapters/base.py`)
+
+Define the interface for framework adapters:
+
+```python
+class FrameworkAdapter(Protocol):
+    """Protocol defining the interface for framework adapters.
+
+    Framework adapters are responsible for adapting Arc Memory functions to
+    specific agent frameworks (LangChain, OpenAI, etc.).
+    """
+
+    def get_name(self) -> str:
+        """Return a unique name for this adapter.
+
+        Returns:
+            A string identifier for this adapter, e.g., "langchain", "openai".
+        """
+        ...
+
+    def get_supported_versions(self) -> List[str]:
+        """Return a list of supported framework versions.
+
+        Returns:
+            A list of version strings, e.g., ["0.1.0", "0.2.0"].
+        """
+        ...
+
+    def adapt_functions(self, functions: List[Callable]) -> Any:
+        """Adapt Arc Memory functions to the framework's format.
+
+        Args:
+            functions: List of functions to adapt.
+
+        Returns:
+            Framework-specific representation of the functions.
+        """
+        ...
+```
+
+##### 4. Adapter Registry (`arc_memory/sdk/adapters/registry.py`)
+
+Create a registry for managing framework adapters:
+
+```python
+class FrameworkAdapterRegistry:
+    """Registry for framework adapters.
+
+    The registry manages the discovery and registration of adapters, and provides
+    methods for retrieving adapters by name.
+    """
+
+    def __init__(self):
+        """Initialize an empty registry."""
+        self.adapters: Dict[str, FrameworkAdapter] = {}
+
+    def register(self, adapter: FrameworkAdapter) -> None:
+        """Register an adapter with the registry.
+
+        Args:
+            adapter: An instance of a class implementing the FrameworkAdapter protocol.
+        """
+        name = adapter.get_name()
+        self.adapters[name] = adapter
+
+    def get(self, name: str) -> Optional[FrameworkAdapter]:
+        """Get an adapter by name.
+
+        Args:
+            name: The name of the adapter to retrieve.
+
+        Returns:
+            The adapter instance, or None if not found.
+        """
+        return self.adapters.get(name)
+
+    def list_adapters(self) -> List[str]:
+        """List all registered adapters.
+
+        Returns:
+            A list of adapter names.
+        """
+        return list(self.adapters.keys())
+
+    @classmethod
+    def discover(cls) -> "FrameworkAdapterRegistry":
+        """Discover and register all available adapters.
+
+        Returns:
+            A registry containing all discovered adapters.
+        """
+        registry = cls()
+
+        # Discover adapters from entry points
+        for entry_point in pkg_resources.iter_entry_points("arc_memory.plugins.frameworks"):
+            try:
+                adapter_class = entry_point.load()
+                registry.register(adapter_class())
+                logger.info(f"Loaded framework adapter: {entry_point.name}")
+            except Exception as e:
+                logger.warning(f"Failed to load framework adapter {entry_point.name}: {e}")
+
+        return registry
+```
+
+##### 5. Error Handling (`arc_memory/errors.py`)
+
+Add SDK-specific exceptions:
+
+```python
+class SDKError(ArcError):
+    """Base class for SDK-related errors."""
+    pass
+
+class AdapterError(SDKError):
+    """Error raised when there's an issue with an adapter."""
+    pass
+
+class QueryError(SDKError):
+    """Error raised when querying the knowledge graph fails."""
+    pass
+
+class BuildError(SDKError):
+    """Error raised when building the knowledge graph fails."""
+    pass
+```
+
+##### 6. Testing Strategy
+
+We'll implement comprehensive tests for the SDK components:
+
+```python
+# tests/sdk/test_core.py
+import pytest
+from pathlib import Path
+
+from arc_memory.sdk import Arc
+from arc_memory.schema.models import Node, Edge, NodeType, EdgeRel
+
+def test_arc_initialization():
+    """Test that Arc can be initialized."""
+    arc = Arc(repo_path="./")
+    assert arc is not None
+    assert arc.repo_path == Path("./")
+    assert arc.adapter is not None
+
+def test_get_node_by_id(mocker):
+    """Test getting a node by ID."""
+    # Mock the adapter
+    mock_adapter = mocker.MagicMock()
+    mock_adapter.is_connected.return_value = True
+    mock_adapter.get_node_by_id.return_value = {
+        "id": "test-node",
+        "type": NodeType.COMMIT,
+        "title": "Test Node",
+        "body": "Test body",
+        "extra": {"key": "value"}
+    }
+    mock_adapter.get_edges_by_src.return_value = []
+    mock_adapter.get_edges_by_dst.return_value = []
+
+    # Create Arc with the mock adapter
+    arc = Arc(repo_path="./")
+    arc.adapter = mock_adapter
+
+    # Get the node
+    node = arc.get_node_by_id("test-node")
+
+    # Verify the result
+    assert node is not None
+    assert node.id == "test-node"
+    assert node.type == NodeType.COMMIT
+    assert node.title == "Test Node"
+    assert node.body == "Test body"
+    assert node.properties == {"key": "value"}
+    assert node.relationships == []
+
+def test_add_nodes_and_edges(mocker):
+    """Test adding nodes and edges."""
+    # Mock the adapter
+    mock_adapter = mocker.MagicMock()
+    mock_adapter.is_connected.return_value = True
+
+    # Create Arc with the mock adapter
+    arc = Arc(repo_path="./")
+    arc.adapter = mock_adapter
+
+    # Create test nodes and edges
+    nodes = [
+        Node(id="node1", type=NodeType.COMMIT, title="Node 1"),
+        Node(id="node2", type=NodeType.PR, title="Node 2")
+    ]
+    edges = [
+        Edge(src="node1", dst="node2", rel=EdgeRel.RELATED_TO)
+    ]
+
+    # Add nodes and edges
+    arc.add_nodes_and_edges(nodes, edges)
+
+    # Verify the adapter was called
+    mock_adapter.add_nodes_and_edges.assert_called_once_with(nodes, edges)
+```
+
+```python
+# tests/sdk/test_models.py
+import pytest
+from arc_memory.sdk.models import EntityDetails, QueryResult
+from arc_memory.schema.models import NodeType
+
+def test_query_result_model():
+    """Test the QueryResult model."""
+    result = QueryResult(answer="Test answer", confidence=0.8, sources=[{"id": "source1"}])
+    assert result.answer == "Test answer"
+    assert result.confidence == 0.8
+    assert result.sources == [{"id": "source1"}]
+
+    # Test default values
+    result = QueryResult(answer="Test answer")
+    assert result.answer == "Test answer"
+    assert result.confidence == 1.0
+    assert result.sources == []
+
+def test_entity_details_from_node_and_edges():
+    """Test creating EntityDetails from a node and edges."""
+    node = {
+        "id": "test-node",
+        "type": NodeType.COMMIT,
+        "title": "Test Node",
+        "body": "Test body",
+        "extra": {"key": "value"}
+    }
+    outgoing = [
+        {"src": "test-node", "dst": "target1", "rel": "RELATED_TO", "properties": {"weight": 0.5}}
+    ]
+    incoming = [
+        {"src": "source1", "dst": "test-node", "rel": "DEPENDS_ON", "properties": {}}
+    ]
+
+    entity = EntityDetails.from_node_and_edges(node, outgoing, incoming)
+
+    assert entity.id == "test-node"
+    assert entity.type == NodeType.COMMIT
+    assert entity.title == "Test Node"
+    assert entity.body == "Test body"
+    assert entity.properties == {"key": "value"}
+    assert len(entity.relationships) == 2
+
+    # Check outgoing relationship
+    outgoing_rel = [r for r in entity.relationships if r["direction"] == "outgoing"][0]
+    assert outgoing_rel["type"] == "RELATED_TO"
+    assert outgoing_rel["target_id"] == "target1"
+    assert outgoing_rel["properties"] == {"weight": 0.5}
+
+    # Check incoming relationship
+    incoming_rel = [r for r in entity.relationships if r["direction"] == "incoming"][0]
+    assert incoming_rel["type"] == "DEPENDS_ON"
+    assert incoming_rel["source_id"] == "source1"
+    assert incoming_rel["properties"] == {}
+```
+
+```python
+# tests/sdk/test_adapters.py
+import pytest
+from arc_memory.sdk.adapters.base import FrameworkAdapter
+from arc_memory.sdk.adapters.registry import FrameworkAdapterRegistry
+
+class MockAdapter:
+    def get_name(self):
+        return "mock"
+
+    def get_supported_versions(self):
+        return ["1.0.0"]
+
+    def adapt_functions(self, functions):
+        return [f.__name__ for f in functions]
+
+def test_adapter_registry():
+    """Test the FrameworkAdapterRegistry."""
+    registry = FrameworkAdapterRegistry()
+    adapter = MockAdapter()
+
+    # Register the adapter
+    registry.register(adapter)
+
+    # Get the adapter
+    retrieved = registry.get("mock")
+    assert retrieved is adapter
+
+    # List adapters
+    adapters = registry.list_adapters()
+    assert adapters == ["mock"]
+
+    # Try to get a non-existent adapter
+    assert registry.get("nonexistent") is None
+
+def test_adapter_discovery(mocker):
+    """Test adapter discovery from entry points."""
+    # Mock pkg_resources.iter_entry_points
+    mock_entry_point = mocker.MagicMock()
+    mock_entry_point.name = "mock"
+    mock_entry_point.load.return_value = MockAdapter
+
+    mocker.patch(
+        "pkg_resources.iter_entry_points",
+        return_value=[mock_entry_point]
+    )
+
+    # Discover adapters
+    registry = FrameworkAdapterRegistry.discover()
+
+    # Check that the adapter was discovered
+    assert "mock" in registry.list_adapters()
+    adapter = registry.get("mock")
+    assert adapter.get_name() == "mock"
+    assert adapter.get_supported_versions() == ["1.0.0"]
+```
+
+#### Summary and Next Steps
+
+We now have a comprehensive implementation plan for PR 1 that:
+
+1. **Establishes the Core SDK Structure**:
+   - Creates the `Arc` class as the main entry point
+   - Defines return type models for structured data
+   - Implements the framework adapter protocol and registry
+   - Integrates with existing database adapters
+
+2. **Follows Best Practices**:
+   - Uses a clean, intuitive naming convention
+   - Provides a framework-agnostic design
+   - Maintains backward compatibility
+   - Includes comprehensive tests
+
+3. **Prepares for Future PRs**:
+   - Sets up the foundation for extracting CLI commands into SDK methods
+   - Creates the adapter architecture for framework integration
+   - Establishes patterns for error handling and testing
+
+**Next Steps**:
+
+1. Implement the core `Arc` class and related components
+2. Write tests for all components
+3. Update documentation with usage examples
+4. Prepare for PR 2a, which will extract query-related CLI commands into SDK methods
+
+#### Implementation Approach for PR 1
+
+**Main Class Naming and Structure:**
+- Use "Arc" as the main class name for the SDK (instead of "ArcMemory")
+- This provides a clean, intuitive import pattern: `from arc_memory import Arc`
+- Aligns with competitor approaches (Mem0 uses `Memory`, Graphiti uses `Graphiti`)
+- Optimizes for developer experience with minimal integration code
+- Structure the code to enable framework-agnostic usage while supporting specific framework adapters
+
+**Implementation Structure:**
+- Create a new module `arc_memory/sdk/core.py` with the `Arc` class
+- Update `arc_memory/__init__.py` to expose the `Arc` class directly
+- Implement the database adapter integration in the `Arc` class
+- Create the framework adapter protocol and registry
+
+**Example Usage:**
+```python
+from arc_memory import Arc
+
+# Initialize Arc with a repository path
+arc = Arc(repo_path="./my-repo")
+
+# Query the knowledge graph
+result = arc.query("What was the reasoning behind the auth refactor?")
+
+# Get a node by ID
+node = arc.get_node_by_id("commit-123")
+
+# Add nodes and edges
+arc.add_nodes_and_edges(nodes, edges)
+```
+
+**Database Adapter Priority:**
+- Implement both SQLite and Neo4j adapters from the start, with Neo4j as a stub implementation
+- Establish the adapter interface based on real requirements for both implementations
+- Ensure the core SDK works with SQLite immediately
+- Lay the groundwork for the cloud strategy without delaying the initial release
+- Avoid major refactoring when fully implementing the Neo4j adapter later
+
+**Framework Adapter Scope:**
+- Follow the NVIDIA AIQ pattern of treating components as function calls
+- Create a clean adapter protocol that any framework can implement
+- Ensure core SDK functions work without any framework dependencies
+- Start with LangChain as a reference implementation while maintaining framework agnosticism
+
+**Testing Strategy:**
+- Write tests alongside implementation to ensure functionality works as expected
+- Provide documentation of expected behavior through test cases
+- Make it easier to refactor with confidence
+- Help identify edge cases early
+- Use a combination of unit tests for individual components and integration tests
+
+**Documentation Approach:**
+- Start with basic usage examples that can be refined based on user feedback
+- Include clear docstrings for all public functions and classes
+- Create a few key usage examples demonstrating the most common workflows
+- Develop a simple "Getting Started" guide
+- Generate API reference documentation from docstrings
+
+### PR 2a: Extract Core Query & Relate Functions
+
+#### Overview
+PR 2a will extract logic from query-related CLI commands into SDK methods, focusing on the `why` and `relate` commands. This will provide a clean, agent-friendly API for querying the knowledge graph and exploring entity relationships.
+
+#### Key Components
+
+1. **Enhanced Query API**:
+   ```python
+   def query(
+       self,
+       question: str,
+       max_results: int = 5,
+       max_hops: int = 3,
+       include_causal: bool = True,  # Emphasize causal relationships
+       cache: bool = True,
+       callback: Optional[ProgressCallback] = None
+   ) -> QueryResult:
+       """Query the knowledge graph using natural language.
+
+       This method enables natural language queries about the codebase, focusing on
+       causal relationships and decision trails. It's particularly useful for understanding
+       why certain changes were made and their implications.
+       """
+   ```
+
+2. **Enhanced Entity Relationship API**:
+   ```python
+   def get_related_entities(
+       self,
+       entity_id: str,
+       relationship_types: Optional[List[str]] = None,
+       direction: str = "both",  # "outgoing", "incoming", or "both"
+       max_results: int = 10,
+       include_properties: bool = True,  # Include edge properties
+       cache: bool = True
+   ) -> List[EntityDetails]:
+       """Get entities related to a specific entity.
+
+       This method enables exploration of relationships between entities in the knowledge graph.
+       It's particularly useful for understanding dependencies between components and tracing
+       the impact of changes.
+       """
+   ```
+
+3. **Enhanced Decision Trail API**:
+   ```python
+   def get_decision_trail(
+       self,
+       file_path: str,
+       line_number: int,
+       max_results: int = 5,
+       max_hops: int = 3,
+       include_rationale: bool = True,  # Extract decision rationale
+       cache: bool = True,
+       callback: Optional[ProgressCallback] = None
+   ) -> List[EntityDetails]:
+       """Get the decision trail for a specific line in a file.
+
+       This method traces the history of a specific line in a file, showing the commit
+       that last modified it and related entities such as PRs, issues, and ADRs. It's
+       particularly useful for understanding why a particular piece of code exists.
+       """
+   ```
+
+4. **Component Impact API (Blast Radius)**:
+   ```python
+   def get_component_impact(
+       self,
+       entity_ids: List[str],
+       max_depth: int = 3,
+       impact_types: Optional[List[str]] = None,
+       cache: bool = True,
+       callback: Optional[ProgressCallback] = None
+   ) -> Dict[str, List[EntityDetails]]:
+       """Get the potential impact of changes to specific entities.
+
+       This method analyzes the knowledge graph to identify components that may be
+       affected by changes to the specified entities. It's particularly useful for
+       assessing the blast radius of proposed changes.
+       """
+   ```
+
+5. **Temporal Analysis API**:
+   ```python
+   def get_entity_history(
+       self,
+       entity_id: str,
+       start_date: Optional[datetime] = None,
+       end_date: Optional[datetime] = None,
+       include_related: bool = True,
+       max_results: int = 20,
+       cache: bool = True
+   ) -> List[Dict[str, Any]]:
+       """Get the history of an entity over time.
+
+       This method retrieves the history of an entity, including changes and related
+       events. It's particularly useful for understanding how a component has evolved
+       over time.
+       """
+   ```
+
+6. **Caching Implementation**:
+   - Implement a caching mechanism for query results and entity details
+   - Support time-based expiration (TTL)
+   - Provide cache statistics and invalidation options
+   - Optimize for repeated queries from agents
+
+7. **Progress Reporting**:
+   - Implement callback-based progress reporting for long-running operations
+   - Support both human-readable and machine-readable formats
+   - Enable cancellation of operations
+   - Include detailed progress metrics
+
+#### Implementation Priorities
+
+1. **Query API** and **Decision Trail API**: These directly address the primary persona's need to understand context and decisions.
+2. **Entity Relationship API**: This supports understanding component relationships, which is critical for both primary and secondary personas.
+3. **Component Impact API**: This lays groundwork for blast radius prediction, a key differentiator for Arc Memory.
+4. **Temporal Analysis API**: This supports understanding system evolution, which is important for all personas but especially the secondary and tertiary ones.
+
+#### Testing Strategy
+
+- Implement comprehensive unit tests for all new API methods
+- Create integration tests that verify end-to-end functionality
+- Test with both human and agent usage patterns
+- Verify caching behavior and performance improvements
+
+### PR 2b: Extract Build & Refresh Functions
+- Extract logic from build-related CLI commands into SDK methods (`build`, `refresh`)
+- Implement Graph Building API functions
+- Ensure backward compatibility for these commands
+- Add comprehensive tests for build functionality
 
 ### PR 3: Framework Adapter Architecture
 - Implement the framework adapter discovery mechanism
 - Create the base adapter protocol
 - Add helper methods for working with adapters
 - Implement plugin discovery for framework adapters
+- Add tests for the adapter architecture
 
-### PR 4: LangChain Adapter
-- Implement the LangChain adapter
-- Create examples showing LangChain integration
-- Add tests for LangChain integration
-- Implement LangChain-specific helper functions
+### PR 4: Basic Framework Adapters Implementation
+- Implement core adapters for both LangChain and OpenAI
+- Create foundational patterns for both frameworks
+- Implement basic conversion of SDK functions to tool formats
+- Add shared testing utilities for adapters
 
-### PR 5: OpenAI Function Calling Adapter
-- Implement the OpenAI adapter
-- Create examples showing OpenAI integration
-- Add tests for OpenAI integration
+### PR 5: Advanced Adapter Features
+- Implement advanced adapter features for LangChain and OpenAI
+- Create examples showing integration with both frameworks
+- Add comprehensive tests for all adapter functionality
+- Implement framework-specific helper functions
 
-### PR 6: CLI Updates
+### PR 6: Testing Infrastructure
+- Create comprehensive testing infrastructure
+- Implement test fixtures and mocks for different components
+- Add integration tests with actual frameworks
+- Implement performance benchmarks and regression tests
+
+### PR 7: CLI Updates and Documentation
 - Update CLI commands to use the SDK
 - Ensure backward compatibility
 - Add deprecation warnings for direct usage patterns
-- Optimize CLI performance
-
-### PR 7: Documentation and Examples
-- Create comprehensive documentation
-- Add examples for each supported framework
-- Create tutorials for extending with new frameworks
+- Create comprehensive documentation and examples
 - Add migration guides for existing users
 - Create demo for enterprise customers (e.g., Snowflake)
 
-This implementation plan aligns with our three-phase approach:
+**Backward Compatibility Approach:**
+- Design the SDK with a clean, intuitive interface optimized for agent usage
+- Implement CLI commands as thin wrappers around the SDK functions
+- Maintain backward compatibility for CLI syntax and behavior
+- Add deprecation warnings for any CLI features that will change in future versions
+- Provide migration guides for users transitioning from CLI to SDK
+- This approach serves both technical teams who prefer direct SDK integration and users who are comfortable with the existing CLI workflow
 
-- **Phase 1 (0.5 months)**: PRs 1-2 establish the minimal SDK API
-- **Phase 2 (1 month)**: PRs 3-5 implement framework adapters, focusing on LangChain integration
-- **Phase 3 (0.5 months)**: PRs 6-7 update the CLI and create comprehensive documentation
+This refined implementation plan addresses key risks and ensures more manageable PR sizes:
+
+- **Better Database Integration**: PR #1 explicitly addresses database abstraction from the start
+- **More Manageable PR Sizes**: Splitting core command extraction into PR #2a and #2b
+- **Logical Grouping**: Organizing adapters by functionality rather than by framework
+- **Testing Emphasis**: Adding a dedicated PR for comprehensive testing
+
+The implementation plan still aligns with our three-phase approach:
+
+- **Phase 1 (0.5 months)**: PRs 1, 2a, and 2b establish the minimal SDK API
+- **Phase 2 (1 month)**: PRs 3, 4, 5, and 6 implement the framework adapters and testing
+- **Phase 3 (0.5 months)**: PR 7 updates the CLI and creates comprehensive documentation
 
 ## Next Steps
 
-1. Begin PR 1 by creating the core SDK structure and return types
-2. Extract core logic from the `why`, `relate`, and `build` commands in PR 2
-3. Implement the framework adapter architecture in PR 3
-4. Create the LangChain adapter in PR 4
-5. Implement the OpenAI adapter in PR 5
-6. Update the CLI to use the SDK in PR 6
-7. Create comprehensive documentation and examples in PR 7
-8. Test with Protocol Labs repositories to gather feedback throughout the process
+1. Begin PR 1 by creating the core SDK structure with database integration
+2. Extract query functionality in PR 2a, focusing on `why` and `relate` commands
+3. Extract build functionality in PR 2b, focusing on `build` and `refresh` commands
+4. Implement the framework adapter architecture in PR 3
+5. Create basic adapters for both LangChain and OpenAI in PR 4
+6. Add advanced adapter features in PR 5
+7. Implement comprehensive testing infrastructure in PR 6
+8. Update the CLI and documentation in PR 7
+9. Test with Protocol Labs repositories to gather feedback throughout the process
 
 ## Implementation Example Building on Existing Plugin Architecture
 
