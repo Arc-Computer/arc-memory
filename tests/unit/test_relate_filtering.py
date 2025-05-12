@@ -1,75 +1,75 @@
-"""Test relationship filtering in the relate command."""
+"""Test relationship filtering in the SDK relationships module."""
 
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 from datetime import datetime
-from arc_memory.schema.models import Node, NodeType
-from arc_memory.cli.relate import get_related_nodes
+
+from arc_memory.schema.models import NodeType, EdgeRel
 
 
 class TestRelateFiltering(unittest.TestCase):
-    """Test relationship filtering in the relate command."""
+    """Test relationship filtering in the SDK relationships module."""
 
-    @patch("arc_memory.cli.relate.format_trace_results")
-    @patch("arc_memory.cli.relate.get_node_by_id")
-    @patch("arc_memory.cli.relate.get_connected_nodes")
-    def test_get_related_nodes_with_relationship_filter(self, mock_get_connected_nodes, mock_get_node_by_id, mock_format_trace_results):
-        """Test filtering related nodes by relationship type."""
-        # Setup mocks
-        mock_conn = MagicMock()
-        mock_entity = MagicMock()
+    def test_get_related_entities_with_relationship_filter(self):
+        """Test filtering related entities by relationship type."""
+        # Import the function
+        from arc_memory.sdk.relationships import get_related_entities
 
-        # Create a proper Node object for the PR
-        pr_node = Node(
-            id="pr:42",
-            type=NodeType.PR,
-            title="Test PR",
-            body="Test body",
-            ts=datetime.now(),
-            extra={"number": 42, "state": "open", "url": "https://github.com/test/repo/pull/42"}
-        )
+        # Create a mock adapter
+        mock_adapter = MagicMock()
 
-        # Mock the entity exists
-        mock_get_node_by_id.side_effect = lambda conn, node_id: mock_entity if node_id == "commit:abc123" else pr_node if node_id == "pr:42" else None
+        # Setup mock return values
 
-        # Mock connected nodes
-        mock_get_connected_nodes.return_value = ["pr:42", "issue:123"]
+        # Mock outgoing edges
+        mock_adapter.get_edges_by_src.return_value = [
+            {
+                "src": "commit:abc123",
+                "dst": "pr:42",
+                "rel": "MERGES",
+                "properties": {}
+            }
+        ]
 
-        # Mock cursor for SQL query
-        mock_cursor = MagicMock()
-        mock_conn.cursor.return_value = mock_cursor
-        mock_cursor.fetchall.return_value = [("pr:42",)]  # Only PR:42 has the MERGES relationship
+        # Mock incoming edges (empty)
+        mock_adapter.get_edges_by_dst.return_value = []
 
-        # Mock format_trace_results to return a list with one formatted node
-        formatted_node = {
-            "type": "pr",
+        # Mock PR node
+        pr_node = {
             "id": "pr:42",
+            "type": NodeType.PR,
             "title": "Test PR",
+            "body": "Test body",
             "timestamp": datetime.now().isoformat(),
-            "number": 42,
-            "state": "open",
-            "url": "https://github.com/test/repo/pull/42"
+            "extra": {
+                "number": 42,
+                "state": "open",
+                "url": "https://github.com/test/repo/pull/42"
+            }
         }
-        mock_format_trace_results.return_value = [formatted_node]
+        mock_adapter.get_node_by_id.return_value = pr_node
 
         # Call the function with relationship filter
-        result = get_related_nodes(mock_conn, "commit:abc123", max_results=10, relationship_type="MERGES")
-
-        # Verify SQL query was executed with correct parameters
-        mock_cursor.execute.assert_called_once_with(
-            "SELECT dst FROM edges WHERE src = ? AND rel = ? UNION SELECT src FROM edges WHERE dst = ? AND rel = ?",
-            ("commit:abc123", "MERGES", "commit:abc123", "MERGES")
+        result = get_related_entities(
+            adapter=mock_adapter,
+            entity_id="commit:abc123",
+            relationship_types=["MERGES"],
+            direction="both",
+            max_results=10,
+            include_properties=True
         )
 
-        # Verify format_trace_results was called with the correct node
-        mock_format_trace_results.assert_called_once()
-        args, _ = mock_format_trace_results.call_args
-        self.assertEqual(len(args[0]), 1)
-        self.assertEqual(args[0][0].id, "pr:42")
+        # Verify the adapter methods were called with the correct parameters
+        mock_adapter.get_edges_by_src.assert_called_once_with("commit:abc123")
+        mock_adapter.get_edges_by_dst.assert_called_once_with("commit:abc123")
+        mock_adapter.get_node_by_id.assert_called_once_with("pr:42")
 
-        # Verify only nodes with the specified relationship were returned
+        # Verify only entities with the specified relationship were returned
         self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["id"], "pr:42")
+        self.assertEqual(result[0].id, "pr:42")
+        self.assertEqual(result[0].type, NodeType.PR)
+        self.assertEqual(result[0].title, "Test PR")
+        self.assertEqual(result[0].relationship, EdgeRel.MERGES)
+        self.assertEqual(result[0].direction, "outgoing")
 
 
 if __name__ == "__main__":
