@@ -336,7 +336,7 @@ def query(
             query_results = {
                 "query": query_result.query,
                 "answer": query_result.answer,
-                "confidence": query_result.confidence * 10,  # Convert 0-1 scale to 0-10
+                "confidence": query_result.confidence,  # Already on 0-10 scale
                 "results": query_result.evidence,
                 "understanding": query_result.query_understanding,
                 "reasoning": query_result.reasoning,

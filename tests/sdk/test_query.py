@@ -41,7 +41,7 @@ class TestQuery(unittest.TestCase):
         self.assertIsInstance(result, QueryResult)
         self.assertEqual(result.query, "What is the meaning of life?")
         self.assertEqual(result.answer, "This is the answer")
-        self.assertEqual(result.confidence, 0.85)  # Converted from 0-10 to 0-1
+        self.assertEqual(result.confidence, 8.5)  # Retained on 0-10 scale
         self.assertEqual(len(result.evidence), 1)
         self.assertEqual(result.evidence[0]["id"], "1")
         self.assertEqual(result.query_understanding, "This is the understanding")

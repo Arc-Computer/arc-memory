@@ -93,7 +93,7 @@ def query_knowledge_graph(
         return QueryResult(
             query=question,
             answer=result.get("answer", ""),
-            confidence=result.get("confidence", 0.0) / 10.0,  # Convert 0-10 scale to 0-1
+            confidence=result.get("confidence", 0.0),  # Retain confidence score on 0-10 scale
             evidence=result.get("results", []),
             query_understanding=result.get("understanding", ""),
             reasoning=result.get("reasoning", ""),

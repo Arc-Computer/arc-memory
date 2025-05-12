@@ -1,7 +1,8 @@
 """Tests for the progress module."""
 
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
+from unittest.mock import patch
 
 from arc_memory.sdk.progress import ProgressStage, ProgressCallback, LoggingProgressCallback
 
@@ -49,7 +50,7 @@ class TestProgress(unittest.TestCase):
             )
 
             # Check that the logger was called with the expected message
-            mock_logger.info.assert_called_once_with("[ProgressStage.INITIALIZING] Test message (50%)")
+            mock_logger.info.assert_called_once_with("[initializing] Test message (50%)")
 
             # Call the callback with different parameters
             callback(
@@ -59,7 +60,7 @@ class TestProgress(unittest.TestCase):
             )
 
             # Check that the logger was called with the expected message
-            mock_logger.info.assert_called_with("[ProgressStage.COMPLETING] Completed (100%)")
+            mock_logger.info.assert_called_with("[completing] Completed (100%)")
 
 
 if __name__ == "__main__":

@@ -70,4 +70,4 @@ class LoggingProgressCallback(ProgressCallback):
             progress: A float between 0.0 and 1.0 indicating the overall progress.
             metadata: Additional metadata about the progress.
         """
-        logger.info(f"[{stage}] {message} ({progress:.0%})")
+        logger.info(f"[{stage.value}] {message} ({progress:.0%})")

@@ -215,7 +215,9 @@ class Arc:
             max_results: Maximum number of results to return.
             max_hops: Maximum number of hops in the graph traversal.
             include_causal: Whether to prioritize causal relationships.
-            cache: Whether to use cached results if available.
+            cache: Whether to use cached results if available. When True (default),
+                results are cached and retrieved from cache if a matching query exists.
+                Set to False to force a fresh query execution.
             callback: Optional callback for progress reporting.
 
         Returns:
@@ -259,7 +261,9 @@ class Arc:
             max_results: Maximum number of results to return.
             max_hops: Maximum number of hops in the graph traversal.
             include_rationale: Whether to extract decision rationales.
-            cache: Whether to use cached results if available.
+            cache: Whether to use cached results if available. When True (default),
+                results are cached and retrieved from cache if a matching query exists.
+                Set to False to force a fresh query execution.
             callback: Optional callback for progress reporting.
 
         Returns:
@@ -303,7 +307,9 @@ class Arc:
             direction: Direction of relationships to include ("outgoing", "incoming", or "both").
             max_results: Maximum number of results to return.
             include_properties: Whether to include edge properties in the results.
-            cache: Whether to use cached results if available.
+            cache: Whether to use cached results if available. When True (default),
+                results are cached and retrieved from cache if a matching query exists.
+                Set to False to force a fresh query execution.
             callback: Optional callback for progress reporting.
 
         Returns:
@@ -339,7 +345,9 @@ class Arc:
         Args:
             entity_id: The ID of the entity.
             include_related: Whether to include related entities.
-            cache: Whether to use cached results if available.
+            cache: Whether to use cached results if available. When True (default),
+                results are cached and retrieved from cache if a matching query exists.
+                Set to False to force a fresh query execution.
             callback: Optional callback for progress reporting.
 
         Returns:
@@ -377,7 +385,9 @@ class Arc:
             component_id: The ID of the component to analyze.
             impact_types: Types of impact to include (direct, indirect, potential).
             max_depth: Maximum depth of impact analysis.
-            cache: Whether to use cached results if available.
+            cache: Whether to use cached results if available. When True (default),
+                results are cached and retrieved from cache if a matching query exists.
+                Set to False to force a fresh query execution.
             callback: Optional callback for progress reporting.
 
         Returns:
@@ -417,7 +427,9 @@ class Arc:
             start_date: Optional start date for the history.
             end_date: Optional end date for the history.
             include_related: Whether to include related entities in the history.
-            cache: Whether to use cached results if available.
+            cache: Whether to use cached results if available. When True (default),
+                results are cached and retrieved from cache if a matching query exists.
+                Set to False to force a fresh query execution.
             callback: Optional callback for progress reporting.
 
         Returns:
