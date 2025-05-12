@@ -17,8 +17,9 @@ from rich.panel import Panel
 from rich.table import Table
 
 from arc_memory.logging_conf import configure_logging, get_logger, is_debug_mode
+from arc_memory.sdk import Arc
+from arc_memory.sdk.progress import LoggingProgressCallback
 from arc_memory.telemetry import track_command_usage
-from arc_memory.trace import trace_history_for_file_line
 
 class Format(str, Enum):
     """Output format for why results."""
@@ -79,34 +80,44 @@ def file(
     track_command_usage("why_file", context=context)
 
     try:
-        # Get the database path
-        from arc_memory.sql.db import ensure_arc_dir
-        arc_dir = ensure_arc_dir()
-        db_path = arc_dir / "graph.db"
-
-        # Check if the database exists
-        if not db_path.exists():
-            error_msg = f"Error: Database not found at {db_path}"
-            if format == Format.JSON:
-                # For JSON format, print errors to stderr
-                print(error_msg, file=sys.stderr)
-            else:
-                # For text format, use rich console
-                console.print(f"[red]{error_msg}[/red]")
-                console.print(
-                    "Run [bold]arc build[/bold] to create the knowledge graph."
-                )
-            sys.exit(1)
-
-        # Trace the history
+        # Create an Arc instance
         try:
-            results = trace_history_for_file_line(
-                db_path,
-                file_path,
-                line_number,
-                max_results,
-                max_hops
+            arc = Arc(repo_path="./")
+
+            # Create a progress callback
+            progress_callback = LoggingProgressCallback()
+
+            # Get the decision trail
+            results = arc.get_decision_trail(
+                file_path=file_path,
+                line_number=line_number,
+                max_results=max_results,
+                max_hops=max_hops,
+                include_rationale=True,
+                callback=progress_callback
             )
+
+            # Convert to the format expected by the CLI
+            formatted_results = []
+            for entry in results:
+                # Convert EntityDetails to dict
+                result = {
+                    "id": entry.id,
+                    "type": entry.type,
+                    "title": entry.title or "",
+                    "body": entry.body or "",
+                    "timestamp": entry.timestamp.isoformat() if entry.timestamp else None,
+                    "rationale": entry.rationale,
+                    "importance": entry.importance,
+                    "trail_position": entry.trail_position
+                }
+
+                # Add type-specific properties
+                for key, value in entry.properties.items():
+                    result[key] = value
+
+                formatted_results.append(result)
+
         except Exception as e:
             error_msg = f"Error: {e}"
             if format == Format.JSON:
@@ -120,7 +131,7 @@ def file(
             track_command_usage("why_file", success=False, error=e, context=context)
             sys.exit(1)
 
-        if not results:
+        if not formatted_results:
             if format == Format.JSON:
                 # For JSON format, return empty array
                 print("[]")
@@ -135,15 +146,19 @@ def file(
         # Output based on format
         if format == Format.JSON:
             # JSON output - print directly to stdout
-            print(json.dumps(results))
+            print(json.dumps(formatted_results))
         elif format == Format.MARKDOWN:
             # Markdown output
             md_content = f"# Decision Trail for {file_path}:{line_number}\n\n"
 
-            for result in results:
+            for result in formatted_results:
                 md_content += f"## {result['type'].capitalize()}: {result['title']}\n\n"
                 md_content += f"**ID**: {result['id']}  \n"
                 md_content += f"**Timestamp**: {result['timestamp'] or 'N/A'}  \n\n"
+
+                # Add rationale if available
+                if result.get("rationale"):
+                    md_content += f"**Rationale**: {result['rationale']}  \n\n"
 
                 # Add type-specific details
                 if result["type"] == "commit":
@@ -185,11 +200,15 @@ def file(
             console.print(Panel(f"[bold]Decision Trail for {file_path}:{line_number}[/bold]",
                                style="green"))
 
-            for result in results:
+            for result in formatted_results:
                 # Create a panel for each result
                 title = f"[bold]{result['type'].upper()}[/bold]: {result['title']}"
                 content = f"ID: {result['id']}\n"
                 content += f"Timestamp: {result['timestamp'] or 'N/A'}\n\n"
+
+                # Add rationale if available
+                if result.get("rationale"):
+                    content += f"Rationale: {result['rationale']}\n\n"
 
                 # Add type-specific details
                 if result["type"] == "commit":
@@ -287,46 +306,43 @@ def query(
     track_command_usage("why_query", context=context)
 
     try:
-        # Get the database path
-        from arc_memory.sql.db import ensure_arc_dir
-        arc_dir = ensure_arc_dir()
-        db_path = arc_dir / "graph.db"
-
-        # Check if the database exists
-        if not db_path.exists():
-            error_msg = f"Error: Database not found at {db_path}"
-            if format == Format.JSON:
-                # For JSON format, print errors to stderr
-                print(error_msg, file=sys.stderr)
-            else:
-                # For text format, use rich console
-                console.print(f"[red]{error_msg}[/red]")
-                console.print(
-                    "Run [bold]arc build[/bold] to create the knowledge graph."
-                )
-            sys.exit(1)
-
-        # Import the natural language query processor
-        from arc_memory.semantic_search import process_query
-
-        # Process the natural language query
-        console.print(Panel("[bold yellow]Processing your question...[/bold yellow]"))
-
-        # Convert depth string to max_hops parameter
-        max_hops = {
-            "shallow": 2,
-            "medium": 3,
-            "deep": 4
-        }.get(depth.lower(), 3)
-
-        # Process the query and get results
+        # Create an Arc instance
         try:
-            query_results = process_query(
-                db_path,
-                question,
+            arc = Arc(repo_path="./")
+
+            # Create a progress callback
+            progress_callback = LoggingProgressCallback()
+
+            # Process the natural language query
+            console.print(Panel("[bold yellow]Processing your question...[/bold yellow]"))
+
+            # Convert depth string to max_hops parameter
+            max_hops = {
+                "shallow": 2,
+                "medium": 3,
+                "deep": 4
+            }.get(depth.lower(), 3)
+
+            # Query the knowledge graph
+            query_result = arc.query(
+                question=question,
                 max_results=max_results,
-                max_hops=max_hops
+                max_hops=max_hops,
+                include_causal=True,
+                callback=progress_callback
             )
+
+            # Convert to the format expected by the CLI
+            query_results = {
+                "query": query_result.query,
+                "answer": query_result.answer,
+                "confidence": query_result.confidence * 10,  # Convert 0-1 scale to 0-10
+                "results": query_result.evidence,
+                "understanding": query_result.query_understanding,
+                "reasoning": query_result.reasoning,
+                "summary": query_result.answer.split(".")[0] if query_result.answer else ""
+            }
+
         except Exception as e:
             error_msg = str(e)
             if "Ollama" in error_msg:

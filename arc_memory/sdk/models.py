@@ -120,3 +120,48 @@ class GraphStatistics(BaseModel):
 
     build_time: Optional[float] = None
     """Time taken to build the graph in seconds."""
+
+
+class DecisionTrailEntry(EntityDetails):
+    """An entry in a decision trail.
+
+    This model extends EntityDetails to include decision-specific information.
+    """
+
+    rationale: Optional[str] = None
+    """The rationale behind this decision or change."""
+
+    importance: float = 0.5
+    """Importance score for this entry in the decision trail (0.0-1.0)."""
+
+    trail_position: int = 0
+    """Position in the decision trail (0 = most recent)."""
+
+
+class ImpactResult(EntityDetails):
+    """Result of an impact analysis.
+
+    This model extends EntityDetails to include impact-specific information.
+    """
+
+    impact_type: str
+    """Type of impact (direct, indirect, potential)."""
+
+    impact_score: float
+    """Score indicating the severity of the impact (0.0-1.0)."""
+
+    impact_path: List[str] = Field(default_factory=list)
+    """Path of entities showing how the impact propagates."""
+
+
+class HistoryEntry(EntityDetails):
+    """An entry in an entity's history.
+
+    This model extends EntityDetails to include history-specific information.
+    """
+
+    change_type: str
+    """Type of change (created, modified, referenced)."""
+
+    previous_version: Optional[str] = None
+    """ID of the previous version of this entity, if applicable."""
