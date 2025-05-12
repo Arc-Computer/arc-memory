@@ -3,7 +3,10 @@
 This package provides adapters for integrating Arc Memory with various agent frameworks.
 The adapters convert Arc Memory's return types to framework-specific formats.
 
-Example:
+Note: The framework adapter functionality will be fully implemented in a future PR.
+This module currently contains only the adapter protocol and registry structure.
+
+Future Example (coming in a subsequent PR):
     ```python
     from arc_memory.sdk import Arc
     from arc_memory.sdk.adapters import get_adapter
