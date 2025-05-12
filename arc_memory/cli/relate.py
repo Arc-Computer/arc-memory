@@ -6,15 +6,16 @@ This command shows nodes related to a specific entity in the knowledge graph.
 import json
 import sys
 from enum import Enum
-from typing import List, Dict, Any, Optional
+from typing import Optional
 
 import typer
 from rich.console import Console
 from rich.table import Table
 
 from arc_memory.logging_conf import configure_logging, get_logger, is_debug_mode
+from arc_memory.sdk import Arc
+from arc_memory.sdk.progress import LoggingProgressCallback
 from arc_memory.telemetry import track_command_usage
-from arc_memory.trace import get_connected_nodes, get_node_by_id, format_trace_results
 
 class Format(str, Enum):
     """Output format for relate results."""
@@ -33,54 +34,7 @@ def callback() -> None:
     configure_logging(debug=is_debug_mode())
 
 
-def get_related_nodes(
-    conn: Any, entity_id: str, max_results: int = 10, relationship_type: Optional[str] = None
-) -> List[Dict[str, Any]]:
-    """Get nodes related to a specific entity.
-
-    Args:
-        conn: SQLite connection
-        entity_id: The ID of the entity
-        max_results: Maximum number of results to return
-        relationship_type: Optional relationship type to filter by
-
-    Returns:
-        A list of related nodes
-    """
-    try:
-        # Check if the entity exists
-        entity = get_node_by_id(conn, entity_id)
-        if not entity:
-            return []
-
-        # Get connected nodes
-        connected_nodes = get_connected_nodes(conn, entity_id)
-
-        # Filter by relationship type if specified
-        if relationship_type:
-            # Query the edges table to get nodes with the specified relationship type
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT dst FROM edges WHERE src = ? AND rel = ? UNION SELECT src FROM edges WHERE dst = ? AND rel = ?",
-                (entity_id, relationship_type, entity_id, relationship_type)
-            )
-            filtered_ids = set(row[0] for row in cursor.fetchall())
-            # Only keep nodes that have the specified relationship type
-            connected_nodes = [node_id for node_id in connected_nodes if node_id in filtered_ids]
-
-        # Get the node details for each connected ID
-        related_nodes = []
-        for node_id in connected_nodes[:max_results]:
-            node = get_node_by_id(conn, node_id)
-            if node:
-                related_nodes.append(node)
-
-        # Format the results
-        return format_trace_results(related_nodes)
-
-    except Exception as e:
-        logger.error(f"Error in get_related_nodes: {e}")
-        return []
+# This function is no longer needed as we're using the SDK
 
 
 @app.command()
@@ -122,29 +76,55 @@ def node(
     track_command_usage("relate_node", context=context)
 
     try:
-        # Get the database path
-        from arc_memory.sql.db import ensure_arc_dir, get_connection
-        arc_dir = ensure_arc_dir()
-        db_path = arc_dir / "graph.db"
-
-        # Check if the database exists
-        if not db_path.exists():
-            error_msg = f"Error: Database not found at {db_path}"
-            if format == Format.JSON:
-                # For JSON format, print errors to stderr
-                print(error_msg, file=sys.stderr)
-            else:
-                # For text format, use rich console
-                console.print(f"[red]{error_msg}[/red]")
-                console.print(
-                    "Run [bold]arc build[/bold] to create the knowledge graph."
-                )
-            sys.exit(1)
-
-        # Get related nodes
+        # Create an Arc instance
         try:
-            conn = get_connection(db_path)
-            related_nodes = get_related_nodes(conn, entity_id, max_results, relationship_type)
+            arc = Arc(repo_path="./")
+
+            # Create a progress callback
+            progress_callback = LoggingProgressCallback()
+
+            # Get related entities
+            related_entities = arc.get_related_entities(
+                entity_id=entity_id,
+                relationship_types=[relationship_type] if relationship_type else None,
+                direction="both",
+                max_results=max_results,
+                include_properties=True,
+                callback=progress_callback
+            )
+
+            # Convert to the format expected by the CLI
+            related_nodes = []
+            for entity in related_entities:
+                # Convert RelatedEntity to dict
+                node = {
+                    "id": entity.id,
+                    "type": entity.type,
+                    "title": entity.title or "",
+                    "relationship": entity.relationship,
+                    "direction": entity.direction
+                }
+
+                # Get full entity details
+                try:
+                    details = arc.get_entity_details(
+                        entity_id=entity.id,
+                        include_related=False
+                    )
+
+                    # Add additional details
+                    node["body"] = details.body
+                    node["timestamp"] = details.timestamp.isoformat() if details.timestamp else None
+
+                    # Add type-specific properties
+                    for key, value in details.properties.items():
+                        node[key] = value
+
+                except Exception as e:
+                    logger.warning(f"Error getting details for {entity.id}: {e}")
+
+                related_nodes.append(node)
+
         except Exception as e:
             error_msg = f"Error: {e}"
             if format == Format.JSON:
