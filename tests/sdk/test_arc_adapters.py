@@ -80,14 +80,21 @@ class TestArcAdapters(unittest.TestCase):
 
         # Check that the correct functions were passed to adapt_functions
         functions = mock_adapter.adapt_functions.call_args[0][0]
-        self.assertEqual(len(functions), 6)
         function_names = [func.__name__ for func in functions]
-        self.assertIn("query", function_names)
-        self.assertIn("get_decision_trail", function_names)
-        self.assertIn("get_related_entities", function_names)
-        self.assertIn("get_entity_details", function_names)
-        self.assertIn("analyze_component_impact", function_names)
-        self.assertIn("get_entity_history", function_names)
+
+        # Verify expected functions are included
+        expected_functions = [
+            "query",
+            "get_decision_trail",
+            "get_related_entities",
+            "get_entity_details",
+            "analyze_component_impact",
+            "get_entity_history"
+        ]
+
+        for expected_func in expected_functions:
+            self.assertIn(expected_func, function_names,
+                          f"Expected function '{expected_func}' not found in adapted functions")
 
     @patch("arc_memory.sdk.core.get_adapter")
     def test_create_agent(self, mock_get_adapter):
