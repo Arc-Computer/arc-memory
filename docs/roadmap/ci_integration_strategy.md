@@ -18,49 +18,7 @@ As AI generates exponentially more code, the critical bottleneck shifts from *ge
 
 ## Framework-Agnostic and Database-Flexible Approach
 
-Drawing inspiration from NVIDIA's AIQ framework and Neo4j's GraphRAG ecosystem, our CI integration will be both framework-agnostic and database-flexible, treating all components as function calls to enable true composability. This allows teams to use Arc Memory regardless of their agent usage level and database preference (SQLite for individual developers, Neo4j for team-wide collaboration).
-
-### For Agent-Heavy Teams
-
-```yaml
-# Example GitHub Actions workflow for agent-heavy teams
-name: Arc Memory Agent Integration
-
-on:
-  pull_request:
-    types: [opened, synchronize]
-
-jobs:
-  arc-memory-analysis:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-
-      - name: Set up Arc Memory
-        uses: arc-computer/setup-arc-memory@v1
-
-      - name: Build Knowledge Graph
-        run: arc build --github --auto-refresh
-
-      - name: Configure Database
-        uses: arc-computer/setup-database@v1
-        with:
-          type: neo4j  # or sqlite for local-only usage
-
-      - name: Run Agent-Based Analysis
-        uses: arc-computer/arc-agent-analysis@v1
-        with:
-          agent-framework: langchain # or llamaindex, autogen, etc.
-          analysis-type: blast-radius
-          model: o4-mini
-
-      - name: Post Analysis Results
-        uses: arc-computer/arc-pr-comment@v1
-        with:
-          comment-type: blast-radius-prediction
-```
+Drawing inspiration from NVIDIA's AIQ framework, Neo4j's GraphRAG ecosystem, and GitHub's CodeQL, our CI integration will be both framework-agnostic and database-flexible, treating all components as function calls to enable true composability. This allows teams to use Arc Memory regardless of their agent usage level and database preference (SQLite for individual developers, Neo4j for team-wide collaboration).
 
 ### For Traditional Teams
 
@@ -83,16 +41,73 @@ jobs:
       - name: Set up Arc Memory
         uses: arc-computer/setup-arc-memory@v1
 
+      - name: Cache Knowledge Graph
+        uses: actions/cache@v3
+        with:
+          path: .arc/graph.db
+          key: ${{ runner.os }}-arc-${{ github.repository }}-${{ hashFiles('.git/HEAD') }}
+          restore-keys: |
+            ${{ runner.os }}-arc-${{ github.repository }}-
+
       - name: Build Knowledge Graph
-        run: arc build --github
+        run: arc build --github --incremental
 
       - name: Analyze PR Impact
-        run: arc why --pr ${{ github.event.pull_request.number }} --output-format markdown > analysis.md
+        run: arc ci analyze --pr ${{ github.event.pull_request.number }} --output-format markdown > analysis.md
 
       - name: Post Analysis Results
         uses: arc-computer/arc-pr-comment@v1
         with:
           comment-file: analysis.md
+          comment-mode: update
+```
+
+### For Agent-Heavy Teams (Future)
+
+```yaml
+# Example GitHub Actions workflow for agent-heavy teams (Phase 2/3)
+name: Arc Memory Agent Integration
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+
+jobs:
+  arc-memory-analysis:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Arc Memory
+        uses: arc-computer/setup-arc-memory@v1
+
+      - name: Cache Knowledge Graph
+        uses: actions/cache@v3
+        with:
+          path: .arc/graph.db
+          key: ${{ runner.os }}-arc-${{ github.repository }}-${{ hashFiles('.git/HEAD') }}
+          restore-keys: |
+            ${{ runner.os }}-arc-${{ github.repository }}-
+
+      - name: Build Knowledge Graph
+        run: arc build --github --incremental
+
+      - name: Run Agent-Based Analysis
+        uses: arc-computer/arc-agent-analysis@v1
+        with:
+          agent-framework: langchain
+          analysis-type: blast-radius
+          model: openai
+          openai-api-key: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Post Analysis Results
+        uses: arc-computer/arc-pr-comment@v1
+        with:
+          comment-type: blast-radius-prediction
+          comment-mode: update
+          threshold: medium
 ```
 
 ## Implementation Strategy
@@ -101,21 +116,132 @@ jobs:
 
 1. **Setup Action**: `arc-computer/setup-arc-memory@v1`
    - Installs Arc Memory
-   - Configures authentication
-   - Sets up necessary environment
+   - Configures GitHub authentication using workflow token
+   - Sets up necessary environment variables
 
 2. **Analysis Actions**:
-   - `arc-computer/arc-agent-analysis@v1`: For agent-based analysis
-   - `arc-computer/arc-blast-radius@v1`: For blast radius prediction
-   - `arc-computer/arc-security-scan@v1`: For security vulnerability detection
+   - `arc-computer/arc-blast-radius@v1`: For heuristic-based blast radius prediction
+   - `arc-computer/arc-agent-analysis@v1`: For agent-based analysis (Phase 2/3)
 
 3. **Reporting Actions**:
    - `arc-computer/arc-pr-comment@v1`: Posts analysis results as PR comments
-   - `arc-computer/arc-dashboard-update@v1`: Updates Arc Memory dashboard
+     - Supports updating existing comments to avoid noise
+     - Configurable thresholds to only post high-signal insights
+     - Reaction buttons for user feedback
 
-### 2. Plugin Architecture Extensions
+### 2. Heuristic-Based Blast Radius Prediction
 
-Building on Arc Memory's existing plugin architecture, we'll add CI-specific and database-specific plugins:
+Our heuristic-based approach will focus on providing high-value insights without requiring LLM integration in Phase 1:
+
+1. **Static Dependency Analysis**:
+   - Parse import statements and function calls to build a dependency graph
+   - Identify direct and transitive dependencies of changed files
+   - Calculate centrality metrics to identify critical components
+
+2. **Historical Co-change Analysis**:
+   - Analyze commit history to identify files that frequently change together
+   - Build a co-change graph to predict likely affected components
+   - Identify patterns of changes that historically led to issues
+
+3. **Component Boundary Detection**:
+   - Use directory structure and naming conventions to identify logical components
+   - Map changes to architectural components in the knowledge graph
+   - Identify cross-component changes that have higher risk
+
+4. **Impact Scoring**:
+   - Calculate a weighted impact score based on:
+     - Number of dependent files/modules
+     - Centrality of changed components in the dependency graph
+     - Historical co-change patterns
+     - Test coverage of affected areas
+   - Only report insights that exceed configurable thresholds
+
+### 3. Performance Optimization
+
+Drawing from CodeQL's approach to CI performance, we'll implement:
+
+1. **Incremental Analysis**:
+   - Leverage the auto-refresh functionality to build incrementally
+   - Only analyze changes since the last analysis
+   - Reuse previous analysis results when possible
+
+2. **Caching Strategy**:
+   - Cache the knowledge graph between workflow runs using GitHub Actions cache
+   - Implement optimal cache key strategy based on repository state
+   - Use multi-level caching with fallbacks for partial cache hits
+   - Implement database-level caching for query results
+
+3. **Parallel Processing**:
+   - Parallelize graph building for different data sources
+   - Process GitHub, Linear, and ADR sources concurrently
+   - Use worker pools for dependency analysis
+   - Implement batched processing for large repositories
+
+4. **Configurable Depth**:
+   - Allow limiting the depth of dependency analysis
+   - Provide options to focus on specific directories
+   - Support excluding test files or generated code
+
+5. **CI-Specific Optimizations**:
+   - Add a `--ci` flag to the refresh command for CI-specific behavior
+   - Optimize for headless environments with minimal resource usage
+   - Implement CI-specific logging and progress reporting
+   - Auto-detect CI environments for default optimizations
+
+### 4. High-Signal PR Comments
+
+To ensure we only provide valuable insights and avoid noise:
+
+1. **Consolidated Comments**:
+   - Use a single, well-structured comment instead of multiple comments
+   - Update existing comments when new commits are pushed
+   - Organize insights by severity and component
+
+2. **Configurable Thresholds**:
+   - Only report insights that exceed configurable impact thresholds
+   - Allow teams to set their own threshold levels
+   - Provide default thresholds based on repository size and complexity
+
+3. **Progressive Disclosure**:
+   - Show the most critical insights by default
+   - Use expandable sections for additional details
+   - Provide links to more comprehensive analysis
+
+4. **User Feedback Loop**:
+   - Add reaction buttons to comments for user feedback
+   - Track which insights users find valuable
+   - Use feedback to improve future analysis
+
+### 5. CLI Commands for CI Integration
+
+We'll add new CLI commands to support CI integration:
+
+1. **CI Command**: `arc ci` with subcommands:
+   - `arc ci analyze`: Analyze a PR and generate a report
+     - Options for output format, severity threshold, and analysis depth
+     - Support for machine-readable output formats (JSON, YAML)
+   - `arc ci comment`: Post a comment to a PR
+     - Options for comment mode (create/update), threshold, and format
+   - `arc ci refresh`: CI-optimized refresh command
+     - Parallel processing of multiple data sources
+     - Enhanced progress reporting for CI environments
+
+2. **Configuration Options**:
+   - Support for custom configuration files
+   - Environment variable configuration
+   - Command-line options for CI-specific settings
+   - Auto-detection of CI environments
+
+3. **Progress Reporting**:
+   - Structured JSON output for machine consumption
+   - Detailed progress indicators for CI logs
+   - Timestamped entries for performance tracking
+   - Support for GitHub Actions annotations and workflow commands
+   - Configurable verbosity levels for different CI environments
+
+## Plugin Architecture Extensions
+
+Building on Arc Memory's existing plugin architecture, we'll add CI-specific plugins:
 
 ```python
 class CIPlugin(Protocol):
@@ -123,126 +249,114 @@ class CIPlugin(Protocol):
     def get_supported_ci_systems(self) -> List[str]: ...
     def process_ci_event(self, event_type: str, payload: Dict[str, Any]) -> None: ...
 
-class DatabasePlugin(Protocol):
+class BlastRadiusPlugin(Protocol):
     def get_name(self) -> str: ...
-    def get_supported_versions(self) -> List[str]: ...
-    def connect(self, connection_params: Dict[str, Any]) -> None: ...
-    def store_ci_data(self, data_type: str, data: Dict[str, Any]) -> None: ...
+    def analyze_changes(self, changes: List[str], depth: int = 2) -> Dict[str, Any]: ...
+    def get_impact_score(self, changes: List[str]) -> float: ...
+
+class ReportingPlugin(Protocol):
+    def get_name(self) -> str: ...
+    def format_report(self, analysis_results: Dict[str, Any], format: str = "markdown") -> str: ...
+    def should_report(self, impact_score: float, threshold: str = "medium") -> bool: ...
 ```
 
-This allows for extensibility to different CI systems beyond GitHub Actions and different database backends (SQLite for local development, Neo4j for team-wide collaboration).
-
-### 3. Agent Trace Collection
-
-For teams using agents, we'll collect agent traces to improve the world model:
-
-```python
-class AgentTraceCollector:
-    def __init__(self, repo_path: str):
-        self.repo_path = repo_path
-        self.traces = []
-
-    def record_agent_action(self, agent_id: str, action: str, context: Dict[str, Any]):
-        """Record an agent action for later analysis."""
-        self.traces.append({
-            "agent_id": agent_id,
-            "action": action,
-            "context": context,
-            "timestamp": datetime.now().isoformat()
-        })
-
-    def save_traces(self):
-        """Save traces to the knowledge graph."""
-        # Implementation
-```
-
-## RL Environment Integration
-
-The CI environment provides the perfect opportunity to train RL models on code changes and their outcomes:
-
-1. **State**: The codebase state before a change
-2. **Action**: The code change (PR)
-3. **Reward**: Build success, test results, performance metrics
-4. **Next State**: The codebase after the change
-
-This allows Arc Memory to learn from historical changes and predict outcomes for new changes.
-
-```python
-class CodebaseRLEnvironment:
-    def __init__(self, repo_path: str):
-        self.repo_path = repo_path
-        self.knowledge_graph = load_knowledge_graph(repo_path)
-
-    def get_state(self, commit_hash: str) -> Dict[str, Any]:
-        """Get the state of the codebase at a specific commit."""
-        return self.knowledge_graph.get_state_at_commit(commit_hash)
-
-    def get_action(self, pr_number: int) -> Dict[str, Any]:
-        """Get the action (code change) from a PR."""
-        return self.knowledge_graph.get_pr_changes(pr_number)
-
-    def get_reward(self, pr_number: int) -> float:
-        """Calculate the reward for a PR based on build success, test results, etc."""
-        # Implementation
-
-    def predict_outcome(self, current_state: Dict[str, Any], proposed_action: Dict[str, Any]) -> Dict[str, Any]:
-        """Predict the outcome of a proposed code change."""
-        # Implementation using trained RL model
-```
+This allows for extensibility to different CI systems beyond GitHub Actions and customization of analysis and reporting.
 
 ## Phased Rollout
 
 ### Phase 1: Basic CI Integration (1 month)
-- GitHub Actions for knowledge graph building
-- PR comment integration
-- Basic blast radius prediction
+- GitHub Actions for knowledge graph building with caching
+- Heuristic-based blast radius prediction using static analysis
+- PR comment integration with configurable thresholds
+- Focus on SQLite backend for initial release
+- Performance optimization for CI environments
 
-### Phase 2: Agent Integration (2 months)
-- Agent trace collection
-- Multi-agent coordination
-- Framework adapters for popular agent frameworks
+### Phase 2: Enhanced Analysis (Future)
+- Improved blast radius prediction with more sophisticated heuristics
+- Historical pattern analysis for better predictions
+- More detailed PR comments with component-level insights
+- Begin collecting data for future LLM-based enhancements
+- Optimize performance for larger repositories
 
-### Phase 3: RL Environment (3 months)
-- Training data collection
-- Initial RL model for outcome prediction
-- Feedback loop for continuous improvement
+### Phase 3: Advanced Features (Deferred)
+- LLM-based analysis for deeper insights
+- Agent trace collection and multi-agent coordination
+- Training data collection for RL models
+- Neo4j integration for cloud offering
 
 ## Success Metrics
 
-1. **Prediction Accuracy**: How accurately Arc predicts build failures, test failures, and performance regressions
-2. **Time Savings**: Reduction in time spent reviewing PRs and debugging issues
-3. **Agent Efficiency**: Improvement in agent performance when using Arc Memory
-4. **Adoption Rate**: Percentage of teams using Arc Memory in their CI pipeline
-5. **Blast Radius Reduction**: Decrease in the number of unexpected side effects from code changes
+1. **Performance**:
+   - Knowledge graph build time in CI (target: <2 minutes for incremental builds)
+   - Analysis time for PRs (target: <30 seconds)
+   - Resource usage (memory, CPU) within GitHub Actions limits
+
+2. **Accuracy**:
+   - Percentage of affected components correctly identified
+   - False positive rate (target: <10%)
+   - User feedback on comment usefulness (target: >80% positive)
+
+3. **User Experience**:
+   - Time saved during code review (measured through surveys)
+   - Adoption rate among target users
+   - Frequency of configuration changes (indicating customization)
+
+4. **Business Impact**:
+   - Reduction in post-merge issues
+   - Faster PR review cycles
+   - Increased confidence in code changes
 
 ## Next Steps
 
-1. Implement the basic GitHub Actions components
-2. Create a proof-of-concept CI integration with a sample repository
-3. Develop the agent trace collection system
-4. Implement database adapters for SQLite and Neo4j
-5. Begin collecting training data for the RL environment
-6. Create documentation and examples for different team profiles
-7. Integrate with Neo4j GraphRAG for enhanced retrieval capabilities
-8. Develop CI workflows for both SQLite and Neo4j backends
+1. Implement the basic GitHub Actions workflow for knowledge graph building
+   - Focus on caching and incremental builds for performance
+   - Implement GitHub Actions cache with optimal key strategy
+   - Ensure authentication works reliably in CI environments
 
-## Neo4j GraphRAG Integration
+2. Develop the heuristic-based blast radius prediction
+   - Start with static dependency analysis
+   - Add historical co-change analysis
+   - Implement impact scoring
 
-To leverage Neo4j's GraphRAG capabilities in our CI integration:
+3. Create the PR comment integration
+   - Implement comment creation and updating
+   - Add configurable thresholds
+   - Design a clear, actionable comment format
 
-1. **Knowledge Graph Construction**:
-   - Use Neo4j's GraphRAG Python Package for efficient knowledge graph construction in CI environments
-   - Implement chunking and embedding generation for PR descriptions and commit messages
-   - Extract entities and relationships using LLM Graph Builder techniques
+4. Optimize performance for CI environments
+   - Implement parallel processing of data sources
+   - Add CI-specific flag (`--ci`) to the refresh command
+   - Enhance progress reporting for CI environments
+   - Optimize database operations for CI workloads
 
-2. **Vector Search Integration**:
-   - Leverage Neo4j's vector search capabilities for semantic search in CI workflows
-   - Use embeddings for finding similar code patterns and potential issues
-   - Implement hybrid retrieval for blast radius prediction
+5. Build on auto-refresh functionality
+   - Leverage existing auto-refresh module for incremental updates
+   - Extend with parallel processing capabilities
+   - Add CI-specific optimizations and logging
 
-3. **CI-Specific Optimizations**:
-   - Optimize Neo4j queries for CI-specific use cases
-   - Implement efficient incremental updates during CI runs
-   - Use Neo4j's transaction capabilities for atomic updates
+6. Test with Protocol Labs repositories
+   - Gather feedback on accuracy and usefulness
+   - Measure performance in real-world scenarios
+   - Benchmark build times in various CI environments
+   - Iterate based on user feedback
 
-This integration will significantly enhance our CI capabilities, particularly for team environments using the cloud offering with Neo4j as the backend.
+## Future Enhancements (Deferred)
+
+While our initial focus is on delivering a simple, reliable CI integration with SQLite, we have identified several enhancements for future development:
+
+1. **LLM-Enhanced Analysis**:
+   - Selectively use LLMs for high-impact PRs
+   - Generate natural language explanations of potential issues
+   - Provide code suggestions for mitigating risks
+
+2. **Neo4j GraphRAG Integration**:
+   - Leverage Neo4j's GraphRAG capabilities for team environments
+   - Implement efficient knowledge graph construction in CI environments
+   - Use vector search for finding similar code patterns and potential issues
+
+3. **Advanced Blast Radius Prediction**:
+   - Develop more sophisticated dependency analysis
+   - Implement machine learning models for prediction
+   - Collect and analyze historical data to improve accuracy
+
+These enhancements will be prioritized based on user feedback and adoption patterns after the initial release proves successful.

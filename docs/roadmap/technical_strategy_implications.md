@@ -38,7 +38,7 @@ The AI memory and agent space is moving at unprecedented speed. Our technical an
 
 ### Technical-GTM Sequencing
 
-```
+```bash
 ┌─────────────────────────────────────────────────────────────────────────┐
 │                                                                         │
 │  PHASE 1: OSS LOCAL KNOWLEDGE GRAPH                                     │

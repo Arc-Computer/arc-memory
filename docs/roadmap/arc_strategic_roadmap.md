@@ -34,7 +34,7 @@ For our initial customer segment (fintech and blockchain companies with 50-100 e
 
 ## Immediate Execution Priorities (0-3 Months)
 
-Our immediate focus is on completing three critical components that will form the foundation of our local OSS offering:
+Our immediate focus is on delivering core value to OSS maintainers through a phased approach that prioritizes the most critical components first:
 
 ### 1. Auto-Refresh Functionality ([auto.md](auto.md))
 
@@ -42,62 +42,88 @@ Our immediate focus is on completing three critical components that will form th
 
 **Key Components**:
 - Background refresh process that can be scheduled via cron/Task Scheduler
-- Incremental updates from GitHub, Linear, and other sources
-- Enhanced PR processing for better decision context extraction
-- Database abstraction layer supporting both SQLite (local) and Neo4j (cloud)
+- Incremental updates from GitHub sources
+- Simple command-line interface for manual refresh
+- SQLite-focused implementation with hooks for future Neo4j support
 
-**Timeline**: 2 months
+**Timeline**: 1.5 months
 
-### 2. SDK Refactoring ([sdk_refactoring_plan.md](sdk_refactoring_plan.md))
+### 2. Basic CI Integration ([ci_integration_strategy.md](ci_integration_strategy.md))
 
-**TLDR**: Transforming Arc Memory from CLI-first to agent-first with a framework-agnostic SDK that enables seamless integration with LangChain, LlamaIndex, and other agent frameworks.
-
-**Key Components**:
-- Core SDK extraction from CLI commands
-- Database abstraction layer for SQLite and Neo4j
-- Plugin system for framework adapters
-- Neo4j GraphRAG integration for enhanced retrieval
-- Standardized API for agent integration
-
-**Timeline**: 2 months
-
-### 3. CI Integration ([ci_integration_strategy.md](ci_integration_strategy.md))
-
-**TLDR**: Integrating Arc Memory into CI pipelines to automatically update the knowledge graph, predict blast radius, and provide insights during code review.
+**TLDR**: Integrating Arc Memory into GitHub PR workflows to provide context and basic impact analysis during code review.
 
 **Key Components**:
 - GitHub Actions for knowledge graph building
-- PR comment integration with blast radius prediction
-- Agent trace collection for continuous improvement
-- Database flexibility supporting both SQLite and Neo4j
-- Neo4j GraphRAG integration for enhanced retrieval in CI
+- PR comment integration with context and basic impact analysis
+- Simple heuristic-based dependency checking
+- Focus on SQLite backend for initial release
 
 **Timeline**: 1 month
 
+### 3. Minimal SDK API ([sdk_refactoring_plan.md](sdk_refactoring_plan.md))
+
+**TLDR**: Creating a simple, usable Python API that exposes Arc Memory's core functionality for programmatic access.
+
+**Key Components**:
+- Core function extraction from CLI commands
+- Structured data returns for key operations
+- Basic documentation and examples
+- Foundation for future framework adapters
+- Leverage existing plugin architecture in [plugins.md](../api/plugins.md)
+
+**Timeline**: 0.5 months
+
+### Validation Strategy
+
+Throughout this phase, we'll work closely with OSS maintainers at Protocol Labs to validate our approach and gather feedback. This will inform our prioritization for subsequent phases.
+
 ## Scaling Strategy (3-6 Months)
 
-After establishing our local OSS offering, we'll focus on scaling both adoption and capabilities:
+After establishing our local OSS offering, we'll focus on scaling both adoption and capabilities with a more targeted approach:
 
 ### 1. OSS Growth Strategy
 
 - **Community Building**: Developer advocacy, documentation, and examples
-- **Integration Ecosystem**: Expand framework adapters and CI integrations
-- **Performance Optimization**: Improve query speed and memory usage
 - **User Feedback Loop**: Incorporate feedback from early adopters
+- **Performance Optimization**: Improve query speed and memory usage
+- **Content Marketing**: Create case studies and tutorials highlighting differentiators
 
-### 2. Cloud Offering ([arc_cloud_strategy.md](arc_cloud_strategy.md))
+### 2. Flagship Agent Integration
 
-**TLDR**: Extending Arc Memory from individual developers to team-wide collaboration with a cloud-based knowledge graph.
+**TLDR**: Developing one high-quality integration with a popular agent framework to demonstrate Arc Memory's value in AI workflows.
 
 **Key Components**:
-- Neo4j-based team graph with GraphRAG capabilities
-- Selective sync between local SQLite and cloud Neo4j
-- Authentication and permissions system
-- Team collaboration features
-- Enhanced blast radius prediction
-- Web UI for exploration and visualization
+- LangChain integration as primary focus
+- Example notebooks and use cases
+- Documentation for agent developers
+- Demonstration of knowledge graph querying from agents
 
-**Timeline**: 3 months
+**Timeline**: 1 month
+
+### 3. Minimal Cloud MVP ([arc_cloud_strategy.md](arc_cloud_strategy.md))
+
+**TLDR**: Creating a simple but functional cloud offering that enables team-wide knowledge sharing.
+
+**Key Components**:
+- Neo4j-based team graph (potentially using Neo4j Aura managed service)
+- Basic selective sync between local SQLite and cloud Neo4j
+- Simple authentication using off-the-shelf solutions
+- Core API for team access to shared knowledge
+- Minimal web interface for essential operations
+
+**Timeline**: 2 months
+
+### 4. Basic Blast Radius Prediction
+
+**TLDR**: Implementing heuristic-based impact analysis to predict the effects of code changes.
+
+**Key Components**:
+- Static dependency analysis from the knowledge graph
+- Integration with PR review workflow
+- Simple visualization of potentially affected components
+- Foundation for future ML-based prediction
+
+**Timeline**: 1 month
 
 ## Long-Term Vision: Reinforcement Learning (6+ Months)
 
@@ -206,11 +232,11 @@ Our execution sequence is designed to deliver value at each stage while building
    - Create team collaboration features
    - Launch initial cloud offering
 
-3. **Phase 3 (6+ months)**: Develop RL capabilities and multi-agent coordination
-   - Collect training data from CI/CD outcomes
-   - Build initial RL models for blast radius prediction
-   - Implement system-specific adaptation
-   - Create continuous improvement feedback loops
+3. **Phase 3 (6+ months)**: Expand capabilities incrementally
+   - Expand SDK with additional framework adapters
+   - Enhance cloud offering with better UI and team features
+   - Begin collecting training data for RL features
+   - Implement initial RL models for blast radius prediction
    - Develop shared memory protocols for multi-agent workflows
    - Build coordination mechanisms for parallel agent tasks
 

@@ -374,93 +374,85 @@ Maintaining high-quality data is critical for Arc Cloud's success.
 
 ## Implementation Roadmap
 
-### Phase 1: Foundation (2 months)
+### Phase 1: Minimal Cloud MVP (2 months)
 
-1. **Authentication and User Management**:
-   - Implement OAuth/SSO integration
-   - Create user profile management
-   - Set up basic team structures
+1. **Core Cloud Infrastructure**:
+   - Set up Neo4j Aura (managed Neo4j service) for team graph
+   - Implement minimal API server for graph access
+   - Create basic authentication using off-the-shelf solutions (Auth0)
+   - Focus on core functionality over UI polish
 
-2. **Core Cloud Infrastructure**:
-   - Set up Neo4j cloud instance with GraphRAG capabilities
-   - Implement API gateway
-   - Create basic web UI
-   - Configure Neo4j for vector search and embeddings
+2. **Basic Selective Sync**:
+   - Implement manual sync commands (`arc push`, `arc pull`)
+   - Create simple conflict resolution strategy
+   - Focus on reliable data transfer between SQLite and Neo4j
+   - Prioritize read operations initially
 
-3. **Initial Sync Mechanism**:
-   - Develop basic sync protocol
-   - Implement read-only cloud access
-   - Create simple conflict resolution
-   - Implement database adapters for SQLite and Neo4j
+3. **Simple Team Access**:
+   - Implement basic team structures
+   - Create minimal permissions model
+   - Enable shared access to the knowledge graph
+   - Focus on Protocol Labs use cases
 
-### Phase 2: Team Collaboration (3 months)
+### Phase 2: Enhanced Functionality (Future)
 
-1. **Enhanced Sync Mechanism**:
-   - Implement bidirectional sync
+1. **Improved Sync Mechanism**:
+   - Implement automated bidirectional sync
    - Add selective sync filters
    - Improve conflict resolution
-   - Optimize for Neo4j's transaction capabilities
+   - Optimize performance for larger graphs
 
-2. **Neo4j GraphRAG Integration**:
-   - Implement knowledge graph construction using Neo4j GraphRAG
-   - Set up vector search capabilities
-   - Create hybrid retrieval mechanisms
+2. **Basic Neo4j GraphRAG Features**:
+   - Implement simple vector search capabilities
+   - Create basic hybrid retrieval mechanisms
    - Optimize for team-wide knowledge sharing
+   - Focus on high-value retrieval patterns
 
-3. **Permissions and Access Control**:
-   - Implement fine-grained permissions
-   - Create team and project access controls
-   - Add audit logging
-   - Integrate with Neo4j's security model
+3. **Enhanced Team Features**:
+   - Improve permissions model
+   - Add basic team dashboards
+   - Implement simple notification system
+   - Create better visualization options
 
-4. **Collaboration Features**:
-   - Team dashboards
-   - Shared annotations
-   - Notification system
-   - GraphRAG-powered chat interface
+### Phase 3: Advanced Features (Deferred)
 
-### Phase 3: Differentiation (3 months)
+1. **Basic Blast Radius Analysis**:
+   - Implement simple heuristic-based prediction
+   - Create basic visualization
+   - Focus on direct dependencies first
+   - Defer CVE integration and complex analysis
 
-1. **Blast Radius Prediction**:
-   - Implement initial prediction algorithm
-   - Create visualization
-   - Add mitigation suggestions
-   - Integrate with CVE databases for vulnerability checking
-   - Develop basic system architecture recognition
+2. **Simple Temporal Analysis**:
+   - Implement basic time-based querying
+   - Create minimal visualizations
+   - Focus on core use cases
+   - Prioritize performance over features
 
-2. **Advanced Temporal Analysis**:
-   - Implement time-based querying
-   - Create temporal visualizations
-   - Add trend analysis
-   - Track vulnerability patterns over time
+3. **Basic Causal Relationships**:
+   - Implement foundational causal tracking
+   - Focus on direct relationships
+   - Keep reasoning simple and reliable
+   - Defer complex inference capabilities
 
-3. **Enhanced Causal Relationships**:
-   - Improve causal inference
-   - Add decision tracking
-   - Create reasoning explanations
-   - Link security vulnerabilities to root causes
+### Future Research Direction (Long-Term)
 
-### Phase 4: RL-Based System Adaptation (4 months)
+1. **Data Collection Foundation**:
+   - Begin collecting data for future RL capabilities
+   - Define simple metrics for code change outcomes
+   - Create basic logging infrastructure
+   - Focus on data quality and consistency
 
-1. **Reinforcement Learning Framework**:
-   - Implement RL environment for code changes
-   - Define reward functions based on actual outcomes
-   - Create training pipeline for prediction models
-   - Develop evaluation metrics for model performance
+2. **Simple Prediction Models**:
+   - Experiment with basic statistical models
+   - Start with common patterns and architectures
+   - Keep predictions conservative and explainable
+   - Use heuristics where data is insufficient
 
-2. **System-Specific Models**:
-   - Train specialized models for common architectures:
-     - Kubernetes model
-     - HashiCorp model
-     - Microservices model
-     - Monolith model
-   - Implement model selection based on detected architecture
-
-3. **Continuous Learning System**:
-   - Create feedback loop from actual outcomes
-   - Implement online learning capabilities
-   - Develop model versioning and rollback mechanisms
-   - Build explainability features for model predictions
+3. **Feedback Collection**:
+   - Implement basic feedback mechanisms
+   - Gather user corrections and insights
+   - Create simple improvement loops
+   - Build foundation for future learning systems
 
 ## Success Metrics
 

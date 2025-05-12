@@ -4,16 +4,16 @@ Based on the existing codebase structure, this document outlines a detailed impl
 
 ## 1. Overview
 
-The auto-refresh functionality will enable Arc Memory to proactively update its knowledge graph on a schedule, ensuring users always have access to the most current information without manually running `arc build --incremental`. This will be implemented by creating a dedicated refresh command that can be scheduled using system tools (cron, Task Scheduler, launchd) to periodically check for new data from configured sources (GitHub, Linear, etc.) and trigger incremental updates when changes are detected.
+The auto-refresh functionality will enable Arc Memory to proactively update its knowledge graph on a schedule, ensuring users always have access to the most current information without manually running `arc build --incremental`. This will be implemented by creating a dedicated refresh command that can be scheduled using system tools (cron, Task Scheduler, launchd) to periodically check for new data from configured sources (primarily GitHub) and trigger incremental updates when changes are detected.
 
-### Neo4j Integration Considerations
+### Implementation Focus
 
-While the initial implementation will focus on SQLite for local usage, the design will account for future Neo4j integration in the cloud offering:
+Based on our resource constraints and prioritization:
 
-- The refresh logic will be database-agnostic, working with both SQLite and Neo4j
-- We'll leverage Neo4j's Change Data Capture (CDC) capabilities for the cloud offering
-- The metadata structure will be designed to be compatible with both backends
-- We'll adopt patterns from Neo4j's GraphRAG Python Package and LLM Graph Builder for processing new content
+- The initial implementation will focus exclusively on SQLite for local usage
+- We'll prioritize GitHub as the primary data source for the first release
+- The design will include hooks for future Neo4j integration, but implementation will be deferred
+- We'll keep the initial implementation lightweight and reliable rather than feature-rich
 
 ## 2. Key Components
 
@@ -23,22 +23,22 @@ This will be the core module responsible for managing the refresh process:
 
 - Implement core refresh functionality that can be called from the CLI
 - Track per-repository update timestamps in the existing metadata structure
-- Intelligently throttle API requests to minimize usage
+- Implement conservative throttling for API requests to respect rate limits
 - Leverage existing authentication and ingest infrastructure
 - Provide utility functions for checking update status and managing refresh operations
-- Design with database abstraction to support both SQLite and Neo4j backends
-- Implement patterns similar to Neo4j's GraphRAG for efficient updates
+- Design with future extensibility in mind, but focus on SQLite implementation
+- Keep the implementation simple and reliable
 
 ### B. Metadata Storage Extensions
 
 Extend the current metadata storage to track per-repository update timestamps:
 
 - Use the existing metadata structure in graph.db
-- Add source-specific timestamps (GitHub, Linear, etc.)
+- Add source-specific timestamps (primarily GitHub)
 - Implement functions to read and write these timestamps
 - Ensure backward compatibility with existing metadata
-- Design metadata schema to be compatible with Neo4j's property graph model
-- Use similar patterns to Neo4j's LLM Graph Builder for tracking document updates
+- Keep the schema simple and focused on immediate needs
+- Design with clean interfaces that could support other backends later
 
 ### C. Refresh Command for Cron Jobs
 
@@ -50,17 +50,16 @@ Create a dedicated refresh command optimized for scheduled execution:
 - Implement adaptive throttling based on API rate limits
 - Design for efficient execution in scheduled environments (cron, Task Scheduler, launchd)
 
-### D. Enhanced PR Processing
+### D. Basic PR Processing
 
-Extend the existing PR processing to extract more decision context:
+Extend the existing PR processing to capture essential context:
 
-- Use the Ollama client from `semantic_search.py` to generate decision summaries
-- Add specific PR processing that focuses on identifying decision rationale
-- Store enhanced PR descriptions in the node's extra data
-- Implement prompt templates optimized for extracting decision context
-- Adopt techniques from Neo4j's LLM Graph Builder for entity and relationship extraction
-- Design extraction schema for causal relationships (decision > implication > code-change)
-- Implement chunking and embedding generation for improved semantic search
+- Use the existing PR processing infrastructure
+- Focus on capturing basic metadata and relationships
+- Store PR descriptions in the node's data
+- Keep LLM enhancements minimal for the initial release
+- Defer more advanced extraction techniques for future releases
+- Prioritize reliability and performance over advanced features
 
 ### E. CLI Status Command (`arc_memory/cli/status.py`)
 
@@ -82,33 +81,26 @@ Create a new CLI command to show the auto-refresh service status:
 
 ## 4. Implementation Strategy
 
-1. **Phase 1**: Implement the core refresh command with GitHub support and database abstraction
+1. **Phase 1**: Implement the core refresh command with GitHub support
    - Create the `arc refresh` command with silent mode option
    - Implement GitHub polling using existing ingestors
    - Add metadata tracking for update timestamps
-   - Design database abstraction layer for SQLite and Neo4j compatibility
-   - Implement SQLite adapter first with Neo4j-compatible patterns
+   - Focus on SQLite implementation with clean interfaces
+   - Ensure reliable operation with conservative defaults
 
-2. **Phase 2**: Add enhanced PR processing with LLM integration
-   - Implement decision context extraction from PR descriptions
-   - Create optimized prompts for the Ollama client
-   - Store enhanced descriptions in the knowledge graph
-   - Adopt Neo4j LLM Graph Builder techniques for entity and relationship extraction
-   - Implement chunking and embedding generation for improved semantic search
-
-3. **Phase 3**: Add Linear support and status command
-   - Extend the refresh command to support Linear data
+2. **Phase 2**: Add basic status command and documentation
    - Implement the status command for monitoring
-   - Add configuration options for controlling refresh behavior
-   - Ensure compatibility with both SQLite and Neo4j backends
-   - Design unified status reporting for both backends
-
-4. **Phase 4**: Optimize, document, and prepare for Neo4j integration
-   - Implement intelligent API throttling
    - Create documentation for setting up scheduled tasks on different platforms
+   - Add configuration options for controlling refresh behavior
+   - Implement basic error handling and logging
+   - Test thoroughly with different usage patterns
+
+3. **Phase 3**: Optimize and enhance (if needed)
+   - Refine API throttling based on real-world usage
    - Optimize performance and resource usage for scheduled execution
-   - Prepare for Neo4j integration in the cloud offering
-   - Implement Neo4j adapter using GraphRAG patterns
+   - Address any issues identified during initial usage
+   - Consider adding git hooks as an alternative trigger mechanism
+   - Improve documentation based on user feedback
 
 ## 5. User Experience
 
@@ -197,25 +189,27 @@ Create a new CLI command to show the auto-refresh service status:
 └─────────────────┘
 ```
 
-This implementation plan builds directly on the existing codebase, leveraging the authentication, fetching, and processing logic already in place while adding scheduled refresh capabilities through system task schedulers. It also prepares for future Neo4j integration in the cloud offering by designing with database abstraction from the beginning and adopting patterns from Neo4j's GraphRAG Python Package and LLM Graph Builder.
+This implementation plan builds directly on the existing codebase, leveraging the authentication, fetching, and processing logic already in place while adding scheduled refresh capabilities through system task schedulers. It focuses on delivering a reliable, lightweight solution that addresses the immediate need for automatic knowledge graph updates while setting the stage for future enhancements.
 
-## 8. Neo4j Integration Path
+## 8. Future Extensibility
 
-To ensure a smooth transition from local SQLite to cloud Neo4j, we'll implement the following:
+While focusing on a lightweight initial implementation, we'll design with future extensibility in mind:
 
-1. **Database Abstraction Layer**:
-   - Create interfaces that work with both SQLite and Neo4j
-   - Implement SQLite adapter first with Neo4j-compatible patterns
-   - Add Neo4j adapter using GraphRAG patterns when needed
+1. **Clean Interfaces**:
+   - Create well-defined interfaces for data access and storage
+   - Use dependency injection where appropriate
+   - Avoid tight coupling to SQLite-specific features
+   - Document extension points for future developers
 
-2. **Metadata Compatibility**:
-   - Design metadata schema to be compatible with Neo4j's property graph model
-   - Use similar patterns to Neo4j's LLM Graph Builder for tracking document updates
-   - Ensure efficient incremental updates in both backends
+2. **Metadata Design**:
+   - Keep metadata schema simple but extensible
+   - Use standard data formats that can be easily migrated
+   - Document the schema for future reference
 
-3. **GraphRAG Integration**:
-   - Adopt techniques from Neo4j's LLM Graph Builder for entity and relationship extraction
-   - Implement chunking and embedding generation for improved semantic search
-   - Prepare for vector search capabilities in the Neo4j backend
+3. **Deferred Enhancements**:
+   - Linear integration
+   - Advanced LLM-based PR processing
+   - Neo4j integration for cloud offering
+   - More sophisticated scheduling options
 
-This approach ensures that our auto-refresh functionality will work seamlessly with both our local SQLite implementation and our future Neo4j-based cloud offering, while leveraging the best practices and patterns from Neo4j's GenAI ecosystem.
+This approach ensures that our auto-refresh functionality delivers immediate value with a reliable implementation while setting the stage for future enhancements as resources allow.

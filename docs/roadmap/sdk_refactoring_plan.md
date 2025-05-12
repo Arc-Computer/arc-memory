@@ -62,7 +62,7 @@ This document outlines a strategic plan to refactor Arc Memory's architecture to
 
 ## Target Architecture
 
-Drawing inspiration from NVIDIA's AIQ framework and Neo4j's GraphRAG approach, we'll adopt a plugin-based architecture that treats all components as function calls, enabling true framework agnosticism and database flexibility:
+Drawing inspiration from NVIDIA's Agent Intelligence Toolkit (AIQ) framework-agnostic approach and Neo4j's GraphRAG approach, we'll adopt a plugin-based architecture that treats all components as function calls, enabling true framework agnosticism and database flexibility:
 
 ```bash
 ┌─────────────────────────────────────────────────────────────┐
@@ -153,105 +153,91 @@ This approach allows us to leverage Neo4j's GraphRAG capabilities in our cloud o
 
 ## Refactoring Phases
 
-### Phase 1: Core SDK Extraction and Database Abstraction
+### Phase 1: Minimal SDK API (0.5 months)
 
-1. **Extract Core Logic from CLI Commands**
-   - Refactor each CLI command to call a corresponding SDK function
+1. **Extract Core Logic from Key CLI Commands**
+   - Focus on the most essential commands first (`why`, `relate`, `build`)
    - Move business logic from CLI layer to SDK layer
    - Ensure SDK functions return structured data objects
-   - Design with database abstraction in mind
+   - Keep the implementation simple and focused on SQLite
 
-2. **Implement Database Abstraction Layer**
-   - Create interfaces that work with both SQLite and Neo4j
-   - Implement SQLite adapter first with Neo4j-compatible patterns
-   - Design schema to be compatible with Neo4j's property graph model
-   - Align with Neo4j GraphRAG Python Package API patterns
-
-3. **Define Clear Return Types**
-   - Create dataclasses/Pydantic models for all return types
-   - Include metadata fields (confidence, sources, timestamps)
+2. **Define Basic Return Types**
+   - Create simple dataclasses for core return types
    - Support serialization to/from JSON
-   - Ensure compatibility with Neo4j's data types
+   - Focus on the most commonly used data structures
 
-4. **Implement Error Handling Strategy**
-   - Define exception hierarchy
+3. **Implement Basic Error Handling**
+   - Define a simple exception hierarchy
    - Add context information to exceptions
-   - Create recovery mechanisms where appropriate
-   - Handle database-specific errors consistently
+   - Focus on user-friendly error messages
 
-5. **Add Async Support**
-   - Create async versions of key functions
-   - Ensure compatibility with async agent frameworks
-   - Maintain synchronous versions for backward compatibility
-   - Support async database operations for both backends
+4. **Create Simple Documentation**
+   - Document the core SDK functions
+   - Provide basic usage examples
+   - Focus on getting developers started quickly
 
-### Phase 2: Extending Plugin System and Building Framework Adapters
+### Phase 2: Framework Adapters and LangChain Integration (1 month)
 
-1. **Extend Existing Plugin Architecture**
-   - Analyze and document the current `IngestorPlugin` and `IngestorRegistry` implementation
-   - Create a generalized `PluginRegistry` that can handle multiple plugin types
-   - Implement namespaced entry point discovery for different plugin categories
-   - Maintain backward compatibility with existing ingestor plugins
+1. **Leverage Existing Plugin Architecture**
+   - Use the current `IngestorPlugin` and `IngestorRegistry` as a model
+   - Build on our existing plugin system to create a framework-agnostic approach
+   - Extend with framework adapter plugins that follow the same pattern
 
-2. **Create Core Function Interfaces**
-   - Define standard interfaces for all core functions based on existing patterns
-   - Implement function registration and discovery mechanisms
-   - Create function metadata and schema definitions
-   - Build function composition and chaining capabilities
+2. **Create Framework Adapter Architecture**
+   - Implement a framework adapter protocol and registry
+   - Create a discovery mechanism for framework adapters
+   - Add helper methods for working with adapters
 
-3. **Develop Framework Adapters as Plugins**
-   - Create LangChain adapter plugin following the existing plugin pattern
+3. **Implement LangChain Adapter**
+   - Create a LangChain adapter following our framework-agnostic approach
+   - Convert core SDK functions to LangChain tools
+   - Create simple examples of LangChain integration
      ```python
      # Example usage
      from arc_memory.plugins.frameworks import langchain
      tools = langchain.get_tools()
      agent = langchain.create_agent(tools=tools)
      ```
-   - Implement LlamaIndex adapter plugin
-   - Build OpenAI function calling adapter
-   - Add AutoGen and CrewAI adapters
-   - Create framework-agnostic default interface
 
-4. **Optimize for Agent Workflows**
-   - Add streaming response support
-   - Implement progressive result generation
-   - Create context-aware response formatting
-   - Design for multi-turn conversations with context retention
-   - Build observability and tracing capabilities
+4. **Implement OpenAI Function Calling Adapter**
+   - Create an OpenAI adapter following our framework-agnostic approach
+   - Convert core SDK functions to OpenAI function definitions
+   - Create examples of OpenAI integration
 
-### Phase 3: CLI Refactoring
+5. **Test with Real-World Scenarios**
+   - Create example notebooks with common use cases
+   - Test with Protocol Labs repositories
+   - Gather feedback and refine the integration
+
+### Phase 3: CLI Updates and Documentation (0.5 months)
 
 1. **Update CLI to Use SDK**
-   - Refactor all CLI commands to use the new SDK
+   - Refactor key CLI commands to use the new SDK
    - Ensure backward compatibility for command syntax
-   - Add new capabilities exposed by the SDK
+   - Focus on maintaining a consistent user experience
 
-2. **Enhance CLI Output Formats**
-   - Add JSON output option for all commands
-   - Implement machine-readable logging
-   - Create structured error reporting
-
-3. **Add Interactive Mode Improvements**
-   - Implement auto-completion based on graph content
-   - Add context-aware suggestions
-   - Create visualization options for complex results
-
-### Phase 4: Documentation and Examples
-
-1. **Create SDK Documentation**
-   - Generate API reference documentation
+2. **Enhance Documentation**
+   - Create comprehensive SDK documentation
    - Write usage guides for common scenarios
-   - Add architecture documentation
+   - Develop examples for LangChain integration
 
-2. **Develop Integration Examples**
-   - Create examples for each supported agent framework
-   - Build Jupyter notebooks demonstrating workflows
-   - Add CI integration templates
+### Future Phases (Deferred)
 
-3. **Update User Documentation**
-   - Revise CLI documentation
-   - Add agent integration guides
-   - Create migration guide for existing users
+1. **Additional Framework Adapters**
+   - OpenAI function calling adapter
+   - LlamaIndex adapter
+   - Other frameworks as needed
+
+2. **Database Abstraction Layer**
+   - Create interfaces that work with both SQLite and Neo4j
+   - Implement SQLite adapter first with clean interfaces
+   - Add Neo4j adapter when cloud offering is developed
+
+3. **Advanced Features**
+   - Async support
+   - Streaming responses
+   - Advanced plugin architecture
+   - Interactive mode improvements
 
 ## Implementation Guidelines
 
@@ -458,18 +444,68 @@ To ensure rapid adoption, we'll create a frictionless onboarding experience:
    - Unique value metrics (e.g., accuracy of blast radius prediction)
    - Time-to-value compared to competitors
 
+## Implementation Plan
+
+Building on our existing database abstraction layer (PR #53), we'll implement the SDK refactoring through the following 7 PRs:
+
+### PR 1: Core SDK Structure and Return Types
+- Create the basic SDK structure with the `ArcMemory` class
+- Define data models for return types
+- Implement the framework adapter protocol and registry
+- Implement exception hierarchy for error handling
+
+### PR 2: Extract Core Command Logic
+- Extract logic from CLI commands into SDK methods
+- Implement core API functions (Query API, Context API, etc.)
+- Ensure backward compatibility
+- Add comprehensive tests
+
+### PR 3: Framework Adapter Architecture
+- Implement the framework adapter discovery mechanism
+- Create the base adapter protocol
+- Add helper methods for working with adapters
+- Implement plugin discovery for framework adapters
+
+### PR 4: LangChain Adapter
+- Implement the LangChain adapter
+- Create examples showing LangChain integration
+- Add tests for LangChain integration
+- Implement LangChain-specific helper functions
+
+### PR 5: OpenAI Function Calling Adapter
+- Implement the OpenAI adapter
+- Create examples showing OpenAI integration
+- Add tests for OpenAI integration
+
+### PR 6: CLI Updates
+- Update CLI commands to use the SDK
+- Ensure backward compatibility
+- Add deprecation warnings for direct usage patterns
+- Optimize CLI performance
+
+### PR 7: Documentation and Examples
+- Create comprehensive documentation
+- Add examples for each supported framework
+- Create tutorials for extending with new frameworks
+- Add migration guides for existing users
+- Create demo for enterprise customers (e.g., Snowflake)
+
+This implementation plan aligns with our three-phase approach:
+
+- **Phase 1 (0.5 months)**: PRs 1-2 establish the minimal SDK API
+- **Phase 2 (1 month)**: PRs 3-5 implement framework adapters, focusing on LangChain integration
+- **Phase 3 (0.5 months)**: PRs 6-7 update the CLI and create comprehensive documentation
+
 ## Next Steps
 
-1. Begin Phase 1 by extracting core logic from the `build`, `why`, and `relate` commands
-2. Create initial SDK function signatures and return types with standardized interfaces
-3. Design and implement the database abstraction layer for SQLite and Neo4j
-4. Analyze and document the existing plugin architecture in `arc_memory/plugins/`
-5. Extend the existing `IngestorRegistry` to create a generalized `PluginRegistry`
-6. Implement new plugin protocols for framework adapters and database adapters
-7. Create proof-of-concept adapters for LangChain and OpenAI function calling
-8. Implement SQLite adapter with Neo4j-compatible patterns
-9. Review Neo4j GraphRAG Python Package API for alignment
-10. Update project roadmap to reflect the extended plugin architecture and database abstraction
+1. Begin PR 1 by creating the core SDK structure and return types
+2. Extract core logic from the `why`, `relate`, and `build` commands in PR 2
+3. Implement the framework adapter architecture in PR 3
+4. Create the LangChain adapter in PR 4
+5. Implement the OpenAI adapter in PR 5
+6. Update the CLI to use the SDK in PR 6
+7. Create comprehensive documentation and examples in PR 7
+8. Test with Protocol Labs repositories to gather feedback throughout the process
 
 ## Implementation Example Building on Existing Plugin Architecture
 
