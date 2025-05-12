@@ -106,6 +106,35 @@ sim = [
     "kubernetes_asyncio>=32.3.2",   # For Kubernetes integration
 ]
 
+# Framework adapter dependencies
+frameworks = [
+    "langchain>=0.0.267",          # For LangChain adapter (legacy)
+    "langchain-core>=0.1.0",       # For LangChain adapter (new)
+    "langchain-openai>=0.0.1",     # For LangChain OpenAI integration
+    "langgraph>=0.0.15",           # For LangGraph integration
+    "openai>=1.0.0",               # For OpenAI adapter
+]
+
+# LangChain adapter dependencies
+langchain = [
+    "langchain>=0.0.267",          # For LangChain adapter (legacy)
+    "langchain-core>=0.1.0",       # For LangChain adapter (new)
+    "langchain-openai>=0.0.1",     # For LangChain OpenAI integration
+    "langgraph>=0.0.15",           # For LangGraph integration
+]
+
+# OpenAI adapter dependencies
+openai = [
+    "openai>=1.0.0",               # For OpenAI adapter
+]
+
+# LangGraph adapter dependencies
+langgraph = [
+    "langgraph>=0.0.15",           # For LangGraph integration
+    "langchain-core>=0.1.0",       # For LangChain adapter (new)
+    "langchain-openai>=0.0.1",     # For LangChain OpenAI integration
+]
+
 [project.urls]
 "Homepage" = "https://www.arc.computer"
 "Repository" = "https://github.com/Arc-Computer/arc-memory"
@@ -113,6 +142,10 @@ sim = [
 
 [project.scripts]
 arc = "arc_memory.cli:app"
+
+[project.entry-points."arc_memory.plugins.frameworks"]
+langchain = "arc_memory.sdk.adapters.langchain:LangChainAdapter"
+openai = "arc_memory.sdk.adapters.openai:OpenAIAdapter"
 
 [tool.hatch.build.targets.wheel]
 packages = ["arc_memory"]
