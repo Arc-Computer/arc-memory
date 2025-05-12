@@ -165,3 +165,35 @@ class HistoryEntry(EntityDetails):
 
     previous_version: Optional[str] = None
     """ID of the previous version of this entity, if applicable."""
+
+
+class ExportResult(BaseModel):
+    """Result of exporting the knowledge graph.
+
+    This model represents the result of exporting the knowledge graph to a file,
+    including information about the export format, size, and location.
+    """
+
+    output_path: str
+    """Path to the exported file."""
+
+    format: str
+    """Format of the export (json, csv, etc.)."""
+
+    entity_count: int
+    """Number of entities exported."""
+
+    relationship_count: int
+    """Number of relationships exported."""
+
+    compressed: bool = False
+    """Whether the export is compressed."""
+
+    signed: bool = False
+    """Whether the export is signed."""
+
+    signature_path: Optional[str] = None
+    """Path to the signature file, if signed."""
+
+    execution_time: float = 0.0
+    """Time taken to execute the export in seconds."""

@@ -13,9 +13,9 @@ from arc_memory.errors import ArcError, DatabaseError
 from arc_memory.schema.models import Edge, Node
 from arc_memory.sql.db import ensure_arc_dir, get_db_path
 
-from arc_memory.sdk.errors import SDKError, AdapterError, QueryError, BuildError
+from arc_memory.sdk.errors import SDKError, AdapterError, QueryError, BuildError, ExportSDKError
 from arc_memory.sdk.models import (
-    DecisionTrailEntry, EntityDetails, HistoryEntry, ImpactResult, QueryResult, RelatedEntity
+    DecisionTrailEntry, EntityDetails, ExportResult, HistoryEntry, ImpactResult, QueryResult, RelatedEntity
 )
 from arc_memory.sdk.progress import ProgressCallback
 
@@ -446,5 +446,71 @@ class Arc:
             end_date=end_date,
             include_related=include_related,
             cache=cache,
+            callback=callback
+        )
+
+    # Export API methods
+
+    def export_graph(
+        self,
+        output_path: Union[str, Path],
+        pr_sha: Optional[str] = None,
+        entity_types: Optional[List[str]] = None,
+        start_date: Optional[datetime] = None,
+        end_date: Optional[datetime] = None,
+        format: str = "json",
+        compress: bool = False,
+        sign: bool = False,
+        key_id: Optional[str] = None,
+        base_branch: str = "main",
+        max_hops: int = 3,
+        optimize_for_llm: bool = False,
+        include_causal: bool = True,
+        callback: Optional[ProgressCallback] = None
+    ) -> ExportResult:
+        """Export the knowledge graph to a file.
+
+        This method exports a subset of the knowledge graph based on the provided filters.
+        It supports exporting in various formats, with options for compression and signing.
+
+        Args:
+            output_path: Path to save the export file.
+            pr_sha: Optional SHA of a PR head commit to filter by.
+            entity_types: Optional list of entity types to include.
+            start_date: Optional start date for filtering entities.
+            end_date: Optional end date for filtering entities.
+            format: Export format (currently only "json" is supported).
+            compress: Whether to compress the output file.
+            sign: Whether to sign the output file with GPG.
+            key_id: GPG key ID to use for signing.
+            base_branch: Base branch to compare against when using pr_sha.
+            max_hops: Maximum number of hops to traverse in the graph.
+            optimize_for_llm: Whether to optimize the export for LLM consumption.
+            include_causal: Whether to include causal relationships in the export.
+            callback: Optional callback for progress reporting.
+
+        Returns:
+            An ExportResult containing information about the export.
+
+        Raises:
+            ExportSDKError: If the export fails.
+        """
+        from arc_memory.sdk.export import export_knowledge_graph
+        return export_knowledge_graph(
+            adapter=self.adapter,
+            repo_path=self.repo_path,
+            output_path=output_path,
+            pr_sha=pr_sha,
+            entity_types=entity_types,
+            start_date=start_date,
+            end_date=end_date,
+            format=format,
+            compress=compress,
+            sign=sign,
+            key_id=key_id,
+            base_branch=base_branch,
+            max_hops=max_hops,
+            optimize_for_llm=optimize_for_llm,
+            include_causal=include_causal,
             callback=callback
         )

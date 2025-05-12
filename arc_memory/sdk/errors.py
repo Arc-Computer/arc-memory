@@ -74,3 +74,13 @@ class FrameworkError(SDKError):
     """
 
     pass
+
+
+class ExportSDKError(SDKError):
+    """Error raised when exporting the knowledge graph fails.
+
+    This error is raised when exporting the knowledge graph fails, such as
+    when writing to the output file fails or when signing the export fails.
+    """
+
+    pass

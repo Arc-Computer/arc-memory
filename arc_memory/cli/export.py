@@ -12,9 +12,9 @@ import typer
 from rich.console import Console
 
 from arc_memory.errors import ExportError
-from arc_memory.export import export_graph
 from arc_memory.logging_conf import configure_logging, get_logger, is_debug_mode
-from arc_memory.sql.db import ensure_arc_dir
+from arc_memory.sdk import Arc
+from arc_memory.sdk.errors import AdapterError, ExportSDKError
 from arc_memory.telemetry import track_cli_command
 
 console = Console()
@@ -40,18 +40,15 @@ def export(
     repo_path: Optional[Path] = typer.Option(
         None, "--repo", help="Path to the Git repository"
     ),
-    db_path: Optional[Path] = typer.Option(
-        None, "--db", help="Path to the database file"
-    ),
     base_branch: str = typer.Option(
         "main", "--base", help="Base branch to compare against"
     ),
     max_hops: int = typer.Option(
         3, "--max-hops", help="Maximum number of hops to traverse in the graph"
     ),
-    enhance_for_llm: bool = typer.Option(
-        True, "--enhance-for-llm/--no-enhance-for-llm",
-        help="Enhance the export data for LLM reasoning"
+    optimize_for_llm: bool = typer.Option(
+        True, "--optimize-for-llm/--no-optimize-for-llm",
+        help="Optimize the export data for LLM reasoning"
     ),
     include_causal: bool = typer.Option(
         True, "--include-causal/--no-causal",
@@ -89,11 +86,14 @@ def export(
     # Track command usage
     args = {
         "pr": pr,
+        "out": str(out),
         "compress": compress,
         "sign": sign,
+        "key": key,
+        "repo_path": str(repo_path) if repo_path else None,
         "base_branch": base_branch,
         "max_hops": max_hops,
-        "enhance_for_llm": enhance_for_llm,
+        "optimize_for_llm": optimize_for_llm,
         "include_causal": include_causal,
         "ci_mode": ci_mode,
         "debug": debug,
@@ -105,46 +105,51 @@ def export(
         if repo_path is None:
             repo_path = Path.cwd()
 
-        # Determine database path
-        if db_path is None:
-            arc_dir = ensure_arc_dir()
-            db_path = arc_dir / "graph.db"
-
-        # Check if the database exists
-        if not db_path.exists():
-            error_msg = f"Error: Database not found at {db_path}"
-            console.print(f"[red]{error_msg}[/red]")
-            console.print(
-                "Run [bold]arc build[/bold] to create the knowledge graph."
-            )
-            sys.exit(1)
-
         # Export the graph
         console.print(f"Exporting graph for PR [bold]{pr}[/bold]...")
 
-        output_path = export_graph(
-            db_path=db_path,
-            repo_path=repo_path,
-            pr_sha=pr,
+        try:
+            # Create an Arc instance
+            arc = Arc(repo_path=repo_path)
+        except AdapterError as e:
+            # Handle database connection errors specifically
+            if "database not found" in str(e).lower() or "no such file" in str(e).lower():
+                console.print(
+                    "[red]Error: Database not found.[/red]\n"
+                    "Run [bold]arc build[/bold] to create the knowledge graph."
+                )
+                sys.exit(1)
+            else:
+                # Re-raise other adapter errors
+                raise
+
+        # Export the graph using the SDK
+        result = arc.export_graph(
             output_path=out,
+            pr_sha=pr,
             compress=compress,
             sign=sign,
             key_id=key,
             base_branch=base_branch,
             max_hops=max_hops,
-            enhance_for_llm=enhance_for_llm,
+            optimize_for_llm=optimize_for_llm,
             include_causal=include_causal,
         )
 
-        console.print(f"[green]Export complete! Saved to {output_path}[/green]")
+        console.print(f"[green]Export complete! Saved to {result.output_path}[/green]")
 
         # If signed, show the signature file
-        if sign and Path(str(output_path) + '.sig').exists():
-            sig_path = Path(str(output_path) + '.sig')
-            console.print(f"[green]Signature saved to {sig_path}[/green]")
+        if result.signed and result.signature_path:
+            console.print(f"[green]Signature saved to {result.signature_path}[/green]")
 
+    except AdapterError as e:
+        console.print(f"[red]Database error: {e}[/red]")
+        sys.exit(1)
+    except ExportSDKError as e:
+        console.print(f"[red]Export error: {e}[/red]")
+        sys.exit(1)
     except ExportError as e:
-        console.print(f"[red]Error: {e}[/red]")
+        console.print(f"[red]Export error: {e}[/red]")
         sys.exit(1)
     except Exception as e:
         logger.exception("Unexpected error in export command")
