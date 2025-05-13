@@ -19,7 +19,7 @@ logger = get_logger(__name__)
 
 # Constants
 GITHUB_API_URL = "https://api.github.com"
-USER_AGENT = "Arc-Memory/0.4.2"
+USER_AGENT = "Arc-Memory/0.5.0"
 
 
 def get_repo_info(repo_path: Path) -> Tuple[str, str]:

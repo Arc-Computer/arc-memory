@@ -35,33 +35,33 @@ def debug_log(
     debug_dir: str = None
 ) -> None:
     """Log debug information for a function call.
-    
+
     This function logs the inputs and outputs of a function call to a debug file.
     Useful for debugging LLM interactions and understanding the system's behavior.
-    
+
     Args:
         func_name: Name of the function being debugged
         inputs: Dictionary of input values
-        outputs: Dictionary of output values 
+        outputs: Dictionary of output values
         debug_dir: Directory to store debug logs (defaults to ~/.arc/debug)
     """
     if not DEBUG_MODE:
         return
-        
+
     try:
         # Default debug directory
         if not debug_dir:
             arc_dir = Path.home() / ".arc"
             debug_dir = arc_dir / "debug"
-            
+
         # Ensure directory exists
         os.makedirs(debug_dir, exist_ok=True)
-        
+
         # Create a timestamped file name
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
         filename = f"{timestamp}_{func_name}.json"
         filepath = Path(debug_dir) / filename
-        
+
         # Prepare debug data
         debug_data = {
             "timestamp": datetime.now().isoformat(),
@@ -69,48 +69,48 @@ def debug_log(
             "inputs": inputs or {},
             "outputs": outputs or {}
         }
-        
+
         # Write to file
         with open(filepath, "w") as f:
             json.dump(debug_data, f, indent=2, default=str)
-            
+
         logger.debug(f"Debug log written to {filepath}")
-        
+
     except Exception as e:
         logger.warning(f"Failed to write debug log: {e}")
 
 # Function decorator to automatically log inputs and outputs
 def debug_function(func: Callable) -> Callable:
     """Decorator to automatically log function inputs and outputs for debugging.
-    
+
     Args:
         func: The function to decorate
-        
+
     Returns:
         The decorated function
     """
     if not DEBUG_MODE:
         return func
-        
+
     def wrapper(*args, **kwargs):
         # Prepare input data
         inputs = {
             "args": args,
             "kwargs": kwargs
         }
-        
+
         # Call the function
         result = func(*args, **kwargs)
-        
+
         # Log the inputs and outputs
         debug_log(
             func_name=func.__name__,
             inputs=inputs,
             outputs={"result": result}
         )
-        
+
         return result
-        
+
     return wrapper
 
 # System prompts for different phases of semantic processing
@@ -278,21 +278,23 @@ def process_query(
     db_path: Path,
     query: str,
     max_results: int = 5,
-    max_hops: int = 3
+    max_hops: int = 3,
+    timeout: int = 60
 ) -> Dict[str, Any]:
     """Process a natural language query against the knowledge graph.
-    
+
     This function implements a multi-stage approach:
     1. Query Understanding: Uses an LLM to understand the query intent
     2. Knowledge Graph Search: Converts the intent into appropriate graph queries
     3. Response Generation: Synthesizes the information into a natural language response
-    
+
     Args:
         db_path: Path to the knowledge graph database
         query: Natural language query text
         max_results: Maximum number of results to return
         max_hops: Maximum number of hops in the graph traversal
-        
+        timeout: Maximum time in seconds to wait for Ollama response
+
     Returns:
         A dictionary containing the query results with these keys:
         - understanding: How the system understood the query
@@ -303,30 +305,33 @@ def process_query(
     """
     try:
         # Ensure Ollama is available
-        if not ensure_ollama_available():
+        if not ensure_ollama_available(timeout=timeout):
             return {
-                "error": "Ollama is not available. Please install it from https://ollama.com/download"
+                "error": "Ollama is not available",
+                "understanding": "Natural language queries require Ollama to be installed and running. "
+                                "Please install Ollama from https://ollama.ai/download and start it with 'ollama serve'. "
+                                "Then run 'ollama pull qwen3:4b' to download the default model (only ~4GB in size)."
             }
-        
+
         # Connect to the database
         conn = get_connection(db_path)
-        
+
         logger.info(f"Processing query: {query}")
         logger.info(f"Using max_results={max_results}, max_hops={max_hops}")
-        
+
         # Stage 1: Process the query using LLM to understand intent
         logger.info("Stage 1: Understanding query intent")
         query_intent = _process_query_intent(query)
-        
+
         if not query_intent:
             logger.error("Failed to process query intent")
             return {
                 "error": "Failed to process query intent",
                 "understanding": "I couldn't understand your question. Please try rephrasing it."
             }
-        
+
         logger.info(f"Query understanding: {query_intent.get('understanding', 'No understanding available')}")
-        
+
         # Stage 2: Search for relevant nodes based on the query intent
         logger.info("Stage 2: Searching knowledge graph")
         relevant_nodes = _search_knowledge_graph(
@@ -335,7 +340,7 @@ def process_query(
             max_results=max_results,
             max_hops=max_hops
         )
-        
+
         if not relevant_nodes:
             logger.warning("No relevant nodes found")
             return {
@@ -343,20 +348,20 @@ def process_query(
                 "summary": "No relevant information found",
                 "results": []
             }
-        
+
         logger.info(f"Found {len(relevant_nodes)} relevant nodes")
-        
+
         # Stage 3: Generate a response using the LLM with the relevant nodes
         logger.info("Stage 3: Generating response")
         response = _generate_response(query, query_intent, relevant_nodes)
-        
+
         # Close the database connection
         conn.close()
-        
+
         # Return the complete response
         logger.info(f"Query processing complete. Confidence: {response.get('confidence', 'N/A')}")
         return response
-        
+
     except Exception as e:
         logger.exception(f"Error processing query: {e}")
         return {
@@ -368,24 +373,25 @@ def process_query(
 @debug_function
 def _process_query_intent(query: str) -> Optional[Dict[str, Any]]:
     """Process the query intent using an LLM.
-    
+
     Args:
         query: The natural language query
-        
+
     Returns:
         A dictionary with the parsed query intent, or None if processing failed
     """
     try:
         # Create Ollama client
         client = OllamaClient()
-        
+
         # Stage 1: Generate response with thinking for understanding the query
         logger.debug("Stage 1: Understanding query intent")
         llm_response = client.generate_with_thinking(
+            model="qwen3:4b",
             prompt=f"Parse this natural language query about a code repository: \"{query}\"",
             system=QUERY_UNDERSTANDING_PROMPT
         )
-        
+
         # Log the raw LLM response for debugging
         if DEBUG_MODE:
             debug_log(
@@ -393,14 +399,14 @@ def _process_query_intent(query: str) -> Optional[Dict[str, Any]]:
                 inputs={"query": query, "system_prompt": QUERY_UNDERSTANDING_PROMPT},
                 outputs={"llm_response": llm_response}
             )
-        
+
         # Extract JSON from the response
         query_intent = _extract_json_from_llm_response(llm_response)
-        
+
         if not query_intent:
             logger.warning("Failed to extract query intent JSON")
             return None
-            
+
         # Stage 2: Generate search parameters based on the query intent
         logger.debug("Stage 2: Generating search parameters")
         search_params_prompt = f"""
@@ -409,12 +415,13 @@ Based on this query intent:
 
 Generate appropriate search parameters for finding relevant nodes in the knowledge graph.
 """
-        
+
         search_params_response = client.generate_with_thinking(
+            model="qwen3:4b",
             prompt=search_params_prompt,
             system=KNOWLEDGE_GRAPH_SEARCH_PROMPT
         )
-        
+
         # Log the raw LLM response for debugging
         if DEBUG_MODE:
             debug_log(
@@ -422,17 +429,17 @@ Generate appropriate search parameters for finding relevant nodes in the knowled
                 inputs={"query_intent": query_intent, "system_prompt": KNOWLEDGE_GRAPH_SEARCH_PROMPT},
                 outputs={"llm_response": search_params_response}
             )
-        
+
         # Extract search parameters JSON
         search_params = _extract_json_from_llm_response(search_params_response)
-        
+
         if not search_params:
             logger.warning("Failed to extract search parameters, falling back to query intent only")
             return query_intent
-            
+
         # Merge the query intent with search parameters for a more complete search context
         enhanced_intent = {**query_intent}
-        
+
         # Add search-specific parameters
         if "primary_node_types" in search_params:
             # If entity_types already exists, prioritize primary types but keep the others
@@ -441,46 +448,46 @@ Generate appropriate search parameters for finding relevant nodes in the knowled
                 primary_types = search_params.get("primary_node_types", [])
                 secondary_types = search_params.get("secondary_node_types", [])
                 existing_types = enhanced_intent["entity_types"]
-                
+
                 # Create a new ordered list with primary types first
                 ordered_types = []
                 # Add primary types
                 for type_name in primary_types:
                     if type_name not in ordered_types:
                         ordered_types.append(type_name)
-                
+
                 # Add existing types not in primary
                 for type_name in existing_types:
                     if type_name not in ordered_types:
                         ordered_types.append(type_name)
-                
+
                 # Add secondary types not already included
                 for type_name in secondary_types:
                     if type_name not in ordered_types:
                         ordered_types.append(type_name)
-                
+
                 enhanced_intent["entity_types"] = ordered_types
             else:
                 # Just use all types from search params
                 all_types = search_params.get("primary_node_types", []) + search_params.get("secondary_node_types", [])
                 enhanced_intent["entity_types"] = all_types
-        
+
         # Add search strategy metadata
         enhanced_intent["search_metadata"] = {
             "strategy": search_params.get("search_strategy", "relevance_first"),
             "max_nodes_per_type": search_params.get("max_nodes_per_type", 5),
             "relationship_priorities": search_params.get("relationship_priorities", [])
         }
-        
+
         # Add keywords if present and not already in query intent
         if "keywords" in search_params and "title_keywords" not in enhanced_intent.get("attributes", {}):
             if "attributes" not in enhanced_intent:
                 enhanced_intent["attributes"] = {}
             enhanced_intent["attributes"]["title_keywords"] = search_params["keywords"]
-        
+
         logger.debug(f"Enhanced query intent: {enhanced_intent}")
         return enhanced_intent
-        
+
     except Exception as e:
         logger.exception(f"Error in query intent processing: {e}")
         return None
@@ -488,10 +495,10 @@ Generate appropriate search parameters for finding relevant nodes in the knowled
 
 def _extract_json_from_llm_response(response: str) -> Optional[Dict[str, Any]]:
     """Extract JSON from LLM response text.
-    
+
     Args:
         response: The raw LLM response text
-        
+
     Returns:
         Parsed JSON object or None if extraction failed
     """
@@ -504,7 +511,7 @@ def _extract_json_from_llm_response(response: str) -> Optional[Dict[str, Any]]:
             response = response[:start_think] + response[end_think:]
             # Clean up any extra whitespace
             response = response.strip()
-        
+
         # Check for JSON block format with code fences
         if "```json" in response:
             # Extract content between ```json and ```
@@ -530,13 +537,13 @@ def _extract_json_from_llm_response(response: str) -> Optional[Dict[str, Any]]:
                 # No JSON-like structure found
                 logger.warning(f"No JSON structure found in: {response}")
                 return None
-        
+
         # Parse the JSON
         return json.loads(json_str)
-        
+
     except json.JSONDecodeError as e:
         logger.warning(f"JSON parse error: {e}, response: {response}")
-        
+
         # Fallback: Try regex to find JSON-like structure
         import re
         try:
@@ -548,7 +555,7 @@ def _extract_json_from_llm_response(response: str) -> Optional[Dict[str, Any]]:
                 return json.loads(json_str)
         except Exception as regex_err:
             logger.warning(f"Regex fallback also failed to parse JSON: {regex_err}")
-        
+
         return None
     except Exception as e:
         logger.exception(f"Error extracting JSON: {e}")
@@ -562,13 +569,13 @@ def _search_knowledge_graph(
     max_hops: int = 3
 ) -> List[Dict[str, Any]]:
     """Search the knowledge graph for nodes relevant to the query intent.
-    
+
     Args:
         conn: Database connection
         query_intent: The parsed query intent
         max_results: Maximum number of results to return
         max_hops: Maximum number of hops in the graph traversal
-        
+
     Returns:
         List of relevant nodes with metadata
     """
@@ -578,13 +585,13 @@ def _search_knowledge_graph(
         search_strategy = search_metadata.get("strategy", "relevance_first")
         max_nodes_per_type = search_metadata.get("max_nodes_per_type", max_results // 2)
         relationship_priorities = search_metadata.get("relationship_priorities", [])
-        
+
         # Extract entity types
         entity_types = query_intent.get("entity_types", [])
         if not entity_types:
             # Default to all types if none specified
             entity_types = ["commit", "pr", "issue", "adr", "file"]
-            
+
         # Convert string entity types to NodeType enum
         node_types = []
         for entity_type in entity_types:
@@ -593,63 +600,63 @@ def _search_knowledge_graph(
                 node_types.append(node_type)
             except ValueError:
                 logger.warning(f"Unknown entity type: {entity_type}")
-                
+
         if not node_types:
             logger.warning("No valid node types found")
             return []
-            
+
         # Extract attributes for filtering
         attributes = query_intent.get("attributes", {})
         title_keywords = attributes.get("title_keywords", [])
-        
+
         # Extract temporal constraints
         temporal_constraints = query_intent.get("temporal_constraints", {})
-        
+
         # Start with an empty list of seed nodes
         seed_nodes = []
-        
+
         # First, search based on entity types and title keywords
         for node_type in node_types[:2]:  # Start with the first two types (highest priority)
             type_nodes = _find_nodes_by_type_and_keywords(
-                conn, 
-                node_type, 
-                title_keywords, 
+                conn,
+                node_type,
+                title_keywords,
                 temporal_constraints,
                 limit=max_nodes_per_type
             )
             seed_nodes.extend(type_nodes)
-            
+
             # If we have enough seed nodes, stop searching
             if len(seed_nodes) >= max_nodes_per_type * 2:
                 break
-                
+
         # If we don't have enough seed nodes, try the remaining types
         if len(seed_nodes) < max_nodes_per_type and len(node_types) > 2:
             for node_type in node_types[2:]:
                 type_nodes = _find_nodes_by_type_and_keywords(
-                    conn, 
-                    node_type, 
-                    title_keywords, 
+                    conn,
+                    node_type,
+                    title_keywords,
                     temporal_constraints,
                     limit=max_nodes_per_type
                 )
                 seed_nodes.extend(type_nodes)
-                
+
                 # If we have enough seed nodes, stop searching
                 if len(seed_nodes) >= max_nodes_per_type * 2:
                     break
-        
+
         # If no seed nodes found, return empty list
         if not seed_nodes:
             logger.warning("No seed nodes found")
             return []
-            
+
         # Score and rank the seed nodes
         scored_nodes = _score_nodes(seed_nodes, query_intent)
-        
+
         # Select top nodes after scoring
         top_seed_nodes = scored_nodes[:max(3, max_nodes_per_type)]
-        
+
         # Expand the search from seed nodes based on search strategy
         if search_strategy == "broad_first":
             # Broad search prioritizes finding a diverse set of related nodes
@@ -664,7 +671,7 @@ def _search_knowledge_graph(
             # Relevance search uses the scoring function
             expanded_nodes = _expand_search(conn, top_seed_nodes, max_hops, max_results * 2)
             expanded_nodes = _score_nodes(expanded_nodes, query_intent)
-            
+
         # Format the nodes for response
         relevant_nodes = []
         for node in expanded_nodes[:max_results]:
@@ -673,30 +680,30 @@ def _search_knowledge_graph(
                 "id": node.id,
                 "type": node.type.value if node.type else "unknown",
             }
-            
+
             # Add other fields only if they exist and aren't None
             if hasattr(node, "title") and node.title is not None:
                 formatted_node["title"] = node.title
-                
+
             if hasattr(node, "body") and node.body is not None:
                 formatted_node["body"] = node.body
-                
+
             if hasattr(node, "url") and node.url is not None:
                 formatted_node["url"] = node.url
-                
+
             if hasattr(node, "ts") and node.ts is not None:
                 formatted_node["timestamp"] = node.ts.isoformat()
-            
+
             # Add type-specific fields
             if node.type == NodeType.COMMIT:
                 # Short hash (first 8 characters) for commits
                 if len(node.id) >= 8:
                     formatted_node["hash"] = node.id[:8]
-                    
+
             elif node.type == NodeType.PR:
                 if hasattr(node, "merged"):
                     formatted_node["status"] = "merged" if node.merged else "open"
-                    
+
             elif node.type == NodeType.ISSUE:
                 # Extract status and labels from extra data if available
                 if hasattr(node, "extra") and node.extra and isinstance(node.extra, dict):
@@ -704,11 +711,11 @@ def _search_knowledge_graph(
                         formatted_node["status"] = node.extra["status"]
                     if "labels" in node.extra:
                         formatted_node["labels"] = node.extra["labels"]
-            
+
             relevant_nodes.append(formatted_node)
-            
+
         return relevant_nodes
-        
+
     except Exception as e:
         logger.exception(f"Error searching knowledge graph: {e}")
         return []
@@ -722,24 +729,24 @@ def _find_nodes_by_type_and_keywords(
     limit: int = 5
 ) -> List[Node]:
     """Find nodes by type and keywords.
-    
+
     Args:
         conn: Database connection
         node_type: Type of node to search for
         keywords: List of keywords to search for
         temporal_constraints: Temporal constraints for filtering
         limit: Maximum number of nodes to return
-        
+
     Returns:
         List of matching nodes
     """
     try:
         cursor = conn.cursor()
-        
+
         # Base query
         query = "SELECT * FROM nodes WHERE type = ?"
         params = [node_type.value]
-        
+
         # Add keyword filters if any
         if keywords:
             keyword_conditions = []
@@ -747,29 +754,29 @@ def _find_nodes_by_type_and_keywords(
                 # Search in title and body
                 keyword_conditions.append("(title LIKE ? OR body LIKE ?)")
                 params.extend([f"%{keyword}%", f"%{keyword}%"])
-                
+
             if keyword_conditions:
                 query += " AND (" + " OR ".join(keyword_conditions) + ")"
-                
+
         # Add temporal constraints if any
         if "before" in temporal_constraints:
-            query += " AND ts <= ?"
+            query += " AND timestamp <= ?"
             params.append(temporal_constraints["before"])
-            
+
         if "after" in temporal_constraints:
-            query += " AND ts >= ?"
+            query += " AND timestamp >= ?"
             params.append(temporal_constraints["after"])
-            
+
         # Order by timestamp descending (newest first) if available
-        query += " ORDER BY ts DESC NULLS LAST"
-        
+        query += " ORDER BY timestamp DESC NULLS LAST"
+
         # Add limit
         query += " LIMIT ?"
         params.append(limit)
-        
+
         # Execute query
         cursor.execute(query, params)
-        
+
         # Convert to Node objects
         nodes = []
         for row in cursor.fetchall():
@@ -780,35 +787,35 @@ def _find_nodes_by_type_and_keywords(
                 'title': row["title"],
                 'body': row["body"]
             }
-            
+
             # Add optional fields if they exist
             if "url" in row:
                 node_data['url'] = row["url"]
-            
+
             if "merged" in row:
                 node_data['merged'] = bool(row["merged"]) if row["merged"] is not None else None
-            
+
             # Create the node
             node = Node(**node_data)
-            
+
             # Add timestamp if available
-            if "ts" in row and row["ts"]:
+            if "timestamp" in row and row["timestamp"]:
                 try:
-                    node.ts = datetime.fromisoformat(row["ts"])
+                    node.ts = datetime.fromisoformat(row["timestamp"])
                 except (ValueError, TypeError):
                     pass
-                    
+
             # Add extra data if available
             if "extra" in row and row["extra"]:
                 try:
                     node.extra = json.loads(row["extra"])
                 except (json.JSONDecodeError, TypeError):
                     pass
-                    
+
             nodes.append(node)
-            
+
         return nodes
-        
+
     except Exception as e:
         logger.exception(f"Error finding nodes by type and keywords: {e}")
         return []
@@ -820,13 +827,13 @@ def _expand_search(
     max_results: int
 ) -> List[Node]:
     """Expand the search from seed nodes using graph relationships.
-    
+
     Args:
         conn: Database connection
         seed_nodes: Initial set of nodes to expand from
         max_hops: Maximum number of hops in the graph traversal
         max_results: Maximum number of results to return
-        
+
     Returns:
         List of additional nodes found through graph traversal
     """
@@ -834,42 +841,42 @@ def _expand_search(
         # Keep track of visited nodes to avoid duplicates
         visited_ids = set(node.id for node in seed_nodes)
         expanded_nodes = list(seed_nodes)  # Start with the seed nodes
-        
+
         # Queue for BFS traversal
         from collections import deque
         queue = deque([(node.id, 1) for node in seed_nodes])  # (node_id, hop_count)
-        
+
         # Perform BFS traversal
         while queue and len(expanded_nodes) < max_results:
             node_id, hop_count = queue.popleft()
-            
+
             # Skip if max hops reached
             if hop_count > max_hops:
                 continue
-            
+
             # Get connected nodes
             connected_ids = get_connected_nodes(conn, node_id)
-            
+
             # Process each connected node
             for connected_id in connected_ids:
                 if connected_id not in visited_ids:
                     visited_ids.add(connected_id)
-                    
+
                     # Get the node from the database
                     node = get_node_by_id(conn, connected_id)
                     if node:
                         expanded_nodes.append(node)
-                        
+
                         # Add to queue for further expansion
                         if hop_count < max_hops:
                             queue.append((connected_id, hop_count + 1))
-                    
+
                     # Check if we have enough nodes
                     if len(expanded_nodes) >= max_results:
                         break
-        
+
         return expanded_nodes
-        
+
     except Exception as e:
         logger.exception(f"Error expanding search: {e}")
         return []
@@ -877,35 +884,35 @@ def _expand_search(
 
 def _score_nodes(nodes: List[Node], query_intent: Dict[str, Any]) -> List[Node]:
     """Score and rank nodes by relevance to the query.
-    
+
     Args:
         nodes: List of nodes to score
         query_intent: The parsed query intent
-        
+
     Returns:
         List of nodes sorted by relevance score (most relevant first)
     """
     try:
         scored_nodes = []
-        
+
         # Extract scoring criteria from query intent
         entity_types = query_intent.get("entity_types", [])
         title_keywords = query_intent.get("attributes", {}).get("title_keywords", [])
         temporal_constraints = query_intent.get("temporal_constraints", {})
-        
+
         for node in nodes:
             score = 0
-            
+
             # Score based on entity type
             if entity_types and node.type and node.type.value in entity_types:
                 score += 5
-            
+
             # Score based on title keywords
             if title_keywords and node.title:
                 for keyword in title_keywords:
                     if keyword.lower() in node.title.lower():
                         score += 3
-            
+
             # Score based on temporal constraints
             if temporal_constraints and node.ts:
                 # Handle "after" constraint
@@ -913,27 +920,27 @@ def _score_nodes(nodes: List[Node], query_intent: Dict[str, Any]) -> List[Node]:
                     after_date = datetime.fromisoformat(temporal_constraints["after"])
                     if node.ts > after_date:
                         score += 2
-                
+
                 # Handle "before" constraint
                 if "before" in temporal_constraints:
                     before_date = datetime.fromisoformat(temporal_constraints["before"])
                     if node.ts < before_date:
                         score += 2
-                
+
                 # Handle version constraint (for commits and PRs)
                 if "version" in temporal_constraints and node.type in [NodeType.COMMIT, NodeType.PR]:
                     # Check if version is mentioned in title or body
                     version = temporal_constraints["version"]
                     if (node.title and version in node.title) or (node.body and version in node.body):
                         score += 4
-            
+
             # Add to scored nodes list
             scored_nodes.append((node, score))
-        
+
         # Sort by score (descending) and return just the nodes
         scored_nodes.sort(key=lambda x: x[1], reverse=True)
         return [node for node, _ in scored_nodes]
-        
+
     except Exception as e:
         logger.exception(f"Error scoring nodes: {e}")
         return nodes  # Return unsorted nodes on error
@@ -945,25 +952,25 @@ def _generate_response(
     relevant_nodes: List[Dict[str, Any]]
 ) -> Dict[str, Any]:
     """Generate a natural language response to the query.
-    
+
     Args:
         query: The original natural language query
         query_intent: The parsed query intent
         relevant_nodes: List of relevant nodes with metadata
-        
+
     Returns:
         A dictionary with the response including summary, answer, and results
     """
     try:
         # Create Ollama client
         client = OllamaClient()
-        
+
         # Prepare context from relevant nodes
         context_str = json.dumps(relevant_nodes, indent=2)
-        
+
         # Define the system prompt for response generation - now using the dedicated prompt
         system_prompt = RESPONSE_GENERATION_PROMPT
-        
+
         # Generate the response with the LLM
         llm_prompt = f"""User's question: {query}
 
@@ -973,29 +980,30 @@ Relevant information from the knowledge graph:
 {context_str}
 
 Based on this information, please answer the user's question."""
-        
+
         # Generate response with thinking for better reasoning
         llm_response = client.generate_with_thinking(
+            model="qwen3:4b",
             prompt=llm_prompt,
             system=system_prompt
         )
-        
+
         # Log the raw LLM response for debugging
         if DEBUG_MODE:
             debug_log(
                 func_name="_generate_response_raw_llm",
                 inputs={
-                    "query": query, 
+                    "query": query,
                     "query_intent": query_intent,
                     "relevant_nodes_count": len(relevant_nodes),
                     "system_prompt": system_prompt
                 },
                 outputs={"llm_response": llm_response}
             )
-        
+
         # Extract JSON from the response
         response_json = _extract_json_from_llm_response(llm_response)
-        
+
         if not response_json:
             # Fallback for parsing errors
             return {
@@ -1005,7 +1013,7 @@ Based on this information, please answer the user's question."""
                 "results": relevant_nodes,
                 "confidence": 1
             }
-        
+
         # Combine the response with the original query understanding and relevant nodes
         final_response = {
             "understanding": query_intent.get("understanding", "Not available"),
@@ -1014,14 +1022,14 @@ Based on this information, please answer the user's question."""
             "results": relevant_nodes,
             "confidence": response_json.get("confidence", 5)
         }
-        
+
         # Add reasoning to each result if available
         if "reasoning" in response_json:
             # Add overall reasoning to the response
             final_response["reasoning"] = response_json["reasoning"]
-            
+
         return final_response
-        
+
     except Exception as e:
         logger.exception(f"Error generating response: {e}")
         return {
@@ -1030,4 +1038,4 @@ Based on this information, please answer the user's question."""
             "answer": f"An error occurred while generating the response: {e}",
             "results": relevant_nodes,
             "confidence": 1
-        } 
+        }
