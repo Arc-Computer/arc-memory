@@ -23,6 +23,13 @@ from arc_memory.ingest.github import GitHubIngestor
 from arc_memory.ingest.linear import LinearIngestor
 from arc_memory.llm.ollama_client import OllamaClient, ensure_ollama_available
 from arc_memory.logging_conf import get_logger
+
+# Import OpenAI client conditionally to avoid hard dependency
+try:
+    from arc_memory.llm.openai_client import OpenAIClient, ensure_openai_available
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
 from arc_memory.plugins import get_ingestor_plugins
 from arc_memory.process.kgot import enhance_with_reasoning_structures
 from arc_memory.process.semantic_analysis import enhance_with_semantic_analysis
@@ -76,6 +83,16 @@ def build(
         "--llm-enhancement",
         "-l",
         help="LLM enhancement level: none, fast, standard, deep.",
+    ),
+    llm_provider: str = typer.Option(
+        "ollama",
+        "--llm-provider",
+        help="LLM provider to use: ollama or openai.",
+    ),
+    llm_model: Optional[str] = typer.Option(
+        None,
+        "--llm-model",
+        help="LLM model to use (defaults to qwen3:4b for Ollama, gpt-3.5-turbo for OpenAI).",
     ),
     ollama_host: str = typer.Option(
         "http://localhost:11434",
@@ -178,8 +195,13 @@ def build(
 
         # LLM setup if enhancement is enabled
         ollama_client = None
+        openai_client = None
         if llm_enhancement != LLMEnhancementLevel.NONE:
             print("🔄 Setting up LLM enhancement...")
+            print(f"LLM Provider: {llm_provider}")
+            if llm_model:
+                print(f"LLM Model: {llm_model}")
+
             # Define system prompt for consistent reasoning
             system_prompt = """# Arc Memory Knowledge Graph Building Framework
 
@@ -366,26 +388,77 @@ Generate structured JSON following the requested schema for each enhancement tas
 Prioritize precision over coverage in your enhancements. Follow Arc Memory's schema exactly to ensure all nodes and relationships integrate cleanly with the existing knowledge graph.
 """
 
-            # Use Qwen3:4b model as specified
-            if ensure_ollama_available("qwen3:4b"):
-                ollama_client = OllamaClient(host=ollama_host)
-                print("✅ LLM setup complete with Qwen3:4b model")
-
-                # Test the LLM with a simple query to ensure it's responsive
-                try:
-                    test_response = ollama_client.generate(
-                        model="qwen3:4b",
-                        prompt="Respond with a single word: Working",
-                        system=system_prompt
-                    )
-                    if "working" in test_response.lower():
-                        print("✅ LLM test query successful")
+            # Set up the LLM client based on the provider
+            if llm_provider == "openai":
+                if not OPENAI_AVAILABLE:
+                    print("⚠️ OpenAI package not installed. Install with 'pip install openai'")
+                    print("⚠️ Falling back to Ollama")
+                    llm_provider = "ollama"
+                else:
+                    # Check if OpenAI API key is set
+                    if "OPENAI_API_KEY" not in os.environ:
+                        print("⚠️ OpenAI API key not set. Set the OPENAI_API_KEY environment variable.")
+                        print("⚠️ Falling back to Ollama")
+                        llm_provider = "ollama"
                     else:
-                        print(f"⚠️ LLM test query returned unexpected response: {test_response[:50]}...")
-                except Exception as e:
-                    print(f"⚠️ Warning: LLM test query failed: {e}")
-            else:
-                print("⚠️  Warning: LLM setup failed, continuing without enhancement")
+                        # Set default model if not provided
+                        openai_model = llm_model or "gpt-3.5-turbo"
+
+                        # Create OpenAI client
+                        try:
+                            openai_client = OpenAIClient()
+                            print(f"✅ LLM setup complete with OpenAI model: {openai_model}")
+
+                            # Test the LLM with a simple query
+                            test_response = openai_client.generate(
+                                model=openai_model,
+                                prompt="Respond with a single word: Working",
+                                system=system_prompt,
+                                options={"temperature": 0.0}
+                            )
+
+                            if "working" in test_response.lower():
+                                print("✅ LLM test query successful")
+                            else:
+                                print(f"⚠️ LLM test query returned unexpected response: {test_response[:50]}...")
+                        except Exception as e:
+                            print(f"⚠️ Warning: OpenAI setup failed: {e}")
+                            print("⚠️ Falling back to Ollama")
+                            llm_provider = "ollama"
+
+            # If using Ollama (either by choice or as fallback)
+            if llm_provider == "ollama":
+                # Set default model if not provided
+                ollama_model = llm_model or "qwen3:4b"
+
+                # Check if Ollama is available
+                if ensure_ollama_available(ollama_model):
+                    ollama_client = OllamaClient(host=ollama_host)
+                    print(f"✅ LLM setup complete with Ollama model: {ollama_model}")
+
+                    # Test the LLM with a simple query
+                    try:
+                        test_response = ollama_client.generate(
+                            model=ollama_model,
+                            prompt="Respond with a single word: Working",
+                            system=system_prompt
+                        )
+
+                        if "working" in test_response.lower():
+                            print("✅ LLM test query successful")
+                        else:
+                            print(f"⚠️ LLM test query returned unexpected response: {test_response[:50]}...")
+                    except Exception as e:
+                        print(f"⚠️ Warning: Ollama test query failed: {e}")
+                        llm_enhancement = LLMEnhancementLevel.NONE
+                else:
+                    print("⚠️ Warning: Ollama not available, continuing without enhancement")
+                    llm_enhancement = LLMEnhancementLevel.NONE
+
+            # If neither provider is available, disable enhancement
+            if llm_provider not in ["openai", "ollama"]:
+                print(f"⚠️ Unsupported LLM provider: {llm_provider}")
+                print("⚠️ Supported providers: openai, ollama")
                 llm_enhancement = LLMEnhancementLevel.NONE
 
         # Process nodes and edges using ingestors
@@ -466,7 +539,7 @@ Prioritize precision over coverage in your enhancements. Follow Arc Memory's sch
             sys.stdout.flush()
 
         # Apply LLM enhancements if enabled
-        if llm_enhancement != LLMEnhancementLevel.NONE and ollama_client is not None:
+        if llm_enhancement != LLMEnhancementLevel.NONE and (ollama_client is not None or openai_client is not None):
             print("\n🧠 Applying LLM enhancements...")
             enhancement_start = time.time()
 
@@ -476,13 +549,24 @@ Prioritize precision over coverage in your enhancements. Follow Arc Memory's sch
             sys.stdout.flush()
 
             try:
-                all_nodes, all_edges = enhance_with_semantic_analysis(
-                    all_nodes,
-                    all_edges,
-                    repo_path=repo_path,
-                    enhancement_level=llm_enhancement.value,
-                    ollama_client=ollama_client
-                )
+                if llm_provider == "openai" and openai_client is not None:
+                    all_nodes, all_edges = enhance_with_semantic_analysis(
+                        all_nodes,
+                        all_edges,
+                        repo_path=repo_path,
+                        enhancement_level=llm_enhancement.value,
+                        openai_client=openai_client,
+                        llm_provider="openai"
+                    )
+                else:
+                    all_nodes, all_edges = enhance_with_semantic_analysis(
+                        all_nodes,
+                        all_edges,
+                        repo_path=repo_path,
+                        enhancement_level=llm_enhancement.value,
+                        ollama_client=ollama_client,
+                        llm_provider="ollama"
+                    )
                 sys.stdout.write(f"\r✅ Semantic analysis complete ({time.time() - enhancement_start:.1f}s)\n")
             except Exception as e:
                 sys.stdout.write(f"\r❌ Semantic analysis failed: {e}\n")
@@ -493,13 +577,24 @@ Prioritize precision over coverage in your enhancements. Follow Arc Memory's sch
             sys.stdout.flush()
 
             try:
-                all_nodes, all_edges = enhance_with_temporal_analysis(
-                    all_nodes,
-                    all_edges,
-                    repo_path=repo_path,
-                    enhancement_level=llm_enhancement.value,
-                    ollama_client=ollama_client
-                )
+                if llm_provider == "openai" and openai_client is not None:
+                    all_nodes, all_edges = enhance_with_temporal_analysis(
+                        all_nodes,
+                        all_edges,
+                        repo_path=repo_path,
+                        enhancement_level=llm_enhancement.value,
+                        openai_client=openai_client,
+                        llm_provider="openai"
+                    )
+                else:
+                    all_nodes, all_edges = enhance_with_temporal_analysis(
+                        all_nodes,
+                        all_edges,
+                        repo_path=repo_path,
+                        enhancement_level=llm_enhancement.value,
+                        ollama_client=ollama_client,
+                        llm_provider="ollama"
+                    )
                 sys.stdout.write(f"\r✅ Temporal analysis complete ({time.time() - temporal_start:.1f}s)\n")
             except Exception as e:
                 sys.stdout.write(f"\r❌ Temporal analysis failed: {e}\n")
@@ -511,14 +606,26 @@ Prioritize precision over coverage in your enhancements. Follow Arc Memory's sch
                 sys.stdout.flush()
 
                 try:
-                    all_nodes, all_edges = enhance_with_reasoning_structures(
-                        all_nodes,
-                        all_edges,
-                        repo_path=repo_path,
-                        ollama_client=ollama_client,
-                        enhancement_level=llm_enhancement.value,
-                        system_prompt=system_prompt
-                    )
+                    if llm_provider == "openai" and openai_client is not None:
+                        all_nodes, all_edges = enhance_with_reasoning_structures(
+                            all_nodes,
+                            all_edges,
+                            repo_path=repo_path,
+                            openai_client=openai_client,
+                            llm_provider="openai",
+                            enhancement_level=llm_enhancement.value,
+                            system_prompt=system_prompt
+                        )
+                    else:
+                        all_nodes, all_edges = enhance_with_reasoning_structures(
+                            all_nodes,
+                            all_edges,
+                            repo_path=repo_path,
+                            ollama_client=ollama_client,
+                            llm_provider="ollama",
+                            enhancement_level=llm_enhancement.value,
+                            system_prompt=system_prompt
+                        )
                     sys.stdout.write(f"\r✅ Reasoning structures complete ({time.time() - kgot_start:.1f}s)\n")
                 except Exception as e:
                     sys.stdout.write(f"\r❌ Reasoning structures failed: {e}\n")

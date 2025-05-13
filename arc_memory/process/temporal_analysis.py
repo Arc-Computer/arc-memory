@@ -7,12 +7,19 @@ temporal understanding and reasoning capabilities.
 from collections import defaultdict
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple, Union
 
 from arc_memory.llm.ollama_client import OllamaClient
 from arc_memory.logging_conf import get_logger
 from arc_memory.schema.models import Edge, EdgeRel, Node, NodeType
 from arc_memory.utils.temporal import normalize_timestamp
+
+# Import OpenAI client conditionally to avoid hard dependency
+try:
+    from arc_memory.llm.openai_client import OpenAIClient
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
 
 logger = get_logger(__name__)
 
@@ -23,6 +30,8 @@ def enhance_with_temporal_analysis(
     repo_path: Optional[Path] = None,
     enhancement_level: str = "standard",
     ollama_client: Optional[OllamaClient] = None,
+    openai_client: Optional[Any] = None,
+    llm_provider: str = "ollama",
 ) -> Tuple[List[Node], List[Edge]]:
     """Enhance nodes and edges with temporal analysis.
 
@@ -32,6 +41,8 @@ def enhance_with_temporal_analysis(
         repo_path: Path to the repository (for accessing file content).
         enhancement_level: Level of enhancement to apply ("none", "fast", "standard", or "deep").
         ollama_client: Optional Ollama client for LLM processing.
+        openai_client: Optional OpenAI client for LLM processing.
+        llm_provider: The LLM provider to use ("ollama" or "openai").
 
     Returns:
         Enhanced nodes and edges.
@@ -251,7 +262,17 @@ def enhance_with_temporal_analysis(
         logger.info(f"Created {len(workflow_nodes)} workflow nodes and {len(workflow_edges)} expertise edges")
 
         # Add LLM-enhanced temporal analysis if available
-        if ollama_client is not None:
+        if llm_provider == "openai" and openai_client is not None:
+            try:
+                llm_nodes, llm_edges = enhance_with_llm_temporal_analysis_openai(
+                    nodes, edges, commit_nodes, openai_client
+                )
+                workflow_nodes.extend(llm_nodes)
+                workflow_edges.extend(llm_edges)
+                logger.info(f"Added {len(llm_nodes)} LLM-enhanced nodes and {len(llm_edges)} LLM-enhanced edges")
+            except Exception as e:
+                logger.error(f"Error in OpenAI temporal analysis: {e}")
+        elif ollama_client is not None:
             try:
                 llm_nodes, llm_edges = enhance_with_llm_temporal_analysis(
                     nodes, edges, commit_nodes, ollama_client
@@ -260,7 +281,7 @@ def enhance_with_temporal_analysis(
                 workflow_edges.extend(llm_edges)
                 logger.info(f"Added {len(llm_nodes)} LLM-enhanced nodes and {len(llm_edges)} LLM-enhanced edges")
             except Exception as e:
-                logger.error(f"Error in LLM temporal analysis: {e}")
+                logger.error(f"Error in Ollama temporal analysis: {e}")
 
     # Add change frequency property to file nodes
     enhanced_nodes = []
@@ -322,7 +343,7 @@ def enhance_with_llm_temporal_analysis(
     commit_nodes: List[Node],
     ollama_client: OllamaClient
 ) -> Tuple[List[Node], List[Edge]]:
-    """Use LLM to enhance temporal analysis with deeper insights.
+    """Use Ollama LLM to enhance temporal analysis with deeper insights.
 
     Args:
         nodes: List of all nodes.
@@ -512,6 +533,206 @@ def enhance_with_llm_temporal_analysis(
 
     except Exception as e:
         logger.error(f"Error in LLM temporal analysis: {e}")
+        return [], []
+
+
+def enhance_with_llm_temporal_analysis_openai(
+    nodes: List[Node],
+    edges: List[Edge],
+    commit_nodes: List[Node],
+    openai_client: Any
+) -> Tuple[List[Node], List[Edge]]:
+    """Use OpenAI LLM to enhance temporal analysis with deeper insights.
+
+    Args:
+        nodes: List of all nodes.
+        edges: List of all edges.
+        commit_nodes: List of commit nodes.
+        openai_client: The OpenAI client for LLM processing.
+
+    Returns:
+        New nodes and edges derived from LLM analysis.
+    """
+    # Import modules needed for this function
+    import json
+    import re
+
+    # System prompt for temporal reasoning
+    system_prompt = """
+    You are a specialized Knowledge Graph enhancement system focused on temporal code analysis.
+
+    The knowledge graph has the following schema:
+    - Nodes have a dedicated timestamp column for efficient temporal queries
+    - Each node has a type (COMMIT, FILE, PR, ISSUE, ADR, etc.)
+    - Each node has a normalized timestamp (ts) field
+    - Timestamps are stored in ISO format and indexed for efficient querying
+    - Temporal relationships like PRECEDES are created between nodes based on their timestamps
+    - The knowledge graph supports bi-temporal analysis (as-of and as-at time dimensions)
+
+    Analyze the commit patterns to identify:
+    1. Development phases and project milestones
+    2. Code evolution patterns
+    3. Potential technical debt accumulation areas
+
+    When analyzing temporal data, consider:
+    - The chronological order of events based on normalized timestamps
+    - The relationships between events that occurred close in time
+    - Patterns of changes over time that might indicate development phases
+    - The evolution of code entities over time based on their modification history
+
+    Format your response as JSON with the following structure:
+    {
+        "phases": [
+            {"name": "phase name", "description": "phase description", "start_commit": "commit_id", "end_commit": "commit_id", "timestamp_range": ["start_iso_date", "end_iso_date"]}
+        ],
+        "evolution_patterns": [
+            {"pattern": "pattern name", "description": "pattern description", "affected_files": ["file_id1", "file_id2"], "timestamp_range": ["start_iso_date", "end_iso_date"]}
+        ],
+        "technical_debt": [
+            {"area": "area name", "description": "description", "affected_files": ["file_id1", "file_id2"], "first_observed": "iso_date"}
+        ]
+    }
+    """
+
+    # Prepare prompt for LLM
+    if len(commit_nodes) < 5:
+        logger.warning("Not enough commits for meaningful LLM temporal analysis")
+        return [], []
+
+    # Select a sample of commits (most recent 20)
+    sample_commits = sorted(commit_nodes, key=lambda n: normalize_timestamp(n) or datetime.min, reverse=True)[:20]
+
+    # Format commit data for LLM
+    commit_data = []
+    for commit in sample_commits:
+        # Find files modified by this commit
+        modified_files = [edge.dst for edge in edges if edge.src == commit.id and edge.rel == EdgeRel.MODIFIES]
+        file_names = [node.title for node in nodes if node.id in modified_files]
+
+        commit_data.append({
+            "id": commit.id,
+            "title": commit.title,
+            "author": commit.properties.get("author", "unknown"),
+            "timestamp": commit.properties.get("timestamp", 0),
+            "message": commit.properties.get("message", ""),
+            "files_modified": file_names
+        })
+
+    prompt = f"""
+    Analyze the following commit history to identify development phases, code evolution patterns, and potential technical debt:
+
+    {json.dumps(commit_data, indent=2)}
+
+    Focus on temporal patterns and evolutionary aspects of the codebase.
+    """
+
+    try:
+        # Query the OpenAI LLM with thinking mode for better reasoning
+        response = openai_client.generate_with_thinking(
+            model="gpt-3.5-turbo",
+            prompt=prompt,
+            system=system_prompt,
+            options={"temperature": 0.1}
+        )
+
+        # Try to extract JSON from the response
+        json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
+        if json_match:
+            json_str = json_match.group(1)
+        else:
+            # Try to find JSON without code blocks
+            json_match = re.search(r'(\{.*\})', response, re.DOTALL)
+            if json_match:
+                json_str = json_match.group(1)
+            else:
+                logger.warning("Could not extract JSON from LLM response")
+                return [], []
+
+        analysis = json.loads(json_str)
+
+        # Create nodes and edges based on LLM analysis
+        new_nodes = []
+        new_edges = []
+
+        # Create phase nodes
+        for phase in analysis.get("phases", []):
+            phase_id = f"phase:{slugify(phase['name'])}"
+            phase_node = Node(
+                id=phase_id,
+                title=phase["name"],
+                type="development_phase",
+                properties={
+                    "description": phase["description"],
+                    "start_commit": phase.get("start_commit", ""),
+                    "end_commit": phase.get("end_commit", ""),
+                }
+            )
+            new_nodes.append(phase_node)
+
+            # Connect phase to commits
+            if phase.get("start_commit") and phase.get("end_commit"):
+                new_edges.append(Edge(
+                    src=phase_id,
+                    dst=phase["start_commit"],
+                    rel=EdgeRel.STARTS_WITH,
+                    properties={"inferred": True}
+                ))
+                new_edges.append(Edge(
+                    src=phase_id,
+                    dst=phase["end_commit"],
+                    rel=EdgeRel.ENDS_WITH,
+                    properties={"inferred": True}
+                ))
+
+        # Create evolution pattern nodes
+        for pattern in analysis.get("evolution_patterns", []):
+            pattern_id = f"pattern:{slugify(pattern['pattern'])}"
+            pattern_node = Node(
+                id=pattern_id,
+                title=pattern["pattern"],
+                type="evolution_pattern",
+                properties={
+                    "description": pattern["description"]
+                }
+            )
+            new_nodes.append(pattern_node)
+
+            # Connect pattern to affected files
+            for file_id in pattern.get("affected_files", []):
+                new_edges.append(Edge(
+                    src=pattern_id,
+                    dst=file_id,
+                    rel=EdgeRel.AFFECTS,
+                    properties={"inferred": True}
+                ))
+
+        # Create technical debt nodes
+        for debt in analysis.get("technical_debt", []):
+            debt_id = f"tech_debt:{slugify(debt['area'])}"
+            debt_node = Node(
+                id=debt_id,
+                title=f"Technical Debt: {debt['area']}",
+                type="technical_debt",
+                properties={
+                    "description": debt["description"]
+                }
+            )
+            new_nodes.append(debt_node)
+
+            # Connect debt to affected files
+            for file_id in debt.get("affected_files", []):
+                new_edges.append(Edge(
+                    src=debt_id,
+                    dst=file_id,
+                    rel=EdgeRel.AFFECTS,
+                    properties={"inferred": True}
+                ))
+
+        logger.info(f"OpenAI temporal analysis created {len(new_nodes)} nodes and {len(new_edges)} edges")
+        return new_nodes, new_edges
+
+    except Exception as e:
+        logger.error(f"Error in OpenAI temporal analysis: {e}")
         return [], []
 
 
