@@ -1,7 +1,7 @@
-# Arc Memory: The Memory Layer for Engineering Teams
+# Arc: The Memory Layer for Engineering Teams
 
 <p align="center">
-  <img src="public/arc_logo.png" alt="Arc Logo" width="200"/>
+  <img src="public/Arc SDK Header.png" alt="Arc Logo"/> 
 </p>
 
 <p align="center">
