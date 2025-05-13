@@ -235,6 +235,19 @@ class SQLiteAdapter:
             )
 
             logger.info(f"Initialized database schema: {self.db_path}")
+
+            # Run migrations automatically
+            try:
+                from arc_memory.migrations.add_timestamp_column import migrate_database
+                migrate_success = migrate_database(self.db_path)
+                if migrate_success:
+                    logger.info(f"Successfully ran database migrations for {self.db_path}")
+                else:
+                    logger.warning(f"Failed to run database migrations for {self.db_path}")
+            except Exception as migrate_error:
+                logger.warning(f"Error running database migrations: {migrate_error}")
+                # Don't fail initialization if migrations fail
+                # The database is still usable, just might not have the latest schema
         except Exception as e:
             error_msg = f"Failed to initialize database schema: {e}"
             logger.error(error_msg)
@@ -891,6 +904,44 @@ class SQLiteAdapter:
             raise DatabaseError(
                 error_msg,
                 details={
+                    "error": str(e),
+                }
+            )
+
+    def execute_query(self, query: str, params: Optional[Tuple[Any, ...]] = None) -> List[Tuple]:
+        """Execute a raw SQL query on the database.
+
+        This method allows executing arbitrary SQL queries on the database.
+        It should be used with caution, as it bypasses the adapter's abstraction.
+
+        Args:
+            query: The SQL query to execute.
+            params: Optional parameters for the query.
+
+        Returns:
+            A list of tuples containing the query results.
+
+        Raises:
+            GraphQueryError: If executing the query fails.
+        """
+        if not self.is_connected():
+            raise DatabaseError("Not connected to database")
+
+        try:
+            if params:
+                cursor = self.conn.execute(query, params)
+            else:
+                cursor = self.conn.execute(query)
+
+            return cursor.fetchall()
+        except Exception as e:
+            error_msg = f"Failed to execute query: {e}"
+            logger.error(error_msg)
+            raise GraphQueryError(
+                error_msg,
+                details={
+                    "query": query,
+                    "params": params,
                     "error": str(e),
                 }
             )

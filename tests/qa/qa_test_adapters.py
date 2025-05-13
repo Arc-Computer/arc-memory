@@ -51,7 +51,7 @@ try:
         # Get the LangChain adapter
         langchain_adapter = get_adapter("langchain")
         print(f"✅ Successfully got LangChain adapter: {langchain_adapter.get_name()}")
-        
+
         # Adapt functions
         functions = [
             arc.query,
@@ -60,10 +60,10 @@ try:
             arc.get_entity_details,
             arc.analyze_component_impact
         ]
-        
+
         tools = langchain_adapter.adapt_functions(functions)
         print(f"✅ Successfully adapted {len(tools)} functions to LangChain tools")
-        
+
         # Check if we can create an agent
         try:
             # Check if LangChain is installed
@@ -73,7 +73,7 @@ try:
             except ImportError:
                 langchain_installed = False
                 print("⚠️ LangChain not installed, skipping agent creation")
-            
+
             if langchain_installed:
                 # Check if OPENAI_API_KEY is set
                 if "OPENAI_API_KEY" in os.environ:
@@ -85,7 +85,7 @@ try:
                         system_message="You are a helpful assistant with access to Arc Memory."
                     )
                     print("✅ Successfully created LangChain agent")
-                    
+
                     # Test the agent with a simple query
                     try:
                         response = agent.invoke({"input": "What can you tell me about this repository?"})
@@ -109,7 +109,7 @@ try:
         # Get the OpenAI adapter
         openai_adapter = get_adapter("openai")
         print(f"✅ Successfully got OpenAI adapter: {openai_adapter.get_name()}")
-        
+
         # Adapt functions
         functions = [
             arc.query,
@@ -118,10 +118,10 @@ try:
             arc.get_entity_details,
             arc.analyze_component_impact
         ]
-        
+
         tools = openai_adapter.adapt_functions(functions)
         print(f"✅ Successfully adapted {len(tools)} functions to OpenAI tools")
-        
+
         # Check if we can create an agent
         try:
             # Check if OpenAI is installed
@@ -131,7 +131,7 @@ try:
             except ImportError:
                 openai_installed = False
                 print("⚠️ OpenAI not installed, skipping agent creation")
-            
+
             if openai_installed:
                 # Check if OPENAI_API_KEY is set
                 if "OPENAI_API_KEY" in os.environ:
@@ -142,12 +142,23 @@ try:
                         system_message="You are a helpful assistant with access to Arc Memory."
                     )
                     print("✅ Successfully created OpenAI agent")
-                    
+
                     # Test the agent with a simple query
                     try:
                         response = agent("What can you tell me about this repository?")
                         print("✅ Successfully invoked OpenAI agent")
-                        print(f"Response: {str(response.choices[0].message.content)[:100]}...")
+
+                        # Check if the response contains content or tool calls
+                        message = response.choices[0].message
+                        if message.content:
+                            print(f"Response content: {str(message.content)[:100]}...")
+                        elif hasattr(message, 'tool_calls') and message.tool_calls:
+                            tool_calls = message.tool_calls
+                            print(f"Response contains {len(tool_calls)} tool call(s)")
+                            for i, tool_call in enumerate(tool_calls):
+                                print(f"  Tool call {i+1}: {tool_call.function.name}")
+                        else:
+                            print("Response contains no content or tool calls")
                     except Exception as e:
                         print(f"⚠️ Failed to invoke OpenAI agent: {e}")
                 else:
@@ -164,39 +175,39 @@ print("\nTest 4: Testing custom adapter registration...")
 try:
     from arc_memory.sdk.adapters import register_adapter
     from arc_memory.sdk.adapters.base import FrameworkAdapter
-    
+
     # Define a simple custom adapter
     class CustomAdapter:
         def get_name(self) -> str:
             return "custom"
-        
+
         def get_supported_versions(self) -> List[str]:
             return ["0.1.0"]
-        
+
         def adapt_functions(self, functions: List) -> List:
             return [{"name": func.__name__, "description": func.__doc__} for func in functions]
-        
+
         def create_agent(self, **kwargs):
             return lambda query: f"Custom agent response to: {query}"
-    
+
     # Register the custom adapter
     try:
         register_adapter(CustomAdapter())
         print("✅ Successfully registered custom adapter")
-        
+
         # Get the custom adapter
         custom_adapter = get_adapter("custom")
         print(f"✅ Successfully got custom adapter: {custom_adapter.get_name()}")
-        
+
         # Adapt functions
         functions = [arc.query]
         tools = custom_adapter.adapt_functions(functions)
         print(f"✅ Successfully adapted {len(tools)} functions to custom tools")
-        
+
         # Create a custom agent
         agent = custom_adapter.create_agent()
         print("✅ Successfully created custom agent")
-        
+
         # Test the agent
         response = agent("Test query")
         print(f"✅ Custom agent response: {response}")
@@ -214,7 +225,7 @@ try:
         print("❌ Got non-existent adapter (should have failed)")
     except FrameworkError as e:
         print(f"✅ Correctly handled non-existent adapter: {e}")
-    
+
     # Try to create an agent with invalid parameters
     if "openai" in adapter_names:
         openai_adapter = get_adapter("openai")
