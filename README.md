@@ -27,7 +27,7 @@
    Arc tracks decision → implication → code-change chains, enabling multi-hop reasoning to show why decisions were made and their predicted impact.
 
 4. **Enhance PR reviews.**
-   Arc's GitHub extension surfaces decision trails and blast-radius hints directly in the PR view, giving reviewers instant context before they hit "Approve."
+   Arc's GitHub PR Bot surfaces decision trails and blast-radius hints directly in PR comments, giving reviewers instant context before they hit "Approve."
 
 ## Why It Matters
 
@@ -37,6 +37,7 @@ As AI generates exponentially more code, the critical bottleneck shifts from *ge
 * **Enhance AI-generated code reviews.** Arc doesn't just comment on code—it provides rich contextual metadata that demonstrates why a change is safe (or isn't).
 * **Local-first, privacy-first.** All graph building runs locally; no proprietary code leaves your environment unless you explicitly share it.
 * **Built for high-stakes engineering.** Designed for fintech, blockchain, and payment-rail providers where understanding code changes is mission-critical.
+* **Agent-ready architecture.** The SDK provides a framework-agnostic interface for AI agents to access and reason over your codebase's history and structure.
 
 **Arc = memory + causal relationships + provenance—your knowledge foundation for the era of autonomous code.**
 
@@ -51,6 +52,8 @@ As AI generates exponentially more code, the critical bottleneck shifts from *ge
 - **Data Sources** (GitHub, Git, Linear, ADRs) feed into the **Arc CLI**, which builds a local-first Temporal Knowledge Graph capturing the why behind your code.
 
 - The **Knowledge Graph** includes causal relationships, semantic analysis, and temporal patterns, providing a rich foundation for understanding your codebase.
+
+- The **SDK** provides programmatic access to the knowledge graph, with framework adapters for LangChain, OpenAI, and other agent frameworks.
 
 - The **Export Functionality** creates optimized JSON payloads for the PR bot, enabling it to provide context-rich insights during code reviews.
 
@@ -68,7 +71,7 @@ Before you begin, ensure you have:
 - Git repository with commit history
 - GitHub account (for GitHub integration)
 - Linear account (optional, for Linear integration)
-- Ollama (required for natural language queries, see [Ollama installation](https://ollama.ai/download))
+- OpenAI API key (recommended for best results) or Ollama (alternative for local LLM processing)
 
 ### Installation
 
@@ -97,11 +100,14 @@ pip install arc-memory[github]
 # Install with Linear integration
 pip install arc-memory[linear]
 
-# Install with LLM enhancement capabilities (requires Ollama)
+# Install with OpenAI integration (recommended for best results)
+pip install arc-memory[openai]
+
+# Install with Ollama integration (alternative for local LLM processing)
 pip install arc-memory[llm]
 
-# Note: Natural language queries require Ollama with local models
-# Install Ollama from https://ollama.ai/download
+# Install with Neo4j support
+pip install arc-memory[neo4j]
 
 # Install with all optional dependencies
 pip install arc-memory[all]
@@ -131,8 +137,11 @@ pip install -e ".[dev]"
    # Build with both GitHub and Linear data
    arc build --github --linear
 
-   # Build with LLM enhancement for deeper analysis
-   arc build --github --linear --llm-enhancement standard
+   # Build with LLM enhancement for deeper analysis (using OpenAI)
+   arc build --github --linear --llm-enhancement --llm-provider openai
+
+   # Or using Ollama
+   arc build --github --linear --llm-enhancement --llm-provider ollama
    ```
 
    This will analyze your repository and build a local knowledge graph. You'll see progress indicators and a summary of ingested entities when complete.
@@ -163,8 +172,11 @@ Build a comprehensive temporal knowledge graph with causal relationships:
 # Build the full knowledge graph with GitHub and Linear data
 arc build --github --linear
 
-# Include LLM enhancement for deeper analysis
-arc build --llm-enhancement standard
+# Include LLM enhancement for deeper analysis (using OpenAI)
+arc build --github --linear --llm-enhancement --llm-provider openai
+
+# Or using Ollama
+arc build --github --linear --llm-enhancement --llm-provider ollama
 
 # Update incrementally
 arc build --incremental --github --linear
@@ -223,7 +235,7 @@ Let's walk through a complete example of using Arc to understand a code change:
 
 2. Build your knowledge graph to include this change:
    ```bash
-   arc build --github --linear --llm-enhancement standard
+   arc build --github --linear --llm-enhancement --llm-provider openai
    ```
 
 3. Understand why this endpoint was implemented:
@@ -281,12 +293,46 @@ To disable telemetry: `arc config telemetry off`
 - [Relate](./docs/cli/relate.md) - Show related nodes for an entity (`arc relate`)
 - [Doctor](./docs/cli/doctor.md) - Checking graph status and diagnostics (`arc doctor`)
 
+### SDK Documentation
+- [SDK Overview](./docs/sdk/README.md) - Introduction to the Arc Memory SDK
+- [API Reference](./docs/sdk/api_reference.md) - Detailed API documentation
+- [Framework Adapters](./docs/sdk/adapters.md) - Integrating with agent frameworks
+
 ### Usage Examples
 - [Building Graphs](./docs/examples/building-graphs.md) - Examples of building knowledge graphs
 - [Tracing History](./docs/examples/tracing-history.md) - Examples of tracing history
 - [Custom Plugins](./docs/examples/custom-plugins.md) - Creating custom data source plugins
+- [Agent Integration](./docs/examples/agent-integration.md) - Integrating with AI agents
 
 For additional documentation, visit [arc.computer](https://www.arc.computer).
+
+## SDK for Agent Integration
+
+Arc Memory provides a framework-agnostic SDK that enables AI agents to access and reason over your codebase's history and structure:
+
+```python
+from arc_memory import Arc
+
+# Initialize Arc with your repository path
+arc = Arc(repo_path="./")
+
+# Ask a question about your codebase
+result = arc.query("What were the major changes in the last release?")
+print(f"Answer: {result.answer}")
+
+# Find out why a specific piece of code exists
+decision_trail = arc.get_decision_trail("src/core/auth.py", 42)
+for entry in decision_trail:
+    print(f"Decision: {entry.title}")
+    print(f"Rationale: {entry.rationale}")
+
+# Analyze the potential impact of a change
+impact = arc.analyze_component_impact("file:src/api/endpoints.py")
+for component in impact:
+    print(f"Affected: {component.title} (Impact score: {component.impact_score})")
+```
+
+The SDK includes adapters for popular agent frameworks like LangChain and OpenAI, making it easy to integrate Arc Memory into your existing AI workflows.
 
 ## License
 
