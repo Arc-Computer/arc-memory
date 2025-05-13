@@ -19,6 +19,13 @@ from arc_memory.schema.models import (
     NodeType,
 )
 
+# Import OpenAI client conditionally to avoid hard dependency
+try:
+    from arc_memory.llm.openai_client import OpenAIClient
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
 logger = get_logger(__name__)
 
 
@@ -28,6 +35,8 @@ class ChangePatternIngestor:
     def __init__(self):
         """Initialize the change pattern ingestor."""
         self.ollama_client = None
+        self.openai_client = None
+        self.llm_provider = None
 
     def get_name(self) -> str:
         """Return the name of this plugin."""
@@ -46,6 +55,9 @@ class ChangePatternIngestor:
         repo_path: Path,
         last_processed: Optional[Dict[str, Any]] = None,
         llm_enhancement_level: str = "standard",
+        ollama_client: Optional[OllamaClient] = None,
+        openai_client: Optional[Any] = None,
+        llm_provider: str = "ollama",
     ) -> Tuple[List[Node], List[Edge], Dict[str, Any]]:
         """Ingest change pattern data from a repository.
 
@@ -53,15 +65,25 @@ class ChangePatternIngestor:
             repo_path: Path to the repository.
             last_processed: Metadata from the previous run for incremental builds.
             llm_enhancement_level: Level of LLM enhancement to apply.
+            ollama_client: Optional Ollama client for LLM processing.
+            openai_client: Optional OpenAI client for LLM processing.
+            llm_provider: The LLM provider to use ("ollama" or "openai").
 
         Returns:
             A tuple of (nodes, edges, metadata).
         """
         logger.info(f"Ingesting change pattern data from {repo_path}")
 
-        # Initialize Ollama client if needed
+        # Set LLM clients and provider
         if llm_enhancement_level != "none":
-            self.ollama_client = OllamaClient()
+            self.llm_provider = llm_provider
+            if llm_provider == "openai" and openai_client is not None:
+                self.openai_client = openai_client
+            elif ollama_client is not None:
+                self.ollama_client = ollama_client
+            elif llm_provider == "ollama":
+                # Initialize Ollama client if needed and not provided
+                self.ollama_client = OllamaClient()
 
         # Get commit history from Git
         commit_history = self._get_commit_history(repo_path)
@@ -145,7 +167,7 @@ class ChangePatternIngestor:
 
             # Convert frozenset to list before slicing
             files_list = list(files)
-            
+
             pattern_id = f"pattern:co_change:{hash(files)}"
             pattern_node = ChangePatternNode(
                 id=pattern_id,
@@ -170,12 +192,19 @@ class ChangePatternIngestor:
                 edges.append(edge)
 
         # Apply LLM enhancements if enabled
-        if llm_enhancement_level != "none" and self.ollama_client:
-            enhanced_nodes, enhanced_edges = self._enhance_with_llm(
-                nodes, edges, commit_history, llm_enhancement_level
-            )
-            nodes.extend(enhanced_nodes)
-            edges.extend(enhanced_edges)
+        if llm_enhancement_level != "none":
+            if self.llm_provider == "openai" and self.openai_client:
+                enhanced_nodes, enhanced_edges = self._enhance_with_llm(
+                    nodes, edges, commit_history, llm_enhancement_level
+                )
+                nodes.extend(enhanced_nodes)
+                edges.extend(enhanced_edges)
+            elif self.ollama_client:
+                enhanced_nodes, enhanced_edges = self._enhance_with_llm(
+                    nodes, edges, commit_history, llm_enhancement_level
+                )
+                nodes.extend(enhanced_nodes)
+                edges.extend(enhanced_edges)
 
         return nodes, edges
 
@@ -245,7 +274,8 @@ class ChangePatternIngestor:
         Returns:
             Additional nodes and edges from LLM analysis.
         """
-        if not self.ollama_client:
+        # Check if we have a valid LLM client
+        if not (self.ollama_client or self.openai_client):
             return [], []
 
         logger.info(f"Enhancing change pattern analysis with LLM ({enhancement_level} level)")
@@ -253,5 +283,13 @@ class ChangePatternIngestor:
         # This is a placeholder implementation
         # In a real implementation, we would use the LLM to analyze commit messages
         # and identify more complex patterns
+
+        # Different handling based on provider
+        if self.llm_provider == "openai" and self.openai_client:
+            # OpenAI-specific implementation would go here
+            pass
+        elif self.ollama_client:
+            # Ollama-specific implementation would go here
+            pass
 
         return [], []
