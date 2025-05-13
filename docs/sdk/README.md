@@ -20,6 +20,62 @@ Key features:
 pip install arc-memory
 ```
 
+### Optional Dependencies
+
+```bash
+# Install with GitHub integration
+pip install arc-memory[github]
+
+# Install with Linear integration
+pip install arc-memory[linear]
+
+# Install with LLM enhancement capabilities
+pip install arc-memory[llm]
+
+# Install with all optional dependencies
+pip install arc-memory[all]
+```
+
+## Authentication
+
+Arc Memory supports authentication with GitHub and Linear for accessing private repositories and issues.
+
+### GitHub Authentication
+
+```python
+from arc_memory.auth.github import authenticate_github
+
+# Authenticate with GitHub using device flow
+token = authenticate_github()
+print(f"Successfully authenticated with GitHub: {token[:5]}...")
+
+# Store the token in environment variables
+import os
+os.environ["GITHUB_TOKEN"] = token
+
+# Now you can use Arc with GitHub integration
+from arc_memory import Arc
+arc = Arc(repo_path="./")
+```
+
+### Linear Authentication
+
+```python
+from arc_memory.auth.linear import authenticate_linear
+
+# Authenticate with Linear using OAuth
+token = authenticate_linear()
+print(f"Successfully authenticated with Linear: {token[:5]}...")
+
+# Store the token in environment variables
+import os
+os.environ["LINEAR_API_KEY"] = token
+
+# Now you can use Arc with Linear integration
+from arc_memory import Arc
+arc = Arc(repo_path="./")
+```
+
 ## Quick Start
 
 ```python

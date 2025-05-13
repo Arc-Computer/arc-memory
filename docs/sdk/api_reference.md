@@ -403,7 +403,62 @@ def discover_adapters() -> List[FrameworkAdapter]:
     """
 ```
 
-## Error Types
+## Caching Behavior
+
+Arc Memory SDK includes a caching system to improve performance for repeated queries. Most methods that query the knowledge graph accept a `cache` parameter that controls whether results are cached and retrieved from cache.
+
+### How Caching Works
+
+1. When a method is called with `cache=True` (the default):
+   - The SDK first checks if an identical query exists in the cache
+   - If found, it returns the cached result without executing the query again
+   - If not found, it executes the query, stores the result in cache, and returns it
+
+2. When a method is called with `cache=False`:
+   - The SDK always executes the query, ignoring any cached results
+   - The result is not stored in the cache
+
+### Cache Keys
+
+Cache keys are generated based on:
+- The method name
+- All parameter values
+- The repository path
+
+This ensures that cache hits only occur for truly identical queries.
+
+### Cache Invalidation
+
+The cache is automatically invalidated when:
+- The knowledge graph is modified (e.g., after running `arc build`)
+- The cache TTL (time-to-live) expires (default: 24 hours)
+
+### Cache Location
+
+Cache files are stored in the `.arc/cache` directory within your repository.
+
+### Example: Controlling Cache Behavior
+
+```python
+from arc_memory import Arc
+
+arc = Arc(repo_path="./")
+
+# Use cache (default behavior)
+result1 = arc.query("Why was the authentication system refactored?")
+
+# Force fresh query, ignore cache
+result2 = arc.query("Why was the authentication system refactored?", cache=False)
+
+# Different parameters create different cache entries
+result3 = arc.query("Why was the authentication system refactored?", max_results=10)
+```
+
+## Error Handling
+
+Arc Memory SDK provides a comprehensive error hierarchy to help you handle errors gracefully in your applications.
+
+### Error Types
 
 ```python
 class ArcError(Exception):
@@ -412,18 +467,95 @@ class ArcError(Exception):
 class DatabaseError(ArcError):
     """Error related to database operations."""
 
-class AdapterError(ArcError):
-    """Error related to framework adapters."""
+class SDKError(ArcError):
+    """Base class for SDK-specific errors."""
 
-class AdapterNotFoundError(AdapterError):
-    """Error raised when an adapter is not found."""
+class AdapterError(SDKError):
+    """Error related to database adapters."""
 
-class AdapterAlreadyRegisteredError(AdapterError):
-    """Error raised when an adapter is already registered."""
-
-class QueryError(ArcError):
+class QueryError(SDKError):
     """Error related to querying the knowledge graph."""
 
-class ExportError(ArcError):
+class BuildError(SDKError):
+    """Error related to building the knowledge graph."""
+
+class FrameworkError(SDKError):
+    """Error related to framework adapters."""
+
+class ExportSDKError(SDKError):
     """Error related to exporting the knowledge graph."""
+
+class AdapterNotFoundError(FrameworkError):
+    """Error raised when an adapter is not found."""
+
+class AdapterAlreadyRegisteredError(FrameworkError):
+    """Error raised when an adapter is already registered."""
+```
+
+### Error Handling Examples
+
+#### Basic Error Handling
+
+```python
+from arc_memory import Arc
+from arc_memory.sdk.errors import QueryError, AdapterError, SDKError
+
+try:
+    arc = Arc(repo_path="./")
+    result = arc.query("Why was the authentication system refactored?")
+    print(result.answer)
+except QueryError as e:
+    print(f"Query failed: {e}")
+except AdapterError as e:
+    print(f"Database adapter error: {e}")
+except SDKError as e:
+    print(f"SDK error: {e}")
+except Exception as e:
+    print(f"Unexpected error: {e}")
+```
+
+#### Framework Adapter Error Handling
+
+```python
+from arc_memory import Arc
+from arc_memory.sdk.errors import FrameworkError, AdapterNotFoundError
+
+try:
+    arc = Arc(repo_path="./")
+    adapter = arc.get_adapter("langchain")
+    tools = adapter.adapt_functions([arc.query, arc.get_decision_trail])
+except AdapterNotFoundError as e:
+    print(f"Adapter not found: {e}")
+    print("Available adapters:", arc.get_adapter_names())
+except FrameworkError as e:
+    print(f"Framework error: {e}")
+```
+
+#### Export Error Handling
+
+```python
+from arc_memory import Arc
+from arc_memory.sdk.errors import ExportSDKError
+from pathlib import Path
+
+try:
+    arc = Arc(repo_path="./")
+    export_path = arc.export_graph(
+        pr_sha="abc123",
+        output_path="export.json",
+        compress=True
+    )
+    print(f"Export successful: {export_path}")
+except ExportSDKError as e:
+    print(f"Export failed: {e}")
+    # Try again with different parameters
+    try:
+        export_path = arc.export_graph(
+            pr_sha="abc123",
+            output_path="export.json",
+            compress=False
+        )
+        print(f"Export successful with fallback: {export_path}")
+    except ExportSDKError as e:
+        print(f"Export failed again: {e}")
 ```
