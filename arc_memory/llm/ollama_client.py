@@ -311,8 +311,6 @@ When analyzing temporal data, consider:
         except Exception as e:
             logger.error(f"Error pulling model: {e}")
             return False
-
-
 def ensure_ollama_available(model: str = "qwen3:4b", timeout: int = 60) -> bool:
     """Ensure Ollama and the required model are available.
 
