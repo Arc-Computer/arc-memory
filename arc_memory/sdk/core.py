@@ -601,7 +601,10 @@ class Arc:
             max_hops: Maximum number of hops to traverse in the graph.
             optimize_for_llm: Whether to optimize the export data for LLM reasoning.
             include_causal: Whether to include causal relationships in the export.
-            callback: Optional callback for progress reporting.
+            callback: Optional callback for progress reporting. If provided, this function
+                will be called at various stages of the export process with progress updates.
+                The callback receives three parameters: the current stage (a ProgressStage enum),
+                a message describing the current operation, and a progress value between 0 and 1.
 
         Returns:
             ExportResult containing information about the exported file.

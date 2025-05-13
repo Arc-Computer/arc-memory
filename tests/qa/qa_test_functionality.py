@@ -162,6 +162,37 @@ try:
 except Exception as e:
     print(f"❌ Failed to test get_related_entities functionality: {e}")
 
+# Helper function for component impact analysis
+def analyze_component_impact_and_print_results(component_id, max_depth=2):
+    """Analyze component impact and print the results.
+
+    Args:
+        component_id: The ID of the component to analyze.
+        max_depth: Maximum depth of indirect dependency analysis.
+
+    Returns:
+        True if analysis was successful, False otherwise.
+    """
+    try:
+        print(f"Analyzing component impact for: {component_id}")
+
+        start_time = time.time()
+        impact_results = arc.analyze_component_impact(component_id=component_id, max_depth=max_depth)
+        elapsed_time = time.time() - start_time
+
+        print(f"✅ Component impact analysis completed in {elapsed_time:.2f} seconds")
+        print(f"Impact results count: {len(impact_results)}")
+
+        if impact_results:
+            for i, result in enumerate(impact_results):
+                print(f"  Result {i+1}: {result.title} - Impact score: {result.impact_score} ({result.impact_type})")
+        else:
+            print("  No impact results found")
+        return True
+    except Exception as e:
+        print(f"❌ Failed to analyze component impact: {e}")
+        return False
+
 # Test 6: Test component impact analysis
 print("\nTest 6: Testing analyze_component_impact functionality...")
 try:
@@ -173,20 +204,7 @@ try:
 
         if result and len(result) > 0:
             component_id = result[0][0]
-            print(f"Analyzing component impact for: {component_id}")
-
-            start_time = time.time()
-            impact_results = arc.analyze_component_impact(component_id=component_id, max_depth=2)
-            elapsed_time = time.time() - start_time
-
-            print(f"✅ Component impact analysis completed in {elapsed_time:.2f} seconds")
-            print(f"Impact results count: {len(impact_results)}")
-
-            if impact_results:
-                for i, result in enumerate(impact_results):
-                    print(f"  Result {i+1}: {result.title} - Impact score: {result.impact_score} ({result.impact_type})")
-            else:
-                print("  No impact results found")
+            analyze_component_impact_and_print_results(component_id)
         else:
             print("⚠️ No Python files found in the knowledge graph")
     except Exception as e:
@@ -197,22 +215,7 @@ try:
             component_id = f"file:{file_path}"
 
             print(f"Falling back to analyzing component impact for: {component_id}")
-
-            try:
-                start_time = time.time()
-                impact_results = arc.analyze_component_impact(component_id=component_id, max_depth=2)
-                elapsed_time = time.time() - start_time
-
-                print(f"✅ Component impact analysis completed in {elapsed_time:.2f} seconds")
-                print(f"Impact results count: {len(impact_results)}")
-
-                if impact_results:
-                    for i, result in enumerate(impact_results):
-                        print(f"  Result {i+1}: {result.title} - Impact score: {result.impact_score} ({result.impact_type})")
-                else:
-                    print("  No impact results found")
-            except Exception as e:
-                print(f"❌ Failed to analyze component impact: {e}")
+            analyze_component_impact_and_print_results(component_id)
         else:
             print("⚠️ No Python files found in the repository")
 except Exception as e:

@@ -908,7 +908,7 @@ class SQLiteAdapter:
                 }
             )
 
-    def execute_query(self, query: str, params: Optional[Tuple] = None) -> List[Tuple]:
+    def execute_query(self, query: str, params: Optional[Tuple[Any, ...]] = None) -> List[Tuple]:
         """Execute a raw SQL query on the database.
 
         This method allows executing arbitrary SQL queries on the database.
