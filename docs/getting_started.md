@@ -1,6 +1,43 @@
-# Getting Started with Arc Memory
+# Getting Started with Arc
 
-This guide will help you get started with Arc Memory, from installation to building your first knowledge graph and querying it with the SDK.
+This guide will help you get started with Arc, from installation to building your first knowledge graph and querying it with the SDK.
+
+## How Arc Memory Works
+
+```
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│   Data Sources  │     │  Knowledge Graph │     │    Interfaces   │
+├─────────────────┤     ├─────────────────┤     ├─────────────────┤
+│                 │     │                 │     │                 │
+│  Git Repository ├────►│                 │     │  CLI Commands   │
+│                 │     │                 │     │  - arc query    │
+│  GitHub Issues  ├────►│   Bi-Temporal   ├────►│  - arc why      │
+│  & Pull Requests│     │   Knowledge     │     │  - arc relate   │
+│                 │     │     Graph       │     │                 │
+│  Linear Tickets ├────►│                 │     │  SDK Methods    │
+│                 │     │                 │     │  - arc.query()  │
+│  ADRs           ├────►│                 │     │  - arc.get_     │
+│                 │     │                 │     │    decision_    │
+│  Custom Sources ├────►│                 │     │    trail()      │
+│  (via plugins)  │     │                 │     │                 │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+                                │
+                                ▼
+                        ┌─────────────────┐
+                        │  Agent Adapters │
+                        ├─────────────────┤
+                        │                 │
+                        │  LangChain      │
+                        │                 │
+                        │  OpenAI         │
+                        │                 │
+                        │  Custom         │
+                        │  Frameworks     │
+                        │                 │
+                        └─────────────────┘
+```
+
+Arc Memory builds a knowledge graph from your development artifacts, then provides tools to query and analyze this graph through the CLI, SDK, or integrated agents.
 
 ## Installation
 
@@ -199,20 +236,38 @@ arc build --llm-enhancement --llm-model "llama3:8b"
 
 If you don't have Ollama installed, the `--llm-enhancement` flag will be ignored with a warning.
 
-## Using the SDK
+## Quick Win: Your First Arc Memory Query
 
-Once you've built a knowledge graph, you can use the SDK to query it:
+After installing Arc Memory and building your knowledge graph, you can immediately start extracting valuable insights:
 
 ```python
 from arc_memory import Arc
 
-# Initialize Arc with the repository path
+# Initialize Arc with your repository path
 arc = Arc(repo_path="./")
 
-# Query the knowledge graph
-result = arc.query("Why was the authentication system refactored?")
-print(result.answer)
+# Ask a question about your codebase
+result = arc.query("What were the major changes in the last release?")
+print(f"Answer: {result.answer}")
+
+# Find out why a specific piece of code exists
+decision_trail = arc.get_decision_trail("src/core/auth.py", 42)
+for entry in decision_trail:
+    print(f"Decision: {entry.title}")
+    print(f"Rationale: {entry.rationale}")
+    print("---")
+
+# Analyze the potential impact of a change
+impact = arc.analyze_component_impact("file:src/api/endpoints.py")
+for component in impact:
+    print(f"Affected: {component.title} (Impact score: {component.impact_score})")
 ```
+
+That's it! In just a few lines of code, you can understand your codebase's history, reasoning, and dependencies.
+
+## Using the SDK
+
+The SDK provides a comprehensive set of methods for interacting with your knowledge graph:
 
 ### Programmatic Authentication
 
