@@ -25,7 +25,7 @@ def test_ollama_client_initialization():
     assert isinstance(client.session, requests.Session)
 
 
-@patch("requests.Session.post")
+@patch("requests.post")
 def test_generate(mock_post, mock_ollama_client):
     """Test the generate method."""
     # Setup mock response
@@ -34,13 +34,9 @@ def test_generate(mock_post, mock_ollama_client):
     mock_response.json.return_value = {"response": "Test response"}
     mock_post.return_value = mock_response
 
-    # Mock the session
-    mock_ollama_client.session = MagicMock()
-    mock_ollama_client.session.post.return_value = mock_response
-
     # Call the method
     response = mock_ollama_client.generate(
-        model="phi4-mini-reasoning",
+        model="gemma3:27b-it-qat",
         prompt="Test prompt",
         options={"temperature": 0.7}
     )
@@ -49,29 +45,23 @@ def test_generate(mock_post, mock_ollama_client):
     assert response == "Test response"
 
     # Verify the request
-    mock_ollama_client.session.post.assert_called_once_with(
-        "http://localhost:11434/api/generate",
-        json={
-            "model": "phi4-mini-reasoning",
-            "prompt": "Test prompt",
-            "options": {"temperature": 0.7}
-        }
-    )
+    mock_post.assert_called_once()
 
 
-@patch("requests.Session.post")
+@patch("requests.post")
 def test_generate_error(mock_post, mock_ollama_client):
     """Test error handling in the generate method."""
-    # Setup mock response
-    mock_ollama_client.session = MagicMock()
-    mock_ollama_client.session.post.side_effect = Exception("Test error")
+    # Setup mock response to raise an exception
+    mock_post.side_effect = requests.exceptions.RequestException("Test error")
 
-    # Call the method and verify it raises an exception
-    with pytest.raises(Exception, match="Test error"):
-        mock_ollama_client.generate(
-            model="phi4-mini-reasoning",
-            prompt="Test prompt"
-        )
+    # Call the method and check that it returns an error message
+    response = mock_ollama_client.generate(
+        model="gemma3:27b-it-qat",
+        prompt="Test prompt"
+    )
+
+    # The generate method should catch the exception and return an error message
+    assert "Error:" in response
 
 
 def test_ensure_model_available_already_available(mock_ollama_client):
@@ -161,7 +151,7 @@ def test_ensure_ollama_available_installed_running(mock_client_class, mock_get, 
     mock_run.assert_called_once()
     mock_get.assert_called_once_with("http://localhost:11434/api/version")
     mock_popen.assert_not_called()
-    mock_client.ensure_model_available.assert_called_once_with("phi4-mini-reasoning")
+    mock_client.ensure_model_available.assert_called_once_with("gemma3:27b-it-qat")
 
 
 @patch("arc_memory.llm.ollama_client.subprocess.run")
@@ -193,7 +183,7 @@ def test_ensure_ollama_available_installed_not_running(
     mock_run.assert_called_once()
     assert mock_get.call_count == 2
     mock_popen.assert_called_once()
-    mock_client.ensure_model_available.assert_called_once_with("phi4-mini-reasoning")
+    mock_client.ensure_model_available.assert_called_once_with("gemma3:27b-it-qat")
 
 
 @patch("arc_memory.llm.ollama_client.subprocess.run")

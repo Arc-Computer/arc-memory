@@ -78,17 +78,17 @@ class TestExtractJson(unittest.TestCase):
         """Test extracting JSON using the regex fallback."""
         response = """
         Let me think about this...
-        
+
         The appropriate structure would be something like { "key": "value" } but I need to add more details.
-        
+
         Actually, here's what I think:
-        
+
         {
             "key": "value",
             "number": 42,
             "nested": {"child": true}
         }
-        
+
         That looks right to me.
         """
         # Mock the re.search function to return a match that can be parsed as JSON
@@ -97,10 +97,10 @@ class TestExtractJson(unittest.TestCase):
             mock_match = MagicMock()
             mock_match.group.return_value = '{"key": "value", "number": 42, "nested": {"child": true}}'
             mock_search.return_value = mock_match
-            
+
             # Call the function
             result = _extract_json_from_llm_response(response)
-            
+
             # Verify the result
             self.assertEqual(result, {"key": "value", "number": 42, "nested": {"child": True}})
 
@@ -165,7 +165,7 @@ class TestProcessQuery(unittest.TestCase):
         mock_ensure_ollama.return_value = True
         mock_conn = MagicMock()
         mock_get_conn.return_value = mock_conn
-        
+
         mock_intent.return_value = {
             "understanding": "The user wants to know who implemented the authentication feature",
             "entity_types": ["pr", "commit"],
@@ -173,7 +173,7 @@ class TestProcessQuery(unittest.TestCase):
                 "title_keywords": ["authentication", "login"]
             }
         }
-        
+
         mock_search.return_value = [
             {
                 "type": "pr",
@@ -186,7 +186,7 @@ class TestProcessQuery(unittest.TestCase):
                 "relevance": 10
             }
         ]
-        
+
         expected_response = {
             "understanding": "The user wants to know who implemented the authentication feature",
             "summary": "John Doe implemented authentication in PR #42",
@@ -225,7 +225,7 @@ class TestProcessQuery(unittest.TestCase):
         result = process_query("dummy/path", "Who implemented the authentication feature?")
 
         # Verify results
-        self.assertEqual(result["error"], "Ollama is not available. Please install it from https://ollama.ai")
+        self.assertEqual(result["error"], "Ollama is not available. Please install it from https://ollama.com/download")
 
     @patch("arc_memory.semantic_search._process_query_intent")
     def test_process_query_intent_failure(self, mock_intent, mock_ensure_ollama, mock_get_conn):
@@ -251,7 +251,7 @@ class TestProcessQuery(unittest.TestCase):
         mock_ensure_ollama.return_value = True
         mock_conn = MagicMock()
         mock_get_conn.return_value = mock_conn
-        
+
         mock_intent.return_value = {
             "understanding": "The user wants to know who implemented a non-existent feature",
             "entity_types": ["pr", "commit"],
@@ -259,7 +259,7 @@ class TestProcessQuery(unittest.TestCase):
                 "title_keywords": ["nonexistent"]
             }
         }
-        
+
         mock_search.return_value = []
 
         # Call the function
@@ -272,4 +272,4 @@ class TestProcessQuery(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main() 
+    unittest.main()
