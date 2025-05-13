@@ -629,7 +629,7 @@ def enhance_with_llm_temporal_analysis_openai(
     try:
         # Query the OpenAI LLM with thinking mode for better reasoning
         response = openai_client.generate_with_thinking(
-            model="gpt-3.5-turbo",
+            model="gpt-4o",
             prompt=prompt,
             system=system_prompt,
             options={"temperature": 0.1}

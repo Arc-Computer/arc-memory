@@ -488,7 +488,7 @@ Generate structured JSON following the requested schema for each enhancement tas
 
             # Set default model if not provided
             if llm_model is None:
-                llm_model = "gpt-3.5-turbo"
+                llm_model = "gpt-4o"
 
             # Create OpenAI client
             try:

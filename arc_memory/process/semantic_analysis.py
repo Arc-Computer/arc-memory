@@ -347,7 +347,7 @@ def extract_key_concepts_openai(
     try:
         # Generate response from OpenAI
         response = openai_client.generate(
-            model="gpt-3.5-turbo",
+            model="gpt-4o",
             prompt=prompt,
             options={"temperature": 0.2}
         )

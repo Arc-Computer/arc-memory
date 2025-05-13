@@ -812,7 +812,7 @@ def enhance_with_reasoning_structures(
                 try:
                     # Generate response from OpenAI
                     response = self.openai_client.generate(
-                        model="gpt-3.5-turbo",
+                        model="gpt-4o",
                         prompt=prompt,
                         system=self.system_prompt,
                         options={"temperature": 0.3},

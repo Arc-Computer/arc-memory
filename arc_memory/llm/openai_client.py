@@ -2,6 +2,9 @@
 
 This module provides a client for interacting with OpenAI's API.
 It is used for enhancing the knowledge graph with LLM-derived insights.
+
+This implementation uses the latest OpenAI API (v1) patterns as documented at:
+https://platform.openai.com/docs/guides/text-generation
 """
 
 import os
@@ -36,19 +39,19 @@ class OpenAIClient:
             raise ImportError(
                 "OpenAI package not installed. Install with 'pip install openai'"
             )
-        
+
         self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
         if not self.api_key:
             raise ValueError(
                 "OpenAI API key not provided. Set the OPENAI_API_KEY environment variable "
                 "or pass the api_key parameter."
             )
-        
+
         self.client = OpenAI(api_key=self.api_key)
 
     def generate(
         self,
-        model: str = "gpt 4.1",
+        model: str = "gpt-4o",
         prompt: str = "",
         system: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
@@ -57,10 +60,13 @@ class OpenAIClient:
         """Generate text using the specified model.
 
         Args:
-            model: The model to use.
+            model: The model to use (defaults to gpt-4o, the latest flagship model).
+                  Available models: gpt-4o, gpt-4o-2024-08-06, gpt-3.5-turbo
             prompt: The prompt to send to the model.
             system: The system message to use.
             options: Additional options to pass to the model.
+                     Can include: temperature, max_tokens, top_p, frequency_penalty,
+                     presence_penalty, response_format (for JSON mode)
             timeout: Maximum time in seconds to wait for the model to respond.
 
         Returns:
@@ -95,20 +101,34 @@ Always base your responses on the specific information provided, and avoid makin
         top_p = options.get("top_p", None)
         frequency_penalty = options.get("frequency_penalty", None)
         presence_penalty = options.get("presence_penalty", None)
+        response_format = options.get("response_format", None)
+
+        # Set up parameters for the API call
+        params = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "timeout": timeout
+        }
+
+        # Add optional parameters only if they are provided
+        if max_tokens is not None:
+            params["max_tokens"] = max_tokens
+        if top_p is not None:
+            params["top_p"] = top_p
+        if frequency_penalty is not None:
+            params["frequency_penalty"] = frequency_penalty
+        if presence_penalty is not None:
+            params["presence_penalty"] = presence_penalty
+
+        # Add response format if specified (for JSON mode)
+        if response_format is not None:
+            params["response_format"] = response_format
 
         try:
             # Send the request
             start_time = time.time()
-            response = self.client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                top_p=top_p,
-                frequency_penalty=frequency_penalty,
-                presence_penalty=presence_penalty,
-                timeout=timeout
-            )
+            response = self.client.chat.completions.create(**params)
             elapsed_time = time.time() - start_time
             logger.debug(f"OpenAI API call took {elapsed_time:.2f} seconds")
 
@@ -121,7 +141,7 @@ Always base your responses on the specific information provided, and avoid makin
 
     def generate_with_streaming(
         self,
-        model: str = "gpt-3.5-turbo",
+        model: str = "gpt-4o",
         prompt: str = "",
         system: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
@@ -171,21 +191,35 @@ Always base your responses on the specific information provided, and avoid makin
         top_p = options.get("top_p", None)
         frequency_penalty = options.get("frequency_penalty", None)
         presence_penalty = options.get("presence_penalty", None)
+        response_format = options.get("response_format", None)
+
+        # Set up parameters for the API call
+        params = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+            "timeout": timeout,
+            "stream": True
+        }
+
+        # Add optional parameters only if they are provided
+        if max_tokens is not None:
+            params["max_tokens"] = max_tokens
+        if top_p is not None:
+            params["top_p"] = top_p
+        if frequency_penalty is not None:
+            params["frequency_penalty"] = frequency_penalty
+        if presence_penalty is not None:
+            params["presence_penalty"] = presence_penalty
+
+        # Add response format if specified (for JSON mode)
+        if response_format is not None:
+            params["response_format"] = response_format
 
         try:
             # Send the request with streaming
             start_time = time.time()
-            response_stream = self.client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                top_p=top_p,
-                frequency_penalty=frequency_penalty,
-                presence_penalty=presence_penalty,
-                timeout=timeout,
-                stream=True
-            )
+            response_stream = self.client.chat.completions.create(**params)
 
             # Collect the entire response
             full_response = ""
@@ -282,7 +316,7 @@ def ensure_openai_available(api_key: Optional[str] = None) -> bool:
     try:
         client = OpenAIClient(api_key=api_key)
         response = client.generate(
-            model="gpt-3.5-turbo",
+            model="gpt-4o",
             prompt="Respond with a single word: Working",
             options={"temperature": 0.0}
         )
