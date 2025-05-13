@@ -1,0 +1,366 @@
+# Arc Memory SDK Examples
+
+This document provides comprehensive examples of using the Arc Memory SDK for various use cases.
+
+## Basic SDK Usage
+
+### Initializing Arc
+
+```python
+from arc_memory import Arc
+
+# Initialize with a repository path
+arc = Arc(repo_path="./")
+
+# Initialize with a specific database adapter
+arc = Arc(repo_path="./", adapter_type="sqlite")
+
+# Initialize with custom connection parameters
+arc = Arc(
+    repo_path="./",
+    adapter_type="neo4j",
+    connection_params={
+        "uri": "neo4j://localhost:7687",
+        "auth": ("neo4j", "password"),
+        "database": "arc_memory"
+    }
+)
+
+# Use as a context manager
+with Arc(repo_path="./") as arc:
+    result = arc.query("Why was the authentication system refactored?")
+```
+
+### Querying the Knowledge Graph
+
+```python
+# Simple query
+result = arc.query("Why was the authentication system refactored?")
+print(result.answer)
+
+# Advanced query with options
+result = arc.query(
+    question="What were the key decisions behind the API redesign?",
+    max_results=10,
+    max_hops=5,
+    include_causal=True,
+    cache=True
+)
+
+print(f"Answer: {result.answer}")
+print(f"Confidence: {result.confidence}")
+print(f"Query Understanding: {result.query_understanding}")
+print(f"Reasoning: {result.reasoning}")
+print(f"Execution Time: {result.execution_time} seconds")
+print("Evidence:")
+for evidence in result.evidence:
+    print(f"- {evidence['title']}")
+```
+
+### Tracing Decision Trails
+
+```python
+# Get the decision trail for a specific line in a file
+decision_trail = arc.get_decision_trail(
+    file_path="src/auth/login.py",
+    line_number=42
+)
+
+for entry in decision_trail:
+    print(f"{entry.title}: {entry.rationale}")
+
+# Advanced decision trail analysis
+decision_trail = arc.get_decision_trail(
+    file_path="src/auth/login.py",
+    line_number=42,
+    max_results=10,
+    max_hops=5,
+    include_rationale=True,
+    cache=True
+)
+
+for entry in decision_trail:
+    print(f"{entry.title}: {entry.rationale}")
+    print(f"Importance: {entry.importance}")
+    print(f"Position: {entry.trail_position}")
+    print(f"Timestamp: {entry.timestamp}")
+    print("Related Entities:")
+    for related in entry.related_entities:
+        print(f"- {related.title} ({related.relationship})")
+    print("---")
+```
+
+### Exploring Entity Relationships
+
+```python
+# Get entities related to a specific entity
+related = arc.get_related_entities(entity_id="commit:abc123")
+for entity in related:
+    print(f"{entity.title} ({entity.relationship})")
+
+# Filter by relationship type and direction
+related = arc.get_related_entities(
+    entity_id="commit:abc123",
+    relationship_types=["DEPENDS_ON", "IMPLEMENTS"],
+    direction="outgoing",
+    max_results=10,
+    include_properties=True
+)
+
+for entity in related:
+    print(f"{entity.title} ({entity.relationship})")
+    print(f"Direction: {entity.direction}")
+    print(f"Properties: {entity.properties}")
+    print("---")
+
+# Get detailed information about an entity
+entity = arc.get_entity_details(
+    entity_id="commit:abc123",
+    include_related=True
+)
+
+print(f"ID: {entity.id}")
+print(f"Type: {entity.type}")
+print(f"Title: {entity.title}")
+print(f"Body: {entity.body}")
+print(f"Timestamp: {entity.timestamp}")
+print("Properties:")
+for key, value in entity.properties.items():
+    print(f"- {key}: {value}")
+print("Related Entities:")
+for related in entity.related_entities:
+    print(f"- {related.title} ({related.relationship})")
+```
+
+### Analyzing Component Impact
+
+```python
+# Analyze the potential impact of changes to a component
+impact = arc.analyze_component_impact(component_id="file:src/auth/login.py")
+for component in impact:
+    print(f"{component.title}: {component.impact_score}")
+
+# Advanced impact analysis
+impact = arc.analyze_component_impact(
+    component_id="file:src/auth/login.py",
+    impact_types=["direct", "indirect", "potential"],
+    max_depth=5,
+    cache=True
+)
+
+for component in impact:
+    print(f"{component.title}: {component.impact_score}")
+    print(f"Impact Type: {component.impact_type}")
+    print(f"Impact Path: {' -> '.join(component.impact_path)}")
+    print("Properties:")
+    for key, value in component.properties.items():
+        print(f"- {key}: {value}")
+    print("---")
+```
+
+### Temporal Analysis
+
+```python
+# Get the history of an entity over time
+history = arc.get_entity_history(entity_id="file:src/auth/login.py")
+for entry in history:
+    print(f"{entry.timestamp}: {entry.title}")
+
+# Advanced temporal analysis
+history = arc.get_entity_history(
+    entity_id="file:src/auth/login.py",
+    start_date="2023-01-01",
+    end_date="2023-12-31",
+    include_related=True,
+    cache=True
+)
+
+for entry in history:
+    print(f"{entry.timestamp}: {entry.title}")
+    print(f"Change Type: {entry.change_type}")
+    print(f"Previous Version: {entry.previous_version}")
+    print("Related Entities:")
+    for related in entry.related_entities:
+        print(f"- {related.title} ({related.relationship})")
+    print("---")
+```
+
+### Exporting the Knowledge Graph
+
+```python
+# Export the knowledge graph
+export_result = arc.export_graph(output_path="knowledge_graph.json")
+print(f"Exported {export_result.entity_count} entities and {export_result.relationship_count} relationships")
+
+# Advanced export options
+export_result = arc.export_graph(
+    output_path="knowledge_graph.json",
+    pr_sha="abc123",  # Filter by PR
+    entity_types=["COMMIT", "PR", "ISSUE"],  # Filter by entity type
+    start_date="2023-01-01",  # Filter by date
+    end_date="2023-12-31",  # Filter by date
+    format="json",
+    compress=True,
+    sign=True,
+    key_id="your-gpg-key-id",
+    base_branch="main",
+    max_hops=5,
+    optimize_for_llm=True,
+    include_causal=True
+)
+
+print(f"Exported {export_result.entity_count} entities and {export_result.relationship_count} relationships")
+print(f"Output path: {export_result.output_path}")
+print(f"Format: {export_result.format}")
+print(f"Compressed: {export_result.compressed}")
+print(f"Signed: {export_result.signed}")
+print(f"Signature path: {export_result.signature_path}")
+print(f"Execution time: {export_result.execution_time} seconds")
+```
+
+## Framework Integration Examples
+
+### LangChain Integration
+
+```python
+from arc_memory import Arc
+from langchain_openai import ChatOpenAI
+
+# Initialize Arc with the repository path
+arc = Arc(repo_path="./")
+
+# Get Arc Memory functions as LangChain tools
+from arc_memory.sdk.adapters import get_adapter
+langchain_adapter = get_adapter("langchain")
+tools = langchain_adapter.adapt_functions([
+    arc.query,
+    arc.get_decision_trail,
+    arc.get_related_entities,
+    arc.get_entity_details,
+    arc.analyze_component_impact
+])
+
+# Create a LangChain agent with Arc Memory tools
+llm = ChatOpenAI(model="gpt-4o")
+agent = langchain_adapter.create_agent(
+    tools=tools,
+    llm=llm,
+    system_message="You are a helpful assistant with access to Arc Memory.",
+    verbose=True
+)
+
+# Use the agent
+response = agent.invoke({"input": "What's the decision trail for src/auth/login.py line 42?"})
+print(response)
+
+# Using LangGraph (newer approach)
+from langchain_core.messages import HumanMessage
+response = agent.invoke([
+    HumanMessage(content="What's the decision trail for src/auth/login.py line 42?")
+])
+print(response)
+```
+
+### OpenAI Integration
+
+```python
+from arc_memory import Arc
+
+# Initialize Arc with the repository path
+arc = Arc(repo_path="./")
+
+# Get Arc Memory functions as OpenAI tools
+from arc_memory.sdk.adapters import get_adapter
+openai_adapter = get_adapter("openai")
+tools = openai_adapter.adapt_functions([
+    arc.query,
+    arc.get_decision_trail,
+    arc.get_related_entities,
+    arc.get_entity_details,
+    arc.analyze_component_impact
+])
+
+# Create an OpenAI agent with Arc Memory tools
+agent = openai_adapter.create_agent(
+    tools=tools,
+    model="gpt-4o",
+    temperature=0,
+    system_message="You are a helpful assistant with access to Arc Memory."
+)
+
+# Use the agent with a simple query
+response = agent("What's the decision trail for src/auth/login.py line 42?")
+print(response)
+
+# Use the agent with structured messages
+messages = [
+    {"role": "system", "content": "You are a helpful assistant with access to Arc Memory."},
+    {"role": "user", "content": "What's the decision trail for src/auth/login.py line 42?"}
+]
+response = agent(messages)
+print(response)
+
+# Create an OpenAI Assistant
+assistant = openai_adapter.create_assistant(
+    tools=tools,
+    name="Arc Memory Assistant",
+    instructions="You are a helpful assistant with access to Arc Memory.",
+    model="gpt-4o"
+)
+print(f"Assistant created: {assistant.id}")
+```
+
+## Advanced Use Cases
+
+### Building a Custom Agent
+
+```python
+from arc_memory import Arc
+
+# Initialize Arc with the repository path
+arc = Arc(repo_path="./")
+
+# Define the functions you want to expose to the agent
+functions = [
+    arc.query,
+    arc.get_decision_trail,
+    arc.get_related_entities,
+    arc.get_entity_details,
+    arc.analyze_component_impact
+]
+
+# Choose your preferred framework
+framework = "openai"  # or "langchain"
+
+# Get the adapter for your framework
+from arc_memory.sdk.adapters import get_adapter
+adapter = get_adapter(framework)
+
+# Adapt the functions to your framework
+tools = adapter.adapt_functions(functions)
+
+# Create an agent with the adapted tools
+if framework == "openai":
+    agent = adapter.create_agent(
+        tools=tools,
+        model="gpt-4o",
+        system_message="You are a helpful assistant with access to Arc Memory."
+    )
+    
+    # Use the agent
+    response = agent("What's the decision trail for src/auth/login.py line 42?")
+    print(response)
+    
+elif framework == "langchain":
+    from langchain_openai import ChatOpenAI
+    
+    agent = adapter.create_agent(
+        tools=tools,
+        llm=ChatOpenAI(model="gpt-4o"),
+        system_message="You are a helpful assistant with access to Arc Memory."
+    )
+    
+    # Use the agent
+    response = agent.invoke({"input": "What's the decision trail for src/auth/login.py line 42?"})
+    print(response)
+```
