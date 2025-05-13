@@ -45,69 +45,27 @@ To run any example:
    python agents/code_review_agent.py
    ```
 
-## Testing Requirements
+## Requirements
 
-To test these examples, you'll need:
+These examples require:
 
-1. **A built knowledge graph**: The examples assume you have already built a knowledge graph for your repository using `arc build`. See the [Getting Started Guide](../getting_started.md) for detailed instructions.
-
-2. **Required dependencies**:
-   - For OpenAI examples: `pip install openai`
-   - For LangChain examples: `pip install langchain langchain-openai`
-
-3. **API keys**:
-   - OpenAI API key set as an environment variable: `export OPENAI_API_KEY=your-api-key`
-
-4. **Registered adapters**: The framework adapters need to be registered. This happens automatically when you install Arc Memory with the appropriate dependencies.
+1. **A built knowledge graph**: Created using `arc build` (see [Getting Started Guide](../getting_started.md))
+2. **Framework dependencies**: OpenAI (`openai`) or LangChain (`langchain langchain-openai`)
+3. **API keys**: OpenAI API key set as `OPENAI_API_KEY` environment variable
+4. **Registered adapters**: Automatically handled when installing with appropriate dependencies
 
 ## Troubleshooting
 
-If you encounter issues running the examples:
+Common issues and solutions:
 
-1. **Adapter not found**: Make sure you've installed Arc Memory with the appropriate dependencies:
-   ```bash
-   pip install arc-memory[openai,langchain]
-   ```
-
-2. **Knowledge graph not found**: Make sure you've built a knowledge graph for your repository:
-   ```bash
-   arc build
-   ```
-
-3. **API key issues**: Make sure your OpenAI API key is set correctly:
-   ```bash
-   export OPENAI_API_KEY=your-api-key
-   ```
-
-4. **Authentication issues**: Make sure you're authenticated with the necessary data sources:
-   ```bash
-   # Check authentication status
-   arc doctor
-
-   # Re-authenticate if needed
-   arc auth github
-   arc auth linear
-   ```
-
-5. **LLM enhancement issues**: If you're using LLM enhancement and encounter issues:
-   ```bash
-   # Check if Ollama is installed
-   which ollama
-
-   # Install Ollama if needed (visit https://ollama.com/download)
-
-   # Check if Ollama is running
-   curl http://localhost:11434/api/version
-
-   # Start Ollama if needed
-   ollama serve
-   ```
-
-6. **Import errors**: Make sure you're running the examples from the correct directory:
-   ```bash
-   cd /path/to/arc-memory/docs/examples
-   python agents/code_review_agent.py
-   ```
+| Issue | Solution |
+|-------|----------|
+| **Adapter not found** | Install with dependencies: `pip install arc-memory[openai,langchain]` |
+| **Knowledge graph not found** | Build the graph: `arc build` |
+| **API key issues** | Set OpenAI key: `export OPENAI_API_KEY=your-api-key` |
+| **Authentication issues** | Check status with `arc doctor` and authenticate with `arc auth github` |
+| **LLM enhancement issues** | Ensure Ollama is installed and running: `ollama serve` |
+| **Import errors** | Run from correct directory: `cd /path/to/arc-memory/docs/examples` |
 
 ## Available Examples
 

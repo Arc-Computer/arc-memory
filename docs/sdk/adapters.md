@@ -1,6 +1,6 @@
 # Framework Adapters
 
-Arc Memory's framework adapters allow you to integrate Arc Memory with various agent frameworks, such as LangChain and OpenAI. This document explains how to use the built-in adapters and how to create custom adapters.
+Connect Arc Memory to agent frameworks like LangChain and OpenAI using our built-in adapters. This guide covers using existing adapters and creating custom ones for other frameworks.
 
 ## Built-in Adapters
 
