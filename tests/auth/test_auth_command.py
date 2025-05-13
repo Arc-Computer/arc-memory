@@ -7,16 +7,16 @@ from arc_memory.cli.auth import github_auth
 
 # Mock typer.confirm to always return False (don't use existing token)
 @patch('typer.confirm')
-# Mock get_token_from_env to return None (no token in env)
-@patch('arc_memory.cli.auth.get_token_from_env')
-# Mock get_token_from_keyring to return None (no token in keyring)
-@patch('arc_memory.cli.auth.get_token_from_keyring')
-# Mock start_device_flow to return test values
-@patch('arc_memory.cli.auth.start_device_flow')
-# Mock poll_device_flow to return a test token
-@patch('arc_memory.cli.auth.poll_device_flow')
-# Mock store_token_in_keyring to return True (token stored successfully)
-@patch('arc_memory.cli.auth.store_token_in_keyring')
+# Mock get_github_token_from_env to return None (no token in env)
+@patch('arc_memory.cli.auth.get_github_token_from_env')
+# Mock get_github_token_from_keyring to return None (no token in keyring)
+@patch('arc_memory.cli.auth.get_github_token_from_keyring')
+# Mock start_github_device_flow to return test values
+@patch('arc_memory.cli.auth.start_github_device_flow')
+# Mock poll_github_device_flow to return a test token
+@patch('arc_memory.cli.auth.poll_github_device_flow')
+# Mock store_github_token_in_keyring to return True (token stored successfully)
+@patch('arc_memory.cli.auth.store_github_token_in_keyring')
 def test_github_auth(
     mock_store_token, mock_poll_device_flow, mock_start_device_flow,
     mock_get_token_keyring, mock_get_token_env, mock_confirm
