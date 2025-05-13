@@ -117,8 +117,8 @@ def test_openai_enhancement(repo_path, model="gpt-4.1"):
     print("\n=== Testing queries ===")
 
     # Initialize Arc with both databases
-    arc_without = Arc(repo_path=repo_path, db_path=db_path_without)
-    arc_with = Arc(repo_path=repo_path, db_path=db_path_with)
+    arc_without = Arc(repo_path=repo_path, connection_params={"db_path": str(db_path_without)})
+    arc_with = Arc(repo_path=repo_path, connection_params={"db_path": str(db_path_with)})
 
     # Test query
     test_query = "What are the main components of this repository?"
