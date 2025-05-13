@@ -23,6 +23,13 @@ from arc_memory.trace import (
     trace_history_for_file_line,
 )
 
+# Import OpenAI client conditionally to avoid hard dependency
+try:
+    from arc_memory.llm.openai_client import OpenAIClient, ensure_openai_available
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
+
 logger = get_logger(__name__)
 
 # Enable or disable debug mode
@@ -304,12 +311,18 @@ def process_query(
         - confidence: Confidence score (1-10)
     """
     try:
-        # Ensure Ollama is available
-        if not ensure_ollama_available(timeout=timeout):
+        # Check for OpenAI availability first (preferred)
+        openai_available = False
+        if OPENAI_AVAILABLE:
+            openai_available = ensure_openai_available()
+
+        # Fall back to Ollama if OpenAI is not available
+        if not openai_available and not ensure_ollama_available(timeout=timeout):
             return {
-                "error": "Ollama is not available",
-                "understanding": "Natural language queries require Ollama to be installed and running. "
-                                "Please install Ollama from https://ollama.ai/download and start it with 'ollama serve'. "
+                "error": "No LLM provider available",
+                "understanding": "Natural language queries require either OpenAI API access or Ollama to be installed and running. "
+                                "To use OpenAI, set the OPENAI_API_KEY environment variable. "
+                                "To use Ollama, install it from https://ollama.ai/download and start it with 'ollama serve'. "
                                 "Then run 'ollama pull qwen3:4b' to download the default model (only ~4GB in size)."
             }
 
@@ -381,16 +394,35 @@ def _process_query_intent(query: str) -> Optional[Dict[str, Any]]:
         A dictionary with the parsed query intent, or None if processing failed
     """
     try:
-        # Create Ollama client
-        client = OllamaClient()
+        # Check if OpenAI is available (preferred)
+        openai_client = None
+        ollama_client = None
+
+        if OPENAI_AVAILABLE and ensure_openai_available():
+            logger.debug("Using OpenAI for query intent processing")
+            openai_client = OpenAIClient()
+        else:
+            logger.debug("Using Ollama for query intent processing")
+            ollama_client = OllamaClient()
 
         # Stage 1: Generate response with thinking for understanding the query
         logger.debug("Stage 1: Understanding query intent")
-        llm_response = client.generate_with_thinking(
-            model="qwen3:4b",
-            prompt=f"Parse this natural language query about a code repository: \"{query}\"",
-            system=QUERY_UNDERSTANDING_PROMPT
-        )
+
+        if openai_client:
+            # Use GPT-4.1 for better understanding
+            llm_response = openai_client.generate_with_thinking(
+                model="gpt-4.1",
+                prompt=f"Parse this natural language query about a code repository: \"{query}\"",
+                system=QUERY_UNDERSTANDING_PROMPT,
+                options={"temperature": 0.1}  # Lower temperature for more precise parsing
+            )
+        else:
+            # Fall back to Ollama
+            llm_response = ollama_client.generate_with_thinking(
+                model="qwen3:4b",
+                prompt=f"Parse this natural language query about a code repository: \"{query}\"",
+                system=QUERY_UNDERSTANDING_PROMPT
+            )
 
         # Log the raw LLM response for debugging
         if DEBUG_MODE:
@@ -416,11 +448,21 @@ Based on this query intent:
 Generate appropriate search parameters for finding relevant nodes in the knowledge graph.
 """
 
-        search_params_response = client.generate_with_thinking(
-            model="qwen3:4b",
-            prompt=search_params_prompt,
-            system=KNOWLEDGE_GRAPH_SEARCH_PROMPT
-        )
+        if openai_client:
+            # Use GPT-4.1 for better search parameter generation
+            search_params_response = openai_client.generate_with_thinking(
+                model="gpt-4.1",
+                prompt=search_params_prompt,
+                system=KNOWLEDGE_GRAPH_SEARCH_PROMPT,
+                options={"temperature": 0.1}
+            )
+        else:
+            # Fall back to Ollama
+            search_params_response = ollama_client.generate_with_thinking(
+                model="qwen3:4b",
+                prompt=search_params_prompt,
+                system=KNOWLEDGE_GRAPH_SEARCH_PROMPT
+            )
 
         # Log the raw LLM response for debugging
         if DEBUG_MODE:
@@ -962,8 +1004,16 @@ def _generate_response(
         A dictionary with the response including summary, answer, and results
     """
     try:
-        # Create Ollama client
-        client = OllamaClient()
+        # Check if OpenAI is available (preferred)
+        openai_client = None
+        ollama_client = None
+
+        if OPENAI_AVAILABLE and ensure_openai_available():
+            logger.debug("Using OpenAI for response generation")
+            openai_client = OpenAIClient()
+        else:
+            logger.debug("Using Ollama for response generation")
+            ollama_client = OllamaClient()
 
         # Prepare context from relevant nodes
         context_str = json.dumps(relevant_nodes, indent=2)
@@ -982,11 +1032,21 @@ Relevant information from the knowledge graph:
 Based on this information, please answer the user's question."""
 
         # Generate response with thinking for better reasoning
-        llm_response = client.generate_with_thinking(
-            model="qwen3:4b",
-            prompt=llm_prompt,
-            system=system_prompt
-        )
+        if openai_client:
+            # Use GPT-4.1 for higher quality responses
+            llm_response = openai_client.generate_with_thinking(
+                model="gpt-4.1",
+                prompt=llm_prompt,
+                system=system_prompt,
+                options={"temperature": 0.2}  # Slightly higher temperature for more natural responses
+            )
+        else:
+            # Fall back to Ollama
+            llm_response = ollama_client.generate_with_thinking(
+                model="qwen3:4b",
+                prompt=llm_prompt,
+                system=system_prompt
+            )
 
         # Log the raw LLM response for debugging
         if DEBUG_MODE:
