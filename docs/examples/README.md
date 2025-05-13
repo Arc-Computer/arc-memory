@@ -20,13 +20,27 @@ To run any example:
    export OPENAI_API_KEY=your-api-key
    ```
 
-3. Build a knowledge graph for your repository:
+3. Authenticate with data sources (if needed):
+   ```bash
+   # Authenticate with GitHub
+   arc auth github
+
+   # Authenticate with Linear
+   arc auth linear
+   ```
+
+4. Build a comprehensive knowledge graph for your repository:
    ```bash
    cd /path/to/your/repo
+
+   # Build with all data sources and LLM enhancement
+   arc build --github --linear --llm-enhancement
+
+   # Or build with just Git data for a simpler graph
    arc build
    ```
 
-4. Run the example:
+5. Run the example:
    ```bash
    python agents/code_review_agent.py
    ```
@@ -65,7 +79,31 @@ If you encounter issues running the examples:
    export OPENAI_API_KEY=your-api-key
    ```
 
-4. **Import errors**: Make sure you're running the examples from the correct directory:
+4. **Authentication issues**: Make sure you're authenticated with the necessary data sources:
+   ```bash
+   # Check authentication status
+   arc doctor
+
+   # Re-authenticate if needed
+   arc auth github
+   arc auth linear
+   ```
+
+5. **LLM enhancement issues**: If you're using LLM enhancement and encounter issues:
+   ```bash
+   # Check if Ollama is installed
+   which ollama
+
+   # Install Ollama if needed (visit https://ollama.com/download)
+
+   # Check if Ollama is running
+   curl http://localhost:11434/api/version
+
+   # Start Ollama if needed
+   ollama serve
+   ```
+
+6. **Import errors**: Make sure you're running the examples from the correct directory:
    ```bash
    cd /path/to/arc-memory/docs/examples
    python agents/code_review_agent.py
