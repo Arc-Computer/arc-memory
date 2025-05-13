@@ -32,10 +32,11 @@ class OllamaClient:
 
     def generate(
         self,
-        model: str = "gemma3:27b-it-qat",
+        model: str = "qwen3:4b",
         prompt: str = "",
         system: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
+        timeout: int = 260,
     ) -> str:
         """Generate text using the specified model.
 
@@ -44,6 +45,7 @@ class OllamaClient:
             prompt: The prompt to send to the model.
             system: The system message to use.
             options: Additional options to pass to the model.
+            timeout: Maximum time in seconds to wait for the model to respond.
 
         Returns:
             The generated text.
@@ -77,7 +79,7 @@ You have access to a knowledge graph with the following schema:
 
         try:
             # Send the request
-            response = requests.post(url, json=payload, timeout=260)
+            response = requests.post(url, json=payload, timeout=timeout)
             response.raise_for_status()
 
             # Parse the response
@@ -93,10 +95,11 @@ You have access to a knowledge graph with the following schema:
 
     def generate_with_streaming(
         self,
-        model: str = "gemma3:27b-it-qat",
+        model: str = "qwen3:4b",
         prompt: str = "",
         system: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
+        timeout: int = 260,
     ) -> str:
         """Generate text using the specified model with streaming.
 
@@ -108,6 +111,7 @@ You have access to a knowledge graph with the following schema:
             prompt: The prompt to send to the model.
             system: The system message to use.
             options: Additional options to pass to the model.
+            timeout: Maximum time in seconds to wait for the model to respond.
 
         Returns:
             The complete generated text from the stream.
@@ -141,7 +145,7 @@ You have access to a knowledge graph with the following schema:
 
         try:
             # Send the request
-            response = requests.post(url, json=payload, stream=True, timeout=260)
+            response = requests.post(url, json=payload, stream=True, timeout=timeout)
             response.raise_for_status()
 
             # Collect the streamed response
@@ -181,10 +185,11 @@ You have access to a knowledge graph with the following schema:
 
     def generate_with_thinking(
         self,
-        model: str = "gemma3:27b-it-qat",
+        model: str = "qwen3:4b",
         prompt: str = "",
         system: Optional[str] = None,
-        options: Optional[Dict[str, Any]] = None
+        options: Optional[Dict[str, Any]] = None,
+        timeout: int = 260
     ) -> str:
         """Generate a response using the thinking mode in Qwen3.
 
@@ -193,6 +198,7 @@ You have access to a knowledge graph with the following schema:
             prompt: The prompt to send to the model.
             system: The system message to use.
             options: Optional parameters for generation.
+            timeout: Maximum time in seconds to wait for the model to respond.
 
         Returns:
             The generated response with thinking.
@@ -251,7 +257,8 @@ When analyzing temporal data, consider:
             model=model,
             prompt=f"{prompt} (Think step by step, then provide your final answer as valid JSON.)",
             system=enhanced_system,
-            options=options
+            options=options,
+            timeout=timeout
         )
 
     def ensure_model_available(self, model: str) -> bool:
@@ -304,9 +311,7 @@ When analyzing temporal data, consider:
         except Exception as e:
             logger.error(f"Error pulling model: {e}")
             return False
-
-
-def ensure_ollama_available(model: str = "gemma3:27b-it-qat") -> bool:
+def ensure_ollama_available(model: str = "qwen3:4b", timeout: int = 60) -> bool:
     """Ensure Ollama and the required model are available.
 
     This function checks if Ollama is installed and running, and if the
@@ -315,6 +320,7 @@ def ensure_ollama_available(model: str = "gemma3:27b-it-qat") -> bool:
 
     Args:
         model: The model to ensure is available.
+        timeout: Maximum time in seconds to wait for Ollama to respond.
 
     Returns:
         True if Ollama and the model are available, False otherwise.
@@ -344,7 +350,9 @@ def ensure_ollama_available(model: str = "gemma3:27b-it-qat") -> bool:
             else:
                 # In a local environment, prompt the user
                 logger.error(
-                    "Ollama not found. Please install Ollama: https://ollama.com/download"
+                    "Ollama not found. Please install Ollama from https://ollama.ai/download "
+                    "and run 'ollama serve' to start the Ollama server. "
+                    "Then run 'ollama pull qwen3:4b' to download the default model."
                 )
                 return False
         except Exception as e:
@@ -353,14 +361,15 @@ def ensure_ollama_available(model: str = "gemma3:27b-it-qat") -> bool:
 
     # Check if Ollama is running
     try:
-        response = requests.get("http://localhost:11434/api/version")
+        response = requests.get("http://localhost:11434/api/version", timeout=min(5, timeout))
         if response.status_code != 200:
             logger.info("Ollama is installed but not running, attempting to start...")
             subprocess.Popen(["ollama", "serve"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
             # Wait for Ollama to start
-            for _ in range(10):
+            max_attempts = max(1, timeout // 2)  # Use half the timeout for waiting
+            for _ in range(max_attempts):
                 try:
-                    response = requests.get("http://localhost:11434/api/version")
+                    response = requests.get("http://localhost:11434/api/version", timeout=min(2, timeout))
                     if response.status_code == 200:
                         logger.info("Ollama started successfully")
                         break
@@ -368,15 +377,16 @@ def ensure_ollama_available(model: str = "gemma3:27b-it-qat") -> bool:
                     pass
                 time.sleep(1)
             else:
-                logger.error("Failed to start Ollama")
+                logger.error("Failed to start Ollama within timeout period")
                 return False
-    except:
+    except requests.RequestException:
         logger.info("Ollama is installed but not running, attempting to start...")
         subprocess.Popen(["ollama", "serve"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         # Wait for Ollama to start
-        for _ in range(10):
+        max_attempts = max(1, timeout // 2)  # Use half the timeout for waiting
+        for _ in range(max_attempts):
             try:
-                response = requests.get("http://localhost:11434/api/version")
+                response = requests.get("http://localhost:11434/api/version", timeout=min(2, timeout))
                 if response.status_code == 200:
                     logger.info("Ollama started successfully")
                     break
@@ -384,7 +394,7 @@ def ensure_ollama_available(model: str = "gemma3:27b-it-qat") -> bool:
                 pass
             time.sleep(1)
         else:
-            logger.error("Failed to start Ollama")
+            logger.error("Failed to start Ollama within timeout period")
             return False
 
     # Check if model is available and pull if needed

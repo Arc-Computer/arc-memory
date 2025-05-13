@@ -4,11 +4,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "arc-memory"
-version = "0.4.2"
+version = "0.5.0"
 description = "Arc Memory - Local bi-temporal knowledge graph for code repositories"
 readme = "README.md"
 requires-python = ">=3.10"
-license = {text = "MIT"}
+license = "MIT"
 authors = [
     {name = "Jarrod Barnes", email = "jbarnes850@gmail.com"},
 ]
@@ -144,6 +144,12 @@ openai = "arc_memory.sdk.adapters.openai:OpenAIAdapter"
 
 [tool.hatch.build.targets.wheel]
 packages = ["arc_memory"]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel.shared-data]
+"LICENSE" = "arc_memory-0.5.0.dist-info/licenses/LICENSE"
 
 [tool.black]
 line-length = 88
