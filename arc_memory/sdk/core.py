@@ -380,22 +380,57 @@ class Arc:
 
         This method identifies components that may be affected by changes to the
         specified component, based on historical co-change patterns and explicit
-        dependencies in the knowledge graph.
+        dependencies in the knowledge graph. It helps predict the "blast radius"
+        of changes, which is useful for planning refactoring efforts, assessing risk,
+        and understanding the architecture of your codebase.
 
         Args:
-            component_id: The ID of the component to analyze.
-            impact_types: Types of impact to include (direct, indirect, potential).
-            max_depth: Maximum depth of impact analysis.
+            component_id: The ID of the component to analyze. This can be a file, directory,
+                module, or any other component in your codebase. Format should be
+                "type:identifier", e.g., "file:src/auth/login.py".
+            impact_types: Types of impact to include in the analysis. Options are:
+                - "direct": Components that directly depend on or are depended upon by the target
+                - "indirect": Components connected through a chain of dependencies
+                - "potential": Components that historically changed together with the target
+                If None, all impact types will be included.
+            max_depth: Maximum depth of indirect dependency analysis. Higher values will
+                analyze more distant dependencies but may take longer. Values between
+                2-5 are recommended for most codebases.
             cache: Whether to use cached results if available. When True (default),
                 results are cached and retrieved from cache if a matching query exists.
                 Set to False to force a fresh query execution.
-            callback: Optional callback for progress reporting.
+            callback: Optional callback for progress reporting. If provided,
+                it will be called at various stages of the analysis with progress updates.
 
         Returns:
-            A list of ImpactResult objects representing affected components.
+            A list of ImpactResult objects representing affected components. Each result
+            includes the component ID, type, title, impact type, impact score (0-1),
+            and the path of dependencies from the target component.
 
         Raises:
-            QueryError: If the impact analysis fails.
+            QueryError: If the impact analysis fails due to database errors, invalid
+                component ID, or other issues. The error message will include details
+                about what went wrong and how to fix it.
+
+        Example:
+            ```python
+            # Initialize Arc
+            arc = Arc(repo_path="./")
+
+            # Analyze impact on a file
+            results = arc.analyze_component_impact(
+                component_id="file:src/auth/login.py",
+                impact_types=["direct", "indirect"],
+                max_depth=3
+            )
+
+            # Process results
+            for result in results:
+                print(f"{result.title}: {result.impact_score} ({result.impact_type})")
+
+            # Find high-impact components
+            high_impact = [r for r in results if r.impact_score > 0.7]
+            ```
         """
         from arc_memory.sdk.impact import analyze_component_impact
         return analyze_component_impact(
