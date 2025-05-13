@@ -569,7 +569,7 @@ class Arc:
         key_id: Optional[str] = None,
         base_branch: str = "main",
         max_hops: int = 3,
-        optimize_for_llm: bool = True,
+        enhance_for_llm: bool = True,
         include_causal: bool = True,
         callback: Optional[ProgressCallback] = None
     ) -> Path:
@@ -587,7 +587,7 @@ class Arc:
             key_id: GPG key ID to use for signing.
             base_branch: Base branch to compare against.
             max_hops: Maximum number of hops to traverse in the graph.
-            optimize_for_llm: Whether to optimize the export for LLM consumption.
+            enhance_for_llm: Whether to enhance the export data for LLM reasoning.
             include_causal: Whether to include causal relationships in the export.
             callback: Optional callback for progress reporting.
 
@@ -614,7 +614,7 @@ class Arc:
                 key_id=key_id,
                 base_branch=base_branch,
                 max_hops=max_hops,
-                enhance_for_llm=optimize_for_llm,
+                enhance_for_llm=enhance_for_llm,
                 include_causal=include_causal
             )
         except Exception as e:
