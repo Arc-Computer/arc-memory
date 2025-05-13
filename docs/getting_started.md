@@ -439,20 +439,19 @@ for entry in history:
 #### Exporting the Knowledge Graph
 
 ```python
-# Export the knowledge graph
-export_result = arc.export_graph(
+# Export the knowledge graph for a PR
+export_path = arc.export_graph(
+    pr_sha="abc123",  # PR head commit SHA
     output_path="knowledge_graph.json",
-    pr_sha="abc123",  # Optional: Filter by PR
-    entity_types=["COMMIT", "PR", "ISSUE"],  # Optional: Filter by entity type
-    start_date="2023-01-01",  # Optional: Filter by date
-    end_date="2023-12-31",  # Optional: Filter by date
-    format="json",
     compress=True,
-    optimize_for_llm=True
+    sign=False,
+    base_branch="main",
+    max_hops=3,
+    enhance_for_llm=True,
+    include_causal=True
 )
 
-print(f"Exported {export_result.entity_count} entities and {export_result.relationship_count} relationships")
-print(f"Output path: {export_result.output_path}")
+print(f"Exported knowledge graph to: {export_path}")
 ```
 
 ## Next Steps

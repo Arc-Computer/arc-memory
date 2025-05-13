@@ -41,13 +41,17 @@ for result in impact_results:
 For more detailed analysis, you can use additional parameters:
 
 ```python
-# Advanced impact analysis
+# Define a progress callback function
+def progress_callback(stage, message, progress):
+    print(f"[{stage}] {message} ({progress:.0%})")
+
+# Advanced impact analysis with progress reporting
 impact_results = arc.analyze_component_impact(
     component_id="file:src/auth/login.py",
     impact_types=["direct", "indirect", "potential"],
     max_depth=5,
     cache=True,
-    callback=progress_callback  # Optional progress reporting
+    callback=progress_callback
 )
 
 # Process and display the results
@@ -78,12 +82,13 @@ for result in impact_results:
 
 ## Understanding the Results
 
-Each result in the returned list is an `ImpactResult` object with the following attributes:
+Each result in the returned list is an `ImpactResult` object (which extends `EntityDetails`) with the following attributes:
 
 - **id**: The ID of the affected component
 - **type**: The type of the component (e.g., "FILE", "DIRECTORY", "MODULE")
 - **title**: The title or name of the component
-- **body**: Additional description or content of the component
+- **body**: Additional description or content of the component (optional)
+- **timestamp**: The timestamp of the entity (optional)
 - **properties**: Dictionary of component properties
 - **related_entities**: List of entities related to this component
 - **impact_type**: Type of impact ("direct", "indirect", or "potential")
@@ -145,7 +150,7 @@ G.add_node("TARGET", label="routes.py", impact=1.0)
 # Add impacted components
 for result in impact_results:
     G.add_node(result.id, label=result.title.split("/")[-1], impact=result.impact_score)
-    
+
     # Add edges based on impact path
     path = result.impact_path
     for i in range(len(path) - 1):
@@ -160,8 +165,8 @@ node_colors = [G.nodes[n].get("impact", 0.5) for n in G.nodes()]
 labels = {n: G.nodes[n].get("label", n) for n in G.nodes()}
 
 plt.figure(figsize=(12, 8))
-nx.draw(G, pos, with_labels=True, labels=labels, 
-        node_color=node_colors, cmap=plt.cm.Reds, 
+nx.draw(G, pos, with_labels=True, labels=labels,
+        node_color=node_colors, cmap=plt.cm.Reds,
         node_size=1000, arrows=True)
 plt.title("Impact Analysis for routes.py")
 plt.savefig("impact_analysis.png")
@@ -178,7 +183,7 @@ def analyze_changed_files(repo_path, changed_files, threshold=0.7):
     """Analyze the impact of changed files and fail if high-impact components are affected."""
     arc = Arc(repo_path=repo_path)
     high_impact_changes = []
-    
+
     for file_path in changed_files:
         component_id = f"file:{file_path}"
         impact_results = arc.analyze_component_impact(
@@ -186,28 +191,28 @@ def analyze_changed_files(repo_path, changed_files, threshold=0.7):
             impact_types=["direct", "indirect"],
             max_depth=2
         )
-        
+
         # Check for high-impact results
         high_impact = [r for r in impact_results if r.impact_score > threshold]
         if high_impact:
             high_impact_changes.append((file_path, high_impact))
-    
+
     return high_impact_changes
 
 if __name__ == "__main__":
     # Get changed files from command line arguments
     repo_path = sys.argv[1]
     changed_files = sys.argv[2:]
-    
+
     high_impact_changes = analyze_changed_files(repo_path, changed_files)
-    
+
     if high_impact_changes:
         print("⚠️ High-impact changes detected!")
         for file_path, impacts in high_impact_changes:
             print(f"\n{file_path} affects:")
             for impact in impacts:
                 print(f"  - {impact.title} (score: {impact.impact_score:.2f})")
-        
+
         # Exit with error code to fail the CI pipeline
         sys.exit(1)
     else:

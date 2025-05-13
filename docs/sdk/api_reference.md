@@ -120,19 +120,40 @@ class Arc:
         component_id: str,
         impact_types: Optional[List[str]] = None,
         max_depth: int = 3,
-        cache: bool = True
-    ) -> List[ImpactAnalysisResult]:
+        cache: bool = True,
+        callback: Optional[ProgressCallback] = None
+    ) -> List[ImpactResult]:
         """
         Analyze the potential impact of changes to a component.
 
+        This method identifies components that may be affected by changes to the
+        specified component, based on historical co-change patterns and explicit
+        dependencies in the knowledge graph. It helps predict the "blast radius"
+        of changes, which is useful for planning refactoring efforts, assessing risk,
+        and understanding the architecture of your codebase.
+
         Args:
-            component_id: ID of the component to analyze
-            impact_types: Optional list of impact types to include ("direct", "indirect", "potential")
-            max_depth: Maximum depth to traverse in the graph
-            cache: Whether to use the cache
+            component_id: The ID of the component to analyze. This can be a file, directory,
+                module, or any other component in your codebase. Format should be
+                "type:identifier", e.g., "file:src/auth/login.py".
+            impact_types: Types of impact to include in the analysis. Options are:
+                - "direct": Components that directly depend on or are depended upon by the target
+                - "indirect": Components connected through a chain of dependencies
+                - "potential": Components that historically changed together with the target
+                If None, all impact types will be included.
+            max_depth: Maximum depth of indirect dependency analysis. Higher values will
+                analyze more distant dependencies but may take longer. Values between
+                2-5 are recommended for most codebases.
+            cache: Whether to use cached results if available. When True (default),
+                results are cached and retrieved from cache if a matching query exists.
+                Set to False to force a fresh query execution.
+            callback: Optional callback for progress reporting. If provided,
+                it will be called at various stages of the analysis with progress updates.
 
         Returns:
-            List of ImpactAnalysisResult objects
+            A list of ImpactResult objects representing affected components. Each result
+            includes the component ID, type, title, impact type, impact score (0-1),
+            and the path of dependencies from the target component.
         """
 
     def get_entity_history(
@@ -159,40 +180,36 @@ class Arc:
 
     def export_graph(
         self,
+        pr_sha: str,
         output_path: str,
-        pr_sha: Optional[str] = None,
-        entity_types: Optional[List[str]] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        format: str = "json",
-        compress: bool = False,
+        compress: bool = True,
         sign: bool = False,
         key_id: Optional[str] = None,
-        base_branch: Optional[str] = None,
+        base_branch: str = "main",
         max_hops: int = 3,
-        optimize_for_llm: bool = False,
+        enhance_for_llm: bool = True,
         include_causal: bool = True
-    ) -> ExportResult:
+    ) -> Path:
         """
-        Export the knowledge graph to a file.
+        Export a relevant slice of the knowledge graph for a PR.
+
+        This method exports a subset of the knowledge graph focused on the files
+        modified in a specific PR, along with related nodes and edges. The export
+        is saved as a JSON file that can be used by the GitHub App for PR reviews.
 
         Args:
-            output_path: Path to save the exported graph
-            pr_sha: Optional PR SHA to filter by
-            entity_types: Optional list of entity types to include
-            start_date: Optional start date for entities (ISO format)
-            end_date: Optional end date for entities (ISO format)
-            format: Format to export in ("json", "jsonl", "csv", "graphml")
-            compress: Whether to compress the output
-            sign: Whether to sign the output with GPG
-            key_id: GPG key ID to use for signing
-            base_branch: Base branch to compare against for PR analysis
-            max_hops: Maximum number of hops to include
-            optimize_for_llm: Whether to optimize the output for LLMs
-            include_causal: Whether to include causal relationships
+            pr_sha: SHA of the PR head commit.
+            output_path: Path to save the export file.
+            compress: Whether to compress the output file.
+            sign: Whether to sign the output file with GPG.
+            key_id: GPG key ID to use for signing.
+            base_branch: Base branch to compare against.
+            max_hops: Maximum number of hops to traverse in the graph.
+            enhance_for_llm: Whether to enhance the export data for LLM reasoning.
+            include_causal: Whether to include causal relationships in the export.
 
         Returns:
-            ExportResult object
+            Path to the exported file.
         """
 ```
 
@@ -202,14 +219,15 @@ class Arc:
 
 ```python
 class QueryResult(BaseModel):
-    """Result of a query to the knowledge graph."""
+    """Result of a natural language query to the knowledge graph."""
 
+    query: str
     answer: str
-    confidence: float
-    evidence: List[Dict[str, Any]]
+    confidence: float = 0.0
+    evidence: List[Dict[str, Any]] = Field(default_factory=list)
     query_understanding: Optional[str] = None
     reasoning: Optional[str] = None
-    execution_time: Optional[float] = None
+    execution_time: float = 0.0
 ```
 
 ### DecisionTrailEntry
@@ -257,19 +275,15 @@ class EntityDetails(BaseModel):
     related_entities: Optional[List[RelatedEntity]] = None
 ```
 
-### ImpactAnalysisResult
+### ImpactResult
 
 ```python
-class ImpactAnalysisResult(BaseModel):
+class ImpactResult(EntityDetails):
     """Result of an impact analysis."""
 
-    id: str
-    type: str
-    title: str
-    impact_score: float
     impact_type: str
-    impact_path: List[str]
-    properties: Optional[Dict[str, Any]] = None
+    impact_score: float
+    impact_path: List[str] = Field(default_factory=list)
 ```
 
 ### HistoryEntry

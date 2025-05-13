@@ -201,7 +201,7 @@ pr_export_path = arc.export_graph(
     key_id="your-gpg-key-id",
     base_branch="main",
     max_hops=3,
-    enhance_for_llm=True,
+    optimize_for_llm=True,
     include_causal=True
 )
 print(f"Exported PR knowledge graph to: {pr_export_path}")
@@ -217,7 +217,7 @@ export_result = arc.export_graph(
     sign=True,
     key_id="your-gpg-key-id",
     max_hops=5,
-    enhance_for_llm=True,
+    optimize_for_llm=True,
     include_causal=True
 )
 
@@ -238,7 +238,7 @@ export_result = export_knowledge_graph(
     key_id="your-gpg-key-id",
     base_branch="main",
     max_hops=5,
-    enhance_for_llm=True,
+    optimize_for_llm=True,
     include_causal=True
 )
 
