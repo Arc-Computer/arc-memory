@@ -6,20 +6,69 @@ This directory contains ready-to-use examples that demonstrate how to integrate 
 
 To run any example:
 
-1. Make sure you have Arc Memory installed:
+1. Make sure you have Arc Memory installed with all required dependencies:
    ```bash
-   pip install arc-memory
+   # Install Arc Memory with all dependencies
+   pip install arc-memory[all]
+
+   # Or install with specific dependencies
+   pip install arc-memory[openai,langchain]
    ```
 
-2. Build a knowledge graph for your repository:
+2. Set up your OpenAI API key:
+   ```bash
+   export OPENAI_API_KEY=your-api-key
+   ```
+
+3. Build a knowledge graph for your repository:
    ```bash
    cd /path/to/your/repo
    arc build
    ```
 
-3. Run the example:
+4. Run the example:
    ```bash
-   python code_review_agent.py
+   python agents/code_review_agent.py
+   ```
+
+## Testing Requirements
+
+To test these examples, you'll need:
+
+1. **A built knowledge graph**: The examples assume you have already built a knowledge graph for your repository using `arc build`. See the [Getting Started Guide](../getting_started.md) for detailed instructions.
+
+2. **Required dependencies**:
+   - For OpenAI examples: `pip install openai`
+   - For LangChain examples: `pip install langchain langchain-openai`
+
+3. **API keys**:
+   - OpenAI API key set as an environment variable: `export OPENAI_API_KEY=your-api-key`
+
+4. **Registered adapters**: The framework adapters need to be registered. This happens automatically when you install Arc Memory with the appropriate dependencies.
+
+## Troubleshooting
+
+If you encounter issues running the examples:
+
+1. **Adapter not found**: Make sure you've installed Arc Memory with the appropriate dependencies:
+   ```bash
+   pip install arc-memory[openai,langchain]
+   ```
+
+2. **Knowledge graph not found**: Make sure you've built a knowledge graph for your repository:
+   ```bash
+   arc build
+   ```
+
+3. **API key issues**: Make sure your OpenAI API key is set correctly:
+   ```bash
+   export OPENAI_API_KEY=your-api-key
+   ```
+
+4. **Import errors**: Make sure you're running the examples from the correct directory:
+   ```bash
+   cd /path/to/arc-memory/docs/examples
+   python agents/code_review_agent.py
    ```
 
 ## Available Examples
@@ -56,9 +105,9 @@ To create your own agent:
 1. Choose which Arc Memory functions you want to expose:
    ```python
    from arc_memory import Arc
-   
+
    arc = Arc(repo_path="./")
-   
+
    # Choose which functions to expose
    arc_functions = [
        arc.query,                    # Natural language queries
@@ -72,18 +121,18 @@ To create your own agent:
    ```python
    # For OpenAI
    from arc_memory.sdk.adapters import get_adapter
-   
+
    openai_adapter = get_adapter("openai")
    tools = openai_adapter.adapt_functions(arc_functions)
    agent = openai_adapter.create_agent(tools=tools, model="gpt-4o")
-   
+
    # For LangChain
    from langchain_openai import ChatOpenAI
-   
+
    langchain_adapter = get_adapter("langchain")
    tools = langchain_adapter.adapt_functions(arc_functions)
    agent = langchain_adapter.create_agent(
-       tools=tools, 
+       tools=tools,
        llm=ChatOpenAI(model="gpt-4o")
    )
    ```
@@ -92,7 +141,7 @@ To create your own agent:
    ```python
    # For OpenAI
    response = agent("Why was the authentication system refactored?")
-   
+
    # For LangChain
    response = agent.invoke({"input": "Why was the authentication system refactored?"})
    ```

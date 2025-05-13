@@ -22,7 +22,11 @@ pip install arc-memory[github,linear,neo4j]
 
 ## Building Your First Knowledge Graph
 
-Before you can use the SDK, you need to build a knowledge graph from your repository:
+Before you can use the SDK, you need to build a knowledge graph from your repository. This is a critical first step - the knowledge graph is the foundation that powers all of Arc Memory's capabilities.
+
+### Using the CLI to Build the Graph
+
+The easiest way to build your knowledge graph is using the CLI:
 
 ```bash
 # Navigate to your repository
@@ -37,7 +41,68 @@ This will:
 2. Extract commits, branches, and tags
 3. Process GitHub issues and PRs (if GitHub integration is configured)
 4. Extract ADRs (if present in the repository)
-5. Build a knowledge graph in a local SQLite database
+5. Build a knowledge graph in a local SQLite database (stored in `~/.arc/db.sqlite` by default)
+
+### Building Options
+
+You can customize the build process with various options:
+
+```bash
+# Build with verbose output
+arc build --verbose
+
+# Build with a specific branch
+arc build --branch main
+
+# Build with a specific commit range
+arc build --since 2023-01-01
+
+# Build with a specific number of commits
+arc build --limit 100
+
+# Build with a specific database path
+arc build --db-path /path/to/custom/db.sqlite
+```
+
+### Programmatically Building the Graph
+
+You can also build the knowledge graph programmatically using the SDK:
+
+```python
+from arc_memory import Arc
+from arc_memory.auto_refresh import refresh_knowledge_graph
+
+# Initialize Arc with the repository path
+arc = Arc(repo_path="./")
+
+# Build or refresh the knowledge graph
+refresh_result = refresh_knowledge_graph(
+    repo_path="./",
+    include_github=True,
+    include_linear=False,
+    verbose=True
+)
+
+print(f"Added {refresh_result.nodes_added} nodes and {refresh_result.edges_added} edges")
+print(f"Updated {refresh_result.nodes_updated} nodes and {refresh_result.edges_updated} edges")
+```
+
+### Verifying the Build
+
+To verify that your knowledge graph was built successfully:
+
+```bash
+# Check the graph statistics
+arc stats
+
+# Or programmatically
+from arc_memory import Arc
+
+arc = Arc(repo_path="./")
+node_count = arc.get_node_count()
+edge_count = arc.get_edge_count()
+
+print(f"Knowledge graph contains {node_count} nodes and {edge_count} edges")
 
 ### Configuring Data Sources
 
