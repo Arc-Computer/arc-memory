@@ -262,7 +262,7 @@ tools = langchain_adapter.adapt_functions([
     arc.analyze_component_impact
 ])
 
-# Create a LangChain agent with Arc Memory tools (LangChain v0.1.0+)
+# Create a LangChain agent with Arc Memory tools (auto-detect best approach)
 llm = ChatOpenAI(model="gpt-4o")
 agent = langchain_adapter.create_agent(
     tools=tools,
@@ -284,6 +284,24 @@ messages = [
 ]
 response = agent.invoke(messages)
 print(response)
+
+# Explicitly use LangGraph (newer approach)
+langgraph_agent = langchain_adapter.create_agent(
+    tools=tools,
+    llm=llm,
+    system_message="You are a helpful assistant with access to Arc Memory.",
+    verbose=True,
+    use_langgraph=True  # Explicitly use LangGraph
+)
+
+# Explicitly use legacy AgentExecutor
+legacy_agent = langchain_adapter.create_agent(
+    tools=tools,
+    llm=llm,
+    system_message="You are a helpful assistant with access to Arc Memory.",
+    verbose=True,
+    use_langgraph=False  # Explicitly use legacy AgentExecutor
+)
 
 # Error handling for LangChain integration
 try:
@@ -351,12 +369,39 @@ agent_stream = openai_adapter.create_agent(
 )
 
 # Process streaming response
-for chunk in agent_stream("What's the decision trail for src/auth/login.py line 42?"):
-    if hasattr(chunk, 'choices') and len(chunk.choices) > 0:
-        content = chunk.choices[0].delta.content
-        if content:
-            print(content, end="", flush=True)
-print()  # Add a newline at the end
+try:
+    for chunk in agent_stream("What's the decision trail for src/auth/login.py line 42?"):
+        if hasattr(chunk, 'choices') and len(chunk.choices) > 0:
+            content = chunk.choices[0].delta.content
+            if content:
+                print(content, end="", flush=True)
+    print()  # Add a newline at the end
+except Exception as e:
+    print(f"Error during streaming: {e}")
+
+# Advanced streaming with stream_options
+agent_stream_advanced = openai_adapter.create_agent(
+    tools=tools,
+    model="gpt-4o",
+    temperature=0,
+    system_message="You are a helpful assistant with access to Arc Memory.",
+    stream=True,
+    stream_options={"include_usage": True}  # Include token usage in the response
+)
+
+# Process advanced streaming response
+try:
+    for chunk in agent_stream_advanced("What's the decision trail for src/auth/login.py line 42?"):
+        if hasattr(chunk, 'choices') and len(chunk.choices) > 0:
+            content = chunk.choices[0].delta.content
+            if content:
+                print(content, end="", flush=True)
+        # Check for usage information in the final chunk
+        if hasattr(chunk, 'usage') and chunk.usage:
+            print(f"\nToken usage: {chunk.usage}")
+    print()  # Add a newline at the end
+except Exception as e:
+    print(f"Error during streaming: {e}")
 
 # Error handling for OpenAI integration
 try:
