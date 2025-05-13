@@ -16,7 +16,8 @@ from arc_memory.sql.db import ensure_arc_dir, get_db_path
 from arc_memory.sdk.adapters import FrameworkAdapter, get_adapter, discover_adapters
 from arc_memory.sdk.errors import SDKError, AdapterError, QueryError, BuildError, FrameworkError
 from arc_memory.sdk.models import (
-    DecisionTrailEntry, EntityDetails, HistoryEntry, ImpactResult, QueryResult, RelatedEntity
+    DecisionTrailEntry, EntityDetails, HistoryEntry, ImpactResult, QueryResult, RelatedEntity,
+    ExportResult
 )
 from arc_memory.sdk.progress import ProgressCallback
 
@@ -72,6 +73,9 @@ class Arc:
 
             # Initialize the database schema
             self.adapter.init_db()
+
+            # Discover and register framework adapters
+            discover_adapters()
 
         except DatabaseError as e:
             # Convert database errors to SDK errors
@@ -203,7 +207,8 @@ class Arc:
         max_hops: int = 3,
         include_causal: bool = True,
         cache: bool = True,
-        callback: Optional[ProgressCallback] = None
+        callback: Optional[ProgressCallback] = None,
+        timeout: int = 60
     ) -> QueryResult:
         """Query the knowledge graph using natural language.
 
@@ -220,12 +225,18 @@ class Arc:
                 results are cached and retrieved from cache if a matching query exists.
                 Set to False to force a fresh query execution.
             callback: Optional callback for progress reporting.
+            timeout: Maximum time in seconds to wait for Ollama response.
 
         Returns:
             A QueryResult containing the answer and supporting evidence.
 
         Raises:
             QueryError: If the query fails.
+
+        Note:
+            This method requires Ollama to be installed and running. If Ollama is not
+            available, it will return an error message with installation instructions.
+            Install Ollama from https://ollama.ai/download and start it with 'ollama serve'.
         """
         from arc_memory.sdk.query import query_knowledge_graph
         return query_knowledge_graph(
@@ -235,7 +246,8 @@ class Arc:
             max_hops=max_hops,
             include_causal=include_causal,
             cache=cache,
-            callback=callback
+            callback=callback,
+            timeout=timeout
         )
 
     # Decision Trail API methods
@@ -569,10 +581,10 @@ class Arc:
         key_id: Optional[str] = None,
         base_branch: str = "main",
         max_hops: int = 3,
-        enhance_for_llm: bool = True,
+        optimize_for_llm: bool = True,
         include_causal: bool = True,
         callback: Optional[ProgressCallback] = None
-    ) -> Path:
+    ) -> "ExportResult":
         """Export a relevant slice of the knowledge graph for a PR.
 
         This method exports a subset of the knowledge graph focused on the files
@@ -587,25 +599,25 @@ class Arc:
             key_id: GPG key ID to use for signing.
             base_branch: Base branch to compare against.
             max_hops: Maximum number of hops to traverse in the graph.
-            enhance_for_llm: Whether to enhance the export data for LLM reasoning.
+            optimize_for_llm: Whether to optimize the export data for LLM reasoning.
             include_causal: Whether to include causal relationships in the export.
             callback: Optional callback for progress reporting.
 
         Returns:
-            Path to the exported file.
+            ExportResult containing information about the exported file.
 
         Raises:
             QueryError: If exporting the graph fails.
         """
         try:
-            from arc_memory.export import export_graph as export_graph_impl
+            from arc_memory.sdk.export import export_knowledge_graph
 
             # Convert output_path to Path
             output_path = Path(output_path)
 
             # Export the graph
-            return export_graph_impl(
-                db_path=Path(self.adapter.db_path),
+            return export_knowledge_graph(
+                adapter=self.adapter,
                 repo_path=self.repo_path,
                 pr_sha=pr_sha,
                 output_path=output_path,
@@ -614,8 +626,9 @@ class Arc:
                 key_id=key_id,
                 base_branch=base_branch,
                 max_hops=max_hops,
-                enhance_for_llm=enhance_for_llm,
-                include_causal=include_causal
+                optimize_for_llm=optimize_for_llm,
+                include_causal=include_causal,
+                callback=callback
             )
         except Exception as e:
             raise QueryError(f"Failed to export graph: {e}") from e

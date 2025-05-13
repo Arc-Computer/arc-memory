@@ -74,7 +74,7 @@ class SDKError(ArcError):
 
     def __init__(
         self,
-        message: str,
+        message: str = "",
         details: Optional[Dict[str, Any]] = None,
         what_happened: Optional[str] = None,
         why_it_happened: Optional[str] = None,
@@ -85,7 +85,7 @@ class SDKError(ArcError):
         Args:
             message: The error message. If what_happened, why_it_happened, and
                 how_to_fix_it are provided, this will be overridden with a
-                formatted message.
+                formatted message. Default is an empty string.
             details: Additional details about the error.
             what_happened: A description of the error that occurred.
             why_it_happened: An explanation of why the error occurred.
