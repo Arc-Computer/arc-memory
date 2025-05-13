@@ -120,19 +120,40 @@ class Arc:
         component_id: str,
         impact_types: Optional[List[str]] = None,
         max_depth: int = 3,
-        cache: bool = True
-    ) -> List[ImpactAnalysisResult]:
+        cache: bool = True,
+        callback: Optional[ProgressCallback] = None
+    ) -> List[ImpactResult]:
         """
         Analyze the potential impact of changes to a component.
 
+        This method identifies components that may be affected by changes to the
+        specified component, based on historical co-change patterns and explicit
+        dependencies in the knowledge graph. It helps predict the "blast radius"
+        of changes, which is useful for planning refactoring efforts, assessing risk,
+        and understanding the architecture of your codebase.
+
         Args:
-            component_id: ID of the component to analyze
-            impact_types: Optional list of impact types to include ("direct", "indirect", "potential")
-            max_depth: Maximum depth to traverse in the graph
-            cache: Whether to use the cache
+            component_id: The ID of the component to analyze. This can be a file, directory,
+                module, or any other component in your codebase. Format should be
+                "type:identifier", e.g., "file:src/auth/login.py".
+            impact_types: Types of impact to include in the analysis. Options are:
+                - "direct": Components that directly depend on or are depended upon by the target
+                - "indirect": Components connected through a chain of dependencies
+                - "potential": Components that historically changed together with the target
+                If None, all impact types will be included.
+            max_depth: Maximum depth of indirect dependency analysis. Higher values will
+                analyze more distant dependencies but may take longer. Values between
+                2-5 are recommended for most codebases.
+            cache: Whether to use cached results if available. When True (default),
+                results are cached and retrieved from cache if a matching query exists.
+                Set to False to force a fresh query execution.
+            callback: Optional callback for progress reporting. If provided,
+                it will be called at various stages of the analysis with progress updates.
 
         Returns:
-            List of ImpactAnalysisResult objects
+            A list of ImpactResult objects representing affected components. Each result
+            includes the component ID, type, title, impact type, impact score (0-1),
+            and the path of dependencies from the target component.
         """
 
     def get_entity_history(
@@ -159,40 +180,36 @@ class Arc:
 
     def export_graph(
         self,
+        pr_sha: str,
         output_path: str,
-        pr_sha: Optional[str] = None,
-        entity_types: Optional[List[str]] = None,
-        start_date: Optional[str] = None,
-        end_date: Optional[str] = None,
-        format: str = "json",
-        compress: bool = False,
+        compress: bool = True,
         sign: bool = False,
         key_id: Optional[str] = None,
-        base_branch: Optional[str] = None,
+        base_branch: str = "main",
         max_hops: int = 3,
-        optimize_for_llm: bool = False,
+        enhance_for_llm: bool = True,
         include_causal: bool = True
-    ) -> ExportResult:
+    ) -> Path:
         """
-        Export the knowledge graph to a file.
+        Export a relevant slice of the knowledge graph for a PR.
+
+        This method exports a subset of the knowledge graph focused on the files
+        modified in a specific PR, along with related nodes and edges. The export
+        is saved as a JSON file that can be used by the GitHub App for PR reviews.
 
         Args:
-            output_path: Path to save the exported graph
-            pr_sha: Optional PR SHA to filter by
-            entity_types: Optional list of entity types to include
-            start_date: Optional start date for entities (ISO format)
-            end_date: Optional end date for entities (ISO format)
-            format: Format to export in ("json", "jsonl", "csv", "graphml")
-            compress: Whether to compress the output
-            sign: Whether to sign the output with GPG
-            key_id: GPG key ID to use for signing
-            base_branch: Base branch to compare against for PR analysis
-            max_hops: Maximum number of hops to include
-            optimize_for_llm: Whether to optimize the output for LLMs
-            include_causal: Whether to include causal relationships
+            pr_sha: SHA of the PR head commit.
+            output_path: Path to save the export file.
+            compress: Whether to compress the output file.
+            sign: Whether to sign the output file with GPG.
+            key_id: GPG key ID to use for signing.
+            base_branch: Base branch to compare against.
+            max_hops: Maximum number of hops to traverse in the graph.
+            enhance_for_llm: Whether to enhance the export data for LLM reasoning.
+            include_causal: Whether to include causal relationships in the export.
 
         Returns:
-            ExportResult object
+            Path to the exported file.
         """
 ```
 
@@ -202,14 +219,15 @@ class Arc:
 
 ```python
 class QueryResult(BaseModel):
-    """Result of a query to the knowledge graph."""
+    """Result of a natural language query to the knowledge graph."""
 
+    query: str
     answer: str
-    confidence: float
-    evidence: List[Dict[str, Any]]
+    confidence: float = 0.0
+    evidence: List[Dict[str, Any]] = Field(default_factory=list)
     query_understanding: Optional[str] = None
     reasoning: Optional[str] = None
-    execution_time: Optional[float] = None
+    execution_time: float = 0.0
 ```
 
 ### DecisionTrailEntry
@@ -257,19 +275,15 @@ class EntityDetails(BaseModel):
     related_entities: Optional[List[RelatedEntity]] = None
 ```
 
-### ImpactAnalysisResult
+### ImpactResult
 
 ```python
-class ImpactAnalysisResult(BaseModel):
+class ImpactResult(EntityDetails):
     """Result of an impact analysis."""
 
-    id: str
-    type: str
-    title: str
-    impact_score: float
     impact_type: str
-    impact_path: List[str]
-    properties: Optional[Dict[str, Any]] = None
+    impact_score: float
+    impact_path: List[str] = Field(default_factory=list)
 ```
 
 ### HistoryEntry
@@ -389,7 +403,62 @@ def discover_adapters() -> List[FrameworkAdapter]:
     """
 ```
 
-## Error Types
+## Caching Behavior
+
+Arc Memory SDK includes a caching system to improve performance for repeated queries. Most methods that query the knowledge graph accept a `cache` parameter that controls whether results are cached and retrieved from cache.
+
+### How Caching Works
+
+1. When a method is called with `cache=True` (the default):
+   - The SDK first checks if an identical query exists in the cache
+   - If found, it returns the cached result without executing the query again
+   - If not found, it executes the query, stores the result in cache, and returns it
+
+2. When a method is called with `cache=False`:
+   - The SDK always executes the query, ignoring any cached results
+   - The result is not stored in the cache
+
+### Cache Keys
+
+Cache keys are generated based on:
+- The method name
+- All parameter values
+- The repository path
+
+This ensures that cache hits only occur for truly identical queries.
+
+### Cache Invalidation
+
+The cache is automatically invalidated when:
+- The knowledge graph is modified (e.g., after running `arc build`)
+- The cache TTL (time-to-live) expires (default: 24 hours)
+
+### Cache Location
+
+Cache files are stored in the `.arc/cache` directory within your repository.
+
+### Example: Controlling Cache Behavior
+
+```python
+from arc_memory import Arc
+
+arc = Arc(repo_path="./")
+
+# Use cache (default behavior)
+result1 = arc.query("Why was the authentication system refactored?")
+
+# Force fresh query, ignore cache
+result2 = arc.query("Why was the authentication system refactored?", cache=False)
+
+# Different parameters create different cache entries
+result3 = arc.query("Why was the authentication system refactored?", max_results=10)
+```
+
+## Error Handling
+
+Arc Memory SDK provides a comprehensive error hierarchy to help you handle errors gracefully in your applications.
+
+### Error Types
 
 ```python
 class ArcError(Exception):
@@ -398,18 +467,97 @@ class ArcError(Exception):
 class DatabaseError(ArcError):
     """Error related to database operations."""
 
-class AdapterError(ArcError):
-    """Error related to framework adapters."""
+class SDKError(ArcError):
+    """Base class for SDK-specific errors."""
 
-class AdapterNotFoundError(AdapterError):
-    """Error raised when an adapter is not found."""
+class AdapterError(SDKError):
+    """Error related to database adapters."""
 
-class AdapterAlreadyRegisteredError(AdapterError):
-    """Error raised when an adapter is already registered."""
-
-class QueryError(ArcError):
+class QueryError(SDKError):
     """Error related to querying the knowledge graph."""
 
-class ExportError(ArcError):
+class BuildError(SDKError):
+    """Error related to building the knowledge graph."""
+
+class FrameworkError(SDKError):
+    """Error related to framework adapters."""
+
+
+class ExportError(SDKError):
     """Error related to exporting the knowledge graph."""
+
+
+class AdapterNotFoundError(FrameworkError):
+    """Error raised when an adapter is not found."""
+
+class AdapterAlreadyRegisteredError(FrameworkError):
+    """Error raised when an adapter is already registered."""
+```
+
+### Error Handling Examples
+
+#### Basic Error Handling
+
+```python
+from arc_memory import Arc
+from arc_memory.sdk.errors import QueryError, AdapterError, SDKError
+
+try:
+    arc = Arc(repo_path="./")
+    result = arc.query("Why was the authentication system refactored?")
+    print(result.answer)
+except QueryError as e:
+    print(f"Query failed: {e}")
+except AdapterError as e:
+    print(f"Database adapter error: {e}")
+except SDKError as e:
+    print(f"SDK error: {e}")
+except Exception as e:
+    print(f"Unexpected error: {e}")
+```
+
+#### Framework Adapter Error Handling
+
+```python
+from arc_memory import Arc
+from arc_memory.sdk.errors import FrameworkError, AdapterNotFoundError
+
+try:
+    arc = Arc(repo_path="./")
+    adapter = arc.get_adapter("langchain")
+    tools = adapter.adapt_functions([arc.query, arc.get_decision_trail])
+except AdapterNotFoundError as e:
+    print(f"Adapter not found: {e}")
+    print("Available adapters:", arc.get_adapter_names())
+except FrameworkError as e:
+    print(f"Framework error: {e}")
+```
+
+#### Export Error Handling
+
+```python
+from arc_memory import Arc
+from arc_memory.sdk.errors import ExportSDKError
+from pathlib import Path
+
+try:
+    arc = Arc(repo_path="./")
+    export_path = arc.export_graph(
+        pr_sha="abc123",
+        output_path="export.json",
+        compress=True
+    )
+    print(f"Export successful: {export_path}")
+except ExportSDKError as e:
+    print(f"Export failed: {e}")
+    # Try again with different parameters
+    try:
+        export_path = arc.export_graph(
+            pr_sha="abc123",
+            output_path="export.json",
+            compress=False
+        )
+        print(f"Export successful with fallback: {export_path}")
+    except ExportSDKError as e:
+        print(f"Export failed again: {e}")
 ```

@@ -58,6 +58,8 @@ As AI generates exponentially more code, the critical bottleneck shifts from *ge
 
 ## Getting Started
 
+For a quick introduction to Arc Memory, check out our [Quickstart Guide](./docs/quickstart.md) that will get you up and running in under 30 minutes.
+
 ### Prerequisites
 
 Before you begin, ensure you have:
@@ -71,6 +73,8 @@ Before you begin, ensure you have:
 
 Arc requires Python 3.10 or higher and is compatible with Python 3.10, 3.11, and 3.12.
 
+#### Basic Installation
+
 ```bash
 pip install arc-memory
 ```
@@ -79,6 +83,34 @@ Or using UV:
 
 ```bash
 uv pip install arc-memory
+```
+
+#### Optional Dependencies
+
+Arc Memory has several optional dependencies for specific features:
+
+```bash
+# Install with GitHub integration
+pip install arc-memory[github]
+
+# Install with Linear integration
+pip install arc-memory[linear]
+
+# Install with LLM enhancement capabilities
+pip install arc-memory[llm]
+
+# Install with all optional dependencies
+pip install arc-memory[all]
+```
+
+#### Development Installation
+
+For development or contributing:
+
+```bash
+git clone https://github.com/Arc-Computer/arc-memory.git
+cd arc-memory
+pip install -e ".[dev]"
 ```
 
 ### Quick Start Workflow

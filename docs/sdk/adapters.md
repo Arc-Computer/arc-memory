@@ -29,7 +29,7 @@ tools = langchain_adapter.adapt_functions([
     arc.analyze_component_impact
 ])
 
-# Create a LangChain agent with Arc Memory tools
+# Create a LangChain agent with Arc Memory tools (auto-detects best approach)
 llm = ChatOpenAI(model="gpt-4o")
 agent = langchain_adapter.create_agent(
     tools=tools,
@@ -46,21 +46,33 @@ print(response)
 The LangChain adapter supports both the newer LangGraph approach and the legacy AgentExecutor approach:
 
 ```python
-# Using LangGraph (newer approach)
-from langchain_core.messages import HumanMessage
-response = agent.invoke([
+# Using structured messages (recommended approach)
+from langchain_core.messages import HumanMessage, SystemMessage
+messages = [
+    SystemMessage(content="You are a helpful assistant with access to Arc Memory."),
     HumanMessage(content="What's the decision trail for src/auth/login.py line 42?")
-])
+]
+response = agent.invoke(messages)
 print(response)
 
-# Using legacy AgentExecutor
-agent = langchain_adapter.create_agent(
+# Explicitly use LangGraph (newer approach)
+langgraph_agent = langchain_adapter.create_agent(
+    tools=tools,
+    llm=llm,
+    system_message="You are a helpful assistant with access to Arc Memory.",
+    verbose=True,
+    use_langgraph=True  # Explicitly use LangGraph
+)
+
+# Explicitly use legacy AgentExecutor
+legacy_agent = langchain_adapter.create_agent(
     tools=tools,
     llm=llm,
     agent_type="zero-shot-react-description",
-    verbose=True
+    verbose=True,
+    use_langgraph=False  # Explicitly use legacy AgentExecutor
 )
-response = agent.run("What's the decision trail for src/auth/login.py line 42?")
+response = legacy_agent.run("What's the decision trail for src/auth/login.py line 42?")
 print(response)
 ```
 
@@ -94,6 +106,26 @@ agent = openai_adapter.create_agent(
 # Use the agent
 response = agent("What's the decision trail for src/auth/login.py line 42?")
 print(response)
+
+# Using streaming responses
+agent_stream = openai_adapter.create_agent(
+    tools=tools,
+    model="gpt-4o",
+    temperature=0,
+    system_message="You are a helpful assistant with access to Arc Memory.",
+    stream=True
+)
+
+# Process streaming response
+try:
+    for chunk in agent_stream("What's the decision trail for src/auth/login.py line 42?"):
+        if hasattr(chunk, 'choices') and len(chunk.choices) > 0:
+            content = chunk.choices[0].delta.content
+            if content:
+                print(content, end="", flush=True)
+    print()  # Add a newline at the end
+except Exception as e:
+    print(f"Error during streaming: {e}")
 ```
 
 The OpenAI adapter also supports the Assistants API:
@@ -104,7 +136,9 @@ assistant = openai_adapter.create_assistant(
     tools=tools,
     name="Arc Memory Assistant",
     instructions="You are a helpful assistant with access to Arc Memory.",
-    model="gpt-4o"
+    model="gpt-4o",
+    description="An assistant that can answer questions about your codebase using Arc Memory.",
+    metadata={"created_by": "arc_memory"}
 )
 print(f"Assistant created: {assistant.id}")
 ```
@@ -271,3 +305,65 @@ Not all methods need to be implemented for a functional adapter. The most import
 - `get_name()`: Returns a unique name for the adapter
 - `adapt_functions()`: Adapts Arc Memory functions to framework-specific tools
 - `create_agent()`: Creates an agent using the framework
+
+## Error Handling
+
+The framework adapters use a standardized error handling approach to provide clear, actionable error messages. All adapter-related errors inherit from `FrameworkError`, which provides structured error information:
+
+```python
+from arc_memory import Arc
+from arc_memory.sdk.errors import FrameworkError, AdapterError
+
+try:
+    # Try to get an adapter that doesn't exist
+    from arc_memory.sdk.adapters import get_adapter
+    adapter = get_adapter("nonexistent_adapter")
+except FrameworkError as e:
+    print(f"Framework error: {e}")
+    # The error message includes:
+    # - What happened
+    # - Why it happened
+    # - How to fix it
+    # - Additional details
+
+# Error handling with OpenAI adapter
+try:
+    from arc_memory.sdk.adapters import get_adapter
+    openai_adapter = get_adapter("openai")
+
+    # This will fail if OpenAI is not installed
+    tools = openai_adapter.adapt_functions([...])
+
+    # This will fail if the API key is invalid
+    agent = openai_adapter.create_agent(tools=tools, model="gpt-4o")
+
+    # This might fail if the API is unavailable
+    response = agent("What's the decision trail for src/auth/login.py?")
+except FrameworkError as e:
+    print(f"Framework error: {e}")
+    print(f"Details: {e.details}")  # Access additional details
+
+# Error handling with LangChain adapter
+try:
+    from arc_memory.sdk.adapters import get_adapter
+    langchain_adapter = get_adapter("langchain")
+
+    # This will fail if LangChain is not installed
+    tools = langchain_adapter.adapt_functions([...])
+
+    # This will fail if the agent creation fails
+    agent = langchain_adapter.create_agent(
+        tools=tools,
+        use_langgraph=True  # This will fail if LangGraph is not installed
+    )
+except FrameworkError as e:
+    print(f"Framework error: {e}")
+    # Try again with different parameters
+    try:
+        agent = langchain_adapter.create_agent(
+            tools=tools,
+            use_langgraph=False  # Fall back to legacy AgentExecutor
+        )
+    except FrameworkError as e:
+        print(f"Framework error: {e}")
+```

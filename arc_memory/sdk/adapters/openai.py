@@ -5,11 +5,11 @@ allowing Arc Memory functions to be used with OpenAI tool calling.
 """
 
 import inspect
-import json
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, Iterator, List, Optional, Union
 
 from arc_memory.logging_conf import get_logger
 from arc_memory.sdk.adapters.base import FrameworkAdapter
+from arc_memory.sdk.errors import FrameworkError
 
 logger = get_logger(__name__)
 
@@ -126,6 +126,8 @@ class OpenAIAdapter(FrameworkAdapter):
                 - model: OpenAI model to use (optional)
                 - temperature: Temperature for sampling (optional)
                 - system_message: System message to use (optional)
+                - stream: Whether to stream the response (optional)
+                - stream_options: Options for streaming (optional)
 
         Returns:
             A callable that can be used to interact with the OpenAI API.
@@ -133,9 +135,12 @@ class OpenAIAdapter(FrameworkAdapter):
         Raises:
             ImportError: If OpenAI is not installed.
             ValueError: If required parameters are missing.
+            FrameworkError: If there's an issue with the OpenAI API.
         """
         try:
             from openai import OpenAI
+            from openai.types.chat import ChatCompletion
+            from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
         except ImportError:
             raise ImportError(
                 "OpenAI is not installed. Please install it with: "
@@ -156,18 +161,25 @@ class OpenAIAdapter(FrameworkAdapter):
         # Get the system message from kwargs or use a default
         system_message = kwargs.get("system_message", "You are a helpful assistant.")
 
+        # Get streaming options
+        stream = kwargs.get("stream", False)
+        stream_options = kwargs.get("stream_options", None)
+
         # Create the OpenAI client
         client = OpenAI()
 
         # Create a callable that can be used to interact with the OpenAI API
-        def agent(query: Union[str, List[Dict[str, str]]]) -> Any:
+        def agent(query: Union[str, List[Dict[str, str]]]) -> Union[ChatCompletion, Iterator[ChatCompletionChunk]]:
             """Call the OpenAI API with the given query.
 
             Args:
                 query: The query to send to the OpenAI API. Can be a string or a list of messages.
 
             Returns:
-                The response from the OpenAI API.
+                The response from the OpenAI API. If stream=True, returns an iterator of response chunks.
+
+            Raises:
+                FrameworkError: If there's an issue with the OpenAI API.
             """
             # Convert query to messages if it's a string
             if isinstance(query, str):
@@ -182,16 +194,27 @@ class OpenAIAdapter(FrameworkAdapter):
                 if not any(msg.get("role") == "system" for msg in messages):
                     messages.insert(0, {"role": "system", "content": system_message})
 
-            # Call the OpenAI API
-            response = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                tools=tools,
-                tool_choice="auto",
-                temperature=temperature
-            )
+            try:
+                # Call the OpenAI API
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=messages,
+                    tools=tools,
+                    tool_choice="auto",
+                    temperature=temperature,
+                    stream=stream,
+                    stream_options=stream_options
+                )
 
-            return response
+                return response
+            except Exception as e:
+                from arc_memory.sdk.errors import FrameworkError
+                raise FrameworkError(
+                    what_happened="Failed to call OpenAI API",
+                    why_it_happened=f"OpenAI API returned an error: {str(e)}",
+                    how_to_fix_it="Check your API key, model name, and request parameters. Ensure you have proper permissions and sufficient quota.",
+                    details={"model": model, "error": str(e)}
+                ) from e
 
         return agent
 
@@ -207,6 +230,8 @@ class OpenAIAdapter(FrameworkAdapter):
                 - name: Name of the assistant (optional)
                 - instructions: Instructions for the assistant (optional)
                 - model: OpenAI model to use (optional)
+                - metadata: Additional metadata for the assistant (optional)
+                - description: Description of the assistant (optional)
 
         Returns:
             An OpenAI Assistant object.
@@ -214,6 +239,7 @@ class OpenAIAdapter(FrameworkAdapter):
         Raises:
             ImportError: If OpenAI is not installed.
             ValueError: If required parameters are missing.
+            FrameworkError: If there's an issue with the OpenAI API.
         """
         try:
             from openai import OpenAI
@@ -232,16 +258,28 @@ class OpenAIAdapter(FrameworkAdapter):
         name = kwargs.get("name", "Arc Memory Assistant")
         instructions = kwargs.get("instructions", "You are a helpful assistant with access to Arc Memory.")
         model = kwargs.get("model", "gpt-4o")
+        metadata = kwargs.get("metadata", None)
+        description = kwargs.get("description", None)
 
         # Create the OpenAI client
         client = OpenAI()
 
-        # Create the assistant
-        assistant = client.beta.assistants.create(
-            name=name,
-            instructions=instructions,
-            model=model,
-            tools=tools
-        )
+        try:
+            # Create the assistant
+            assistant = client.beta.assistants.create(
+                name=name,
+                instructions=instructions,
+                model=model,
+                tools=tools,
+                metadata=metadata,
+                description=description
+            )
 
-        return assistant
+            return assistant
+        except Exception as e:
+            raise FrameworkError(
+                what_happened="Failed to create OpenAI Assistant",
+                why_it_happened=f"OpenAI API returned an error: {str(e)}",
+                how_to_fix_it="Check your API key, model name, and request parameters. Ensure you have proper permissions and sufficient quota.",
+                details={"model": model, "error": str(e)}
+            ) from e
