@@ -4,9 +4,9 @@ This guide will help you get started with Arc, from installation to building you
 
 ## How Arc Memory Works
 
-```
+```bash
 ┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
-│   Data Sources  │     │  Knowledge Graph │     │    Interfaces   │
+│   Data Sources  │     │ Knowledge Graph │     │    Interfaces   │
 ├─────────────────┤     ├─────────────────┤     ├─────────────────┤
 │                 │     │                 │     │                 │
 │  Git Repository ├────►│                 │     │  CLI Commands   │
@@ -140,6 +140,7 @@ node_count = arc.get_node_count()
 edge_count = arc.get_edge_count()
 
 print(f"Knowledge graph contains {node_count} nodes and {edge_count} edges")
+```
 
 ### Configuring Data Sources
 

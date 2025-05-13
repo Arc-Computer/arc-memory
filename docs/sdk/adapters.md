@@ -199,8 +199,12 @@ class CustomAdapter(FrameworkAdapter):
         """Create an agent using the framework."""
         # Implement agent creation logic
         tools = kwargs.get("tools", [])
-        # Create and return an agent
-        return lambda query: f"Agent response to: {query}"
+
+        # Define a proper function instead of lambda
+        def agent(query):
+            return f"Agent response to: {query}"
+
+        return agent
 
 # Register the custom adapter
 register_adapter(CustomAdapter())
