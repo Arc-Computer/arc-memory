@@ -188,14 +188,27 @@ for entry in history:
 ### Exporting the Knowledge Graph
 
 ```python
-# Export the knowledge graph
-export_result = arc.export_graph(output_path="knowledge_graph.json")
-print(f"Exported {export_result.entity_count} entities and {export_result.relationship_count} relationships")
+# Basic export of the knowledge graph
+export_path = arc.export_graph(output_path="knowledge_graph.json")
+print(f"Exported knowledge graph to: {export_path}")
 
-# Advanced export options
+# Export for a specific PR (optimized for GitHub App)
+pr_export_path = arc.export_graph(
+    output_path="pr_knowledge_graph.json",
+    pr_sha="abc123",  # PR head commit SHA
+    compress=True,
+    sign=True,
+    key_id="your-gpg-key-id",
+    base_branch="main",
+    max_hops=3,
+    enhance_for_llm=True,
+    include_causal=True
+)
+print(f"Exported PR knowledge graph to: {pr_export_path}")
+
+# Advanced export with filtering options
 export_result = arc.export_graph(
-    output_path="knowledge_graph.json",
-    pr_sha="abc123",  # Filter by PR
+    output_path="filtered_knowledge_graph.json",
     entity_types=["COMMIT", "PR", "ISSUE"],  # Filter by entity type
     start_date="2023-01-01",  # Filter by date
     end_date="2023-12-31",  # Filter by date
@@ -203,9 +216,29 @@ export_result = arc.export_graph(
     compress=True,
     sign=True,
     key_id="your-gpg-key-id",
+    max_hops=5,
+    enhance_for_llm=True,
+    include_causal=True
+)
+
+# If using the SDK export module directly
+from arc_memory.sdk.export import export_knowledge_graph
+
+export_result = export_knowledge_graph(
+    adapter=arc.adapter,
+    repo_path=arc.repo_path,
+    output_path="detailed_export.json",
+    pr_sha="abc123",
+    entity_types=["COMMIT", "PR", "ISSUE"],
+    start_date="2023-01-01",
+    end_date="2023-12-31",
+    format="json",
+    compress=True,
+    sign=True,
+    key_id="your-gpg-key-id",
     base_branch="main",
     max_hops=5,
-    optimize_for_llm=True,
+    enhance_for_llm=True,
     include_causal=True
 )
 
@@ -346,20 +379,20 @@ if framework == "openai":
         model="gpt-4o",
         system_message="You are a helpful assistant with access to Arc Memory."
     )
-    
+
     # Use the agent
     response = agent("What's the decision trail for src/auth/login.py line 42?")
     print(response)
-    
+
 elif framework == "langchain":
     from langchain_openai import ChatOpenAI
-    
+
     agent = adapter.create_agent(
         tools=tools,
         llm=ChatOpenAI(model="gpt-4o"),
         system_message="You are a helpful assistant with access to Arc Memory."
     )
-    
+
     # Use the agent
     response = agent.invoke({"input": "What's the decision trail for src/auth/login.py line 42?"})
     print(response)

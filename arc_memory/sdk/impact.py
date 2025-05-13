@@ -29,20 +29,50 @@ def analyze_component_impact(
 
     This method identifies components that may be affected by changes to the
     specified component, based on historical co-change patterns and explicit
-    dependencies in the knowledge graph.
+    dependencies in the knowledge graph. It helps predict the "blast radius"
+    of changes, which is useful for planning refactoring efforts, assessing risk,
+    and understanding the architecture of your codebase.
 
     Args:
-        adapter: The database adapter to use.
-        component_id: The ID of the component to analyze.
-        impact_types: Types of impact to include (direct, indirect, potential).
-        max_depth: Maximum depth of impact analysis.
-        callback: Optional callback for progress reporting.
+        adapter: The database adapter to use for querying the knowledge graph.
+        component_id: The ID of the component to analyze. This can be a file, directory,
+            module, or any other component in your codebase. Format should be
+            "type:identifier", e.g., "file:src/auth/login.py".
+        impact_types: Types of impact to include in the analysis. Options are:
+            - "direct": Components that directly depend on or are depended upon by the target
+            - "indirect": Components connected through a chain of dependencies
+            - "potential": Components that historically changed together with the target
+            If None, all impact types will be included.
+        max_depth: Maximum depth of indirect dependency analysis. Higher values will
+            analyze more distant dependencies but may take longer. Values between
+            2-5 are recommended for most codebases.
+        callback: Optional callback function for progress reporting. If provided,
+            it will be called at various stages of the analysis with progress updates.
 
     Returns:
-        A list of ImpactResult objects representing affected components.
+        A list of ImpactResult objects representing affected components. Each result
+        includes the component ID, type, title, impact type, impact score (0-1),
+        and the path of dependencies from the target component.
 
     Raises:
-        QueryError: If the impact analysis fails.
+        QueryError: If the impact analysis fails due to database errors, invalid
+            component ID, or other issues. The error message will include details
+            about what went wrong and how to fix it.
+
+    Example:
+        ```python
+        # Analyze impact on a file
+        results = analyze_component_impact(
+            adapter=db_adapter,
+            component_id="file:src/auth/login.py",
+            impact_types=["direct", "indirect"],
+            max_depth=3
+        )
+
+        # Process results
+        for result in results:
+            print(f"{result.title}: {result.impact_score} ({result.impact_type})")
+        ```
     """
     try:
         # Report progress
@@ -60,7 +90,11 @@ def analyze_component_impact(
         # Get the component node
         component = adapter.get_node_by_id(component_id)
         if not component:
-            raise QueryError(f"Component not found: {component_id}")
+            raise QueryError(
+                what_happened=f"Component with ID '{component_id}' not found",
+                why_it_happened="The component ID may be incorrect or the component may not exist in the knowledge graph",
+                how_to_fix_it="Check that the component ID is correct and that the component exists in your knowledge graph. Run 'arc doctor' to verify the state of your knowledge graph"
+            )
 
         # Report progress
         if callback:
@@ -116,9 +150,17 @@ def analyze_component_impact(
 
         return results
 
+    except QueryError:
+        # Re-raise QueryError as it's already properly formatted
+        raise
     except Exception as e:
         logger.exception(f"Error in analyze_component_impact: {e}")
-        raise QueryError(f"Failed to analyze component impact: {e}")
+        raise QueryError.from_exception(
+            exception=e,
+            what_happened="Failed to analyze component impact",
+            how_to_fix_it="Check the component ID and ensure your knowledge graph is properly built. If the issue persists, try with a smaller max_depth value",
+            details={"component_id": component_id, "max_depth": max_depth}
+        )
 
 
 def _analyze_direct_dependencies(
@@ -126,12 +168,20 @@ def _analyze_direct_dependencies(
 ) -> List[ImpactResult]:
     """Analyze direct dependencies of a component.
 
+    This function identifies components that directly depend on or are depended upon
+    by the target component. Direct dependencies include:
+    - Components that the target imports or uses
+    - Components that import or use the target
+    - Components with explicit DEPENDS_ON relationships
+
     Args:
-        adapter: The database adapter to use.
-        component_id: The ID of the component to analyze.
+        adapter: The database adapter to use for querying the knowledge graph.
+        component_id: The ID of the component to analyze, in the format "type:identifier".
 
     Returns:
         A list of ImpactResult objects representing directly affected components.
+        Each result includes an impact_score between 0.8-0.9 indicating the
+        strength of the direct dependency.
     """
     # This is a simplified implementation that would be enhanced in a real system
     results = []
@@ -187,14 +237,25 @@ def _analyze_indirect_dependencies(
 ) -> List[ImpactResult]:
     """Analyze indirect dependencies of a component.
 
+    This function identifies components that are connected to the target component
+    through a chain of dependencies (transitive dependencies). For example, if A depends
+    on B and B depends on C, then C is an indirect dependency of A.
+
+    The impact score decreases with the distance from the target component, reflecting
+    the diminishing impact of changes as they propagate through the dependency chain.
+
     Args:
-        adapter: The database adapter to use.
-        component_id: The ID of the component to analyze.
-        direct_impacts: List of direct impacts already identified.
-        max_depth: Maximum depth of indirect dependency analysis.
+        adapter: The database adapter to use for querying the knowledge graph.
+        component_id: The ID of the component to analyze, in the format "type:identifier".
+        direct_impacts: List of direct impacts already identified, used to avoid
+            duplicate analysis and to build the dependency chain.
+        max_depth: Maximum depth of indirect dependency analysis. Higher values will
+            analyze more distant dependencies but may take longer.
 
     Returns:
         A list of ImpactResult objects representing indirectly affected components.
+        Each result includes an impact_score that decreases with the depth of the
+        dependency chain, and an impact_path showing the chain of dependencies.
     """
     # This is a simplified implementation that would be enhanced in a real system
     results = []
@@ -222,15 +283,23 @@ def _find_indirect_dependencies(
 ) -> List[ImpactResult]:
     """Recursively find indirect dependencies.
 
+    This function recursively traverses the dependency graph to find components
+    that are indirectly connected to the target component. It uses a depth-first
+    search approach with cycle detection to avoid infinite recursion.
+
     Args:
-        adapter: The database adapter to use.
-        component_id: The ID of the component to analyze.
-        visited: Set of already visited component IDs.
-        depth: Remaining depth for recursive analysis.
-        path: Current path of dependencies.
+        adapter: The database adapter to use for querying the knowledge graph.
+        component_id: The ID of the component to analyze, in the format "type:identifier".
+        visited: Set of already visited component IDs to avoid cycles and duplicate analysis.
+        depth: Remaining depth for recursive analysis. The function stops recursion
+            when this reaches zero.
+        path: Current path of dependencies from the target component to the current component.
+            Used to build the impact_path in the results.
 
     Returns:
         A list of ImpactResult objects representing indirectly affected components.
+        Each result includes an impact_score that decreases with the depth of the
+        dependency chain, and an impact_path showing the chain of dependencies.
     """
     if depth <= 0:
         return []
@@ -279,12 +348,23 @@ def _analyze_cochange_patterns(
 ) -> List[ImpactResult]:
     """Analyze co-change patterns for a component.
 
+    This function identifies components that have historically changed together with
+    the target component, even if there's no explicit dependency between them. These
+    "co-change" patterns can reveal hidden dependencies and coupling that aren't
+    captured by static analysis.
+
+    In a real implementation, this would analyze the commit history to find
+    components that frequently change together with the target component and
+    calculate a co-change score based on the frequency and recency of co-changes.
+
     Args:
-        adapter: The database adapter to use.
-        component_id: The ID of the component to analyze.
+        adapter: The database adapter to use for querying the knowledge graph.
+        component_id: The ID of the component to analyze, in the format "type:identifier".
 
     Returns:
-        A list of ImpactResult objects representing potentially affected components.
+        A list of ImpactResult objects representing potentially affected components
+        based on historical co-change patterns. Each result includes an impact_score
+        representing the strength of the co-change relationship.
     """
     # This is a simplified implementation that would be enhanced in a real system
     # In a real implementation, we would analyze the commit history to find
