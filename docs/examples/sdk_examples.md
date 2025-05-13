@@ -188,41 +188,30 @@ for entry in history:
 ### Exporting the Knowledge Graph
 
 ```python
-# Basic export of the knowledge graph
-export_path = arc.export_graph(output_path="knowledge_graph.json")
-print(f"Exported knowledge graph to: {export_path}")
-
 # Export for a specific PR (optimized for GitHub App)
-pr_export_path = arc.export_graph(
-    output_path="pr_knowledge_graph.json",
+export_path = arc.export_graph(
     pr_sha="abc123",  # PR head commit SHA
+    output_path="pr_knowledge_graph.json",
     compress=True,
     sign=True,
     key_id="your-gpg-key-id",
     base_branch="main",
     max_hops=3,
-    optimize_for_llm=True,
+    enhance_for_llm=True,
     include_causal=True
 )
-print(f"Exported PR knowledge graph to: {pr_export_path}")
+print(f"Exported PR knowledge graph to: {export_path}")
 
-# Advanced export with filtering options
-export_result = arc.export_graph(
-    output_path="filtered_knowledge_graph.json",
-    entity_types=["COMMIT", "PR", "ISSUE"],  # Filter by entity type
-    start_date="2023-01-01",  # Filter by date
-    end_date="2023-12-31",  # Filter by date
-    format="json",
-    compress=True,
-    sign=True,
-    key_id="your-gpg-key-id",
-    max_hops=5,
-    optimize_for_llm=True,
-    include_causal=True
+# Export with minimal options
+export_path = arc.export_graph(
+    pr_sha="abc123",
+    output_path="simple_export.json"
 )
+print(f"Exported knowledge graph to: {export_path}")
 
 # If using the SDK export module directly
 from arc_memory.sdk.export import export_knowledge_graph
+from datetime import datetime
 
 export_result = export_knowledge_graph(
     adapter=arc.adapter,
@@ -230,8 +219,8 @@ export_result = export_knowledge_graph(
     output_path="detailed_export.json",
     pr_sha="abc123",
     entity_types=["COMMIT", "PR", "ISSUE"],
-    start_date="2023-01-01",
-    end_date="2023-12-31",
+    start_date=datetime(2023, 1, 1),
+    end_date=datetime(2023, 12, 31),
     format="json",
     compress=True,
     sign=True,
@@ -273,7 +262,7 @@ tools = langchain_adapter.adapt_functions([
     arc.analyze_component_impact
 ])
 
-# Create a LangChain agent with Arc Memory tools
+# Create a LangChain agent with Arc Memory tools (LangChain v0.1.0+)
 llm = ChatOpenAI(model="gpt-4o")
 agent = langchain_adapter.create_agent(
     tools=tools,
@@ -282,16 +271,35 @@ agent = langchain_adapter.create_agent(
     verbose=True
 )
 
-# Use the agent
+# Use the agent with a simple query
 response = agent.invoke({"input": "What's the decision trail for src/auth/login.py line 42?"})
 print(response)
 
-# Using LangGraph (newer approach)
-from langchain_core.messages import HumanMessage
-response = agent.invoke([
+# Using structured messages (recommended approach)
+from langchain_core.messages import HumanMessage, SystemMessage
+
+messages = [
+    SystemMessage(content="You are a helpful assistant with access to Arc Memory."),
     HumanMessage(content="What's the decision trail for src/auth/login.py line 42?")
-])
+]
+response = agent.invoke(messages)
 print(response)
+
+# Error handling for LangChain integration
+try:
+    response = agent.invoke({"input": "What's the decision trail for src/auth/login.py line 42?"})
+    print(response)
+except Exception as e:
+    print(f"Error using LangChain agent: {e}")
+    # Try with different model
+    llm = ChatOpenAI(model="gpt-3.5-turbo")
+    agent = langchain_adapter.create_agent(
+        tools=tools,
+        llm=llm,
+        system_message="You are a helpful assistant with access to Arc Memory."
+    )
+    response = agent.invoke({"input": "What's the decision trail for src/auth/login.py line 42?"})
+    print(response)
 ```
 
 ### OpenAI Integration
@@ -333,6 +341,39 @@ messages = [
 response = agent(messages)
 print(response)
 
+# Using streaming responses
+agent_stream = openai_adapter.create_agent(
+    tools=tools,
+    model="gpt-4o",
+    temperature=0,
+    system_message="You are a helpful assistant with access to Arc Memory.",
+    stream=True
+)
+
+# Process streaming response
+for chunk in agent_stream("What's the decision trail for src/auth/login.py line 42?"):
+    if hasattr(chunk, 'choices') and len(chunk.choices) > 0:
+        content = chunk.choices[0].delta.content
+        if content:
+            print(content, end="", flush=True)
+print()  # Add a newline at the end
+
+# Error handling for OpenAI integration
+try:
+    response = agent("What's the decision trail for src/auth/login.py line 42?")
+    print(response)
+except Exception as e:
+    print(f"Error using OpenAI agent: {e}")
+    # Try with different model
+    fallback_agent = openai_adapter.create_agent(
+        tools=tools,
+        model="gpt-3.5-turbo",
+        temperature=0,
+        system_message="You are a helpful assistant with access to Arc Memory."
+    )
+    response = fallback_agent("What's the decision trail for src/auth/login.py line 42?")
+    print(f"Fallback response: {response}")
+
 # Create an OpenAI Assistant
 assistant = openai_adapter.create_assistant(
     tools=tools,
@@ -341,6 +382,39 @@ assistant = openai_adapter.create_assistant(
     model="gpt-4o"
 )
 print(f"Assistant created: {assistant.id}")
+
+# Create a thread and run the assistant
+from openai import OpenAI
+client = OpenAI()
+
+thread = client.beta.threads.create()
+message = client.beta.threads.messages.create(
+    thread_id=thread.id,
+    role="user",
+    content="What's the decision trail for src/auth/login.py line 42?"
+)
+
+run = client.beta.threads.runs.create(
+    thread_id=thread.id,
+    assistant_id=assistant.id
+)
+
+# In a real application, you would poll for completion
+import time
+while run.status in ["queued", "in_progress"]:
+    time.sleep(1)
+    run = client.beta.threads.runs.retrieve(
+        thread_id=thread.id,
+        run_id=run.id
+    )
+
+# Get the assistant's response
+messages = client.beta.threads.messages.list(
+    thread_id=thread.id
+)
+for message in messages.data:
+    if message.role == "assistant":
+        print(f"Assistant: {message.content[0].text.value}")
 ```
 
 ## Advanced Use Cases
@@ -349,6 +423,7 @@ print(f"Assistant created: {assistant.id}")
 
 ```python
 from arc_memory import Arc
+from arc_memory.sdk.errors import AdapterNotFoundError, FrameworkError
 
 # Initialize Arc with the repository path
 arc = Arc(repo_path="./")
@@ -362,38 +437,110 @@ functions = [
     arc.analyze_component_impact
 ]
 
-# Choose your preferred framework
-framework = "openai"  # or "langchain"
+# Function to create an agent with error handling
+def create_agent_with_framework(framework_name):
+    try:
+        # Get the adapter for the framework
+        from arc_memory.sdk.adapters import get_adapter
+        adapter = get_adapter(framework_name)
 
-# Get the adapter for your framework
-from arc_memory.sdk.adapters import get_adapter
-adapter = get_adapter(framework)
+        # Adapt the functions to the framework
+        tools = adapter.adapt_functions(functions)
 
-# Adapt the functions to your framework
-tools = adapter.adapt_functions(functions)
+        # Create an agent with the adapted tools
+        if framework_name == "openai":
+            agent = adapter.create_agent(
+                tools=tools,
+                model="gpt-4o",
+                system_message="You are a helpful assistant with access to Arc Memory."
+            )
+            return agent
 
-# Create an agent with the adapted tools
-if framework == "openai":
-    agent = adapter.create_agent(
-        tools=tools,
-        model="gpt-4o",
-        system_message="You are a helpful assistant with access to Arc Memory."
-    )
+        elif framework_name == "langchain":
+            from langchain_openai import ChatOpenAI
 
-    # Use the agent
-    response = agent("What's the decision trail for src/auth/login.py line 42?")
-    print(response)
+            agent = adapter.create_agent(
+                tools=tools,
+                llm=ChatOpenAI(model="gpt-4o"),
+                system_message="You are a helpful assistant with access to Arc Memory."
+            )
+            return agent
 
-elif framework == "langchain":
-    from langchain_openai import ChatOpenAI
+    except AdapterNotFoundError:
+        print(f"Adapter not found for framework: {framework_name}")
+        # List available adapters
+        from arc_memory.sdk.adapters import get_adapter_names
+        print(f"Available adapters: {get_adapter_names()}")
+        return None
 
-    agent = adapter.create_agent(
-        tools=tools,
-        llm=ChatOpenAI(model="gpt-4o"),
-        system_message="You are a helpful assistant with access to Arc Memory."
-    )
+    except FrameworkError as e:
+        print(f"Framework error: {e}")
+        return None
 
-    # Use the agent
-    response = agent.invoke({"input": "What's the decision trail for src/auth/login.py line 42?"})
-    print(response)
+    except Exception as e:
+        print(f"Unexpected error: {e}")
+        return None
+
+# Try to create an OpenAI agent
+openai_agent = create_agent_with_framework("openai")
+if openai_agent:
+    try:
+        response = openai_agent("What's the decision trail for src/auth/login.py line 42?")
+        print(f"OpenAI Agent Response: {response}")
+    except Exception as e:
+        print(f"Error using OpenAI agent: {e}")
+
+# Try to create a LangChain agent
+langchain_agent = create_agent_with_framework("langchain")
+if langchain_agent:
+    try:
+        response = langchain_agent.invoke({"input": "What's the decision trail for src/auth/login.py line 42?"})
+        print(f"LangChain Agent Response: {response}")
+    except Exception as e:
+        print(f"Error using LangChain agent: {e}")
+
+# Example of registering a custom adapter
+from arc_memory.sdk.adapters import register_adapter
+from arc_memory.sdk.adapters.base import FrameworkAdapter
+
+class CustomAdapter(FrameworkAdapter):
+    def get_name(self):
+        return "custom"
+
+    def get_version(self):
+        return "1.0.0"
+
+    def get_framework_name(self):
+        return "custom_framework"
+
+    def get_framework_version(self):
+        return "1.0.0"
+
+    def adapt_functions(self, functions):
+        # Convert Arc Memory functions to custom framework tools
+        return [{"name": func.__name__, "function": func} for func in functions]
+
+    def create_agent(self, **kwargs):
+        # Create a simple agent that calls the functions directly
+        tools = kwargs.get("tools", [])
+
+        def agent(query):
+            # This is a very simple agent implementation
+            if "decision trail" in query.lower():
+                for tool in tools:
+                    if tool["name"] == "get_decision_trail":
+                        return tool["function"]("src/auth/login.py", 42)
+            return "I don't know how to answer that question."
+
+        return agent
+
+# Register the custom adapter
+try:
+    register_adapter(CustomAdapter())
+    custom_agent = create_agent_with_framework("custom")
+    if custom_agent:
+        response = custom_agent("What's the decision trail for src/auth/login.py line 42?")
+        print(f"Custom Agent Response: {response}")
+except Exception as e:
+    print(f"Error registering custom adapter: {e}")
 ```
