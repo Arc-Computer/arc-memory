@@ -2,6 +2,8 @@
 
 The Arc Memory SDK provides a framework-agnostic interface for interacting with a knowledge graph built from your code repositories and related data sources. Use it directly in your applications or integrate it with agent frameworks like LangChain and OpenAI.
 
+> **New to Arc Memory?** Check out our [Quickstart Guide](../quickstart.md) to get up and running in under 30 minutes.
+
 ## Overview
 
 Arc Memory builds a local, bi-temporal knowledge graph from Git repositories, GitHub issues/PRs, and ADRs. This SDK lets you query this graph to understand code history, relationships, and potential impacts of changes.

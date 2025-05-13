@@ -58,6 +58,8 @@ As AI generates exponentially more code, the critical bottleneck shifts from *ge
 
 ## Getting Started
 
+For a quick introduction to Arc Memory, check out our [Quickstart Guide](./docs/quickstart.md) that will get you up and running in under 30 minutes.
+
 ### Prerequisites
 
 Before you begin, ensure you have:

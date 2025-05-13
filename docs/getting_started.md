@@ -2,6 +2,8 @@
 
 This guide will help you get started with Arc, from installation to building your first knowledge graph and querying it with the SDK.
 
+> **Looking for a quick start?** Check out our [Quickstart Guide](./quickstart.md) to get up and running in under 30 minutes.
+
 ## How Arc Memory Works
 
 ```bash
