@@ -482,8 +482,10 @@ class BuildError(SDKError):
 class FrameworkError(SDKError):
     """Error related to framework adapters."""
 
-class ExportSDKError(SDKError):
+
+class ExportError(SDKError):
     """Error related to exporting the knowledge graph."""
+
 
 class AdapterNotFoundError(FrameworkError):
     """Error raised when an adapter is not found."""
