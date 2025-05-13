@@ -2,6 +2,27 @@
 
 This guide will help you get up and running with Arc Memory in under 30 minutes. We'll cover installation, authentication, building your first knowledge graph, and running basic queries.
 
+## 🚀 5-Minute Setup for the Impatient
+
+Want to get started as quickly as possible? Here's the express setup:
+
+```bash
+# Install Arc Memory with all integrations
+pip install arc-memory[all]
+
+# Authenticate with GitHub
+arc auth github
+
+# Build your knowledge graph
+cd /path/to/your/repo
+arc build --github
+
+# Ask a question about your codebase
+arc why query "Why was this feature implemented?"
+```
+
+That's it! For more detailed instructions and advanced features, continue reading below.
+
 ## Step 1: Installation (2 minutes)
 
 Arc Memory requires Python 3.10 or higher.
@@ -12,6 +33,54 @@ pip install arc-memory
 
 # Or with GitHub and Linear integration
 pip install arc-memory[github,linear]
+
+# For LLM enhancement capabilities
+pip install arc-memory[llm]
+
+# For all features
+pip install arc-memory[all]
+```
+
+### One-Line Installation (Alternative)
+
+You can also use our installation script for a streamlined setup:
+
+```bash
+curl -sSL https://arc.computer/install.sh | bash
+
+# Or with specific options
+curl -sSL https://arc.computer/install.sh | bash -s -- --with-github --with-llm
+```
+
+### Installing Ollama (Optional for Enhanced Analysis)
+
+For enhanced natural language queries, you can use Ollama with local models. Install Ollama from [ollama.ai/download](https://ollama.ai/download).
+
+After installing Ollama, start it with:
+
+```bash
+ollama serve
+```
+
+And pull a model (in a separate terminal):
+
+```bash
+ollama pull llama2
+```
+
+### Using OpenAI for Enhanced Analysis (Recommended)
+
+For the highest quality analysis, we recommend using OpenAI models:
+
+```bash
+# Install with OpenAI support
+pip install arc-memory[openai]
+
+# Set your API key
+export OPENAI_API_KEY=your-api-key
+
+# Build with OpenAI enhancement
+arc build --llm-provider openai --llm-model gpt-4o --llm-enhancement
 ```
 
 ## Step 2: Authentication (5 minutes)
@@ -59,7 +128,7 @@ You'll see progress indicators as Arc analyzes your repository and builds the kn
 ### Using the CLI
 
 ```bash
-# Ask a question about your codebase
+# Ask a question about your codebase (requires Ollama to be running)
 arc why query "Why was the authentication system refactored?"
 
 # Get the decision trail for a specific file and line
@@ -79,7 +148,7 @@ from arc_memory import Arc
 # Initialize Arc with your repository path
 arc = Arc(repo_path="./")
 
-# Ask a question about your codebase
+# Ask a question about your codebase (requires Ollama to be running)
 result = arc.query("Why was the authentication system refactored?")
 print(f"Answer: {result.answer}")
 print(f"Confidence: {result.confidence}")
@@ -185,6 +254,43 @@ Run it:
 python arc_openai.py
 ```
 
+## Troubleshooting Common Issues
+
+### Installation Issues
+
+| Issue | Solution |
+|-------|----------|
+| **"Command not found: arc"** | Make sure the Python bin directory is in your PATH. Try installing with `pip install --user arc-memory` and check your PATH. |
+| **"Python version must be >= 3.10"** | Update your Python version or use a virtual environment with Python 3.10+. |
+| **"No module named 'arc_memory'"** | Verify installation with `pip list \| grep arc-memory`. If not listed, reinstall. |
+| **"Error: Microsoft Visual C++ 14.0 is required"** | Install the [Microsoft C++ Build Tools](https://visualstudio.microsoft.com/visual-cpp-build-tools/). |
+
+### Authentication Issues
+
+| Issue | Solution |
+|-------|----------|
+| **GitHub authentication fails** | Try manual authentication: `arc auth github --manual` and follow the prompts. |
+| **Linear authentication fails** | Verify your Linear API key at [linear.app/settings/api](https://linear.app/settings/api). |
+| **"Token not found"** | Run `arc doctor` to check authentication status and follow the suggested fixes. |
+
+### Knowledge Graph Building Issues
+
+| Issue | Solution |
+|-------|----------|
+| **"No such file or directory: '.arc'"** | Make sure you're in a Git repository. Run `git status` to verify. |
+| **"Failed to build knowledge graph"** | Check permissions for the `.arc` directory. Try running with `--verbose` for more details. |
+| **"LLM enhancement failed"** | For Ollama: ensure Ollama is running with `ollama serve`. For OpenAI: check your API key. |
+| **Build process is too slow** | Use `--incremental` for faster builds after the initial one. Try `--parallel` for multi-threading. |
+
+### Query Issues
+
+| Issue | Solution |
+|-------|----------|
+| **"No knowledge graph found"** | Run `arc build` first to create the knowledge graph. |
+| **"Failed to connect to Ollama"** | Ensure Ollama is running with `ollama serve` in a separate terminal. |
+| **Empty or low-quality responses** | Try building with `--llm-enhancement` for richer analysis or use OpenAI models. |
+| **"Entity not found"** | Check entity ID format. For files, use `file:path/to/file.py`. |
+
 ## Congratulations!
 
 You've successfully:
@@ -196,7 +302,9 @@ You've successfully:
 
 ## Next Steps
 
+- [Getting Started Guide](./getting_started.md) - More detailed setup and usage instructions
 - [SDK Documentation](./sdk/README.md) - Learn more about the SDK
 - [CLI Reference](./cli/README.md) - Explore all CLI commands
-- [Examples](./examples/sdk_examples.md) - See more advanced examples
+- [Examples](./examples/README.md) - See more advanced examples
 - [API Reference](./sdk/api_reference.md) - Detailed API documentation
+- [GitHub Actions Integration](./examples/github_actions/README.md) - Integrate Arc Memory into your CI/CD pipeline
