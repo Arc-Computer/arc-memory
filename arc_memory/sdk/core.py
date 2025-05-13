@@ -5,17 +5,18 @@ This module provides the `Arc` class, which is the main entry point for the SDK.
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, Union
 
-from arc_memory.db import get_adapter
+from arc_memory.db import get_adapter as get_db_adapter
 from arc_memory.db.base import DatabaseAdapter
 from arc_memory.errors import ArcError, DatabaseError
 from arc_memory.schema.models import Edge, Node
 from arc_memory.sql.db import ensure_arc_dir, get_db_path
 
-from arc_memory.sdk.errors import SDKError, AdapterError, QueryError, BuildError, ExportSDKError
+from arc_memory.sdk.adapters import FrameworkAdapter, get_adapter, discover_adapters
+from arc_memory.sdk.errors import SDKError, AdapterError, QueryError, BuildError, FrameworkError
 from arc_memory.sdk.models import (
-    DecisionTrailEntry, EntityDetails, ExportResult, HistoryEntry, ImpactResult, QueryResult, RelatedEntity
+    DecisionTrailEntry, EntityDetails, HistoryEntry, ImpactResult, QueryResult, RelatedEntity
 )
 from arc_memory.sdk.progress import ProgressCallback
 
@@ -54,7 +55,7 @@ class Arc:
             self.repo_path = Path(repo_path)
 
             # Get the database adapter
-            self.adapter = get_adapter(adapter_type)
+            self.adapter = get_db_adapter(adapter_type)
 
             # Connect to the database
             if not connection_params:
@@ -449,68 +450,137 @@ class Arc:
             callback=callback
         )
 
+    # Framework Adapter API methods
+
+    def get_adapter(self, framework: str) -> FrameworkAdapter:
+        """Get a framework adapter by name.
+
+        This method retrieves a framework adapter by name, which can be used to
+        adapt Arc Memory functions to a specific agent framework.
+
+        Args:
+            framework: The name of the framework adapter to get.
+
+        Returns:
+            A framework adapter instance.
+
+        Raises:
+            FrameworkError: If the adapter cannot be found or initialized.
+        """
+        try:
+            return get_adapter(framework)
+        except Exception as e:
+            raise FrameworkError(f"Failed to get framework adapter: {e}") from e
+
+    def get_tools(self, framework: str) -> Any:
+        """Get Arc Memory functions as tools for a specific framework.
+
+        This method converts Arc Memory functions to tools that can be used
+        with a specific agent framework.
+
+        Args:
+            framework: The name of the framework to adapt to.
+
+        Returns:
+            Framework-specific tools that can be used with the framework.
+
+        Raises:
+            FrameworkError: If the adapter cannot be found or initialized.
+        """
+        adapter = self.get_adapter(framework)
+
+        # Get the functions to adapt
+        functions = [
+            self.query,
+            self.get_decision_trail,
+            self.get_related_entities,
+            self.get_entity_details,
+            self.analyze_component_impact,
+            self.get_entity_history
+        ]
+
+        # Adapt the functions to the framework
+        return adapter.adapt_functions(functions)
+
+    def create_agent(self, framework: str, **kwargs) -> Any:
+        """Create an agent using a specific framework.
+
+        This method creates an agent using a specific framework, with
+        Arc Memory functions available as tools.
+
+        Args:
+            framework: The name of the framework to use.
+            **kwargs: Framework-specific parameters for creating an agent.
+
+        Returns:
+            A framework-specific agent instance.
+
+        Raises:
+            FrameworkError: If the adapter cannot be found or initialized.
+        """
+        adapter = self.get_adapter(framework)
+
+        # Create the agent
+        return adapter.create_agent(**kwargs)
+
     # Export API methods
 
     def export_graph(
         self,
+        pr_sha: str,
         output_path: Union[str, Path],
-        pr_sha: Optional[str] = None,
-        entity_types: Optional[List[str]] = None,
-        start_date: Optional[datetime] = None,
-        end_date: Optional[datetime] = None,
-        format: str = "json",
-        compress: bool = False,
+        compress: bool = True,
         sign: bool = False,
         key_id: Optional[str] = None,
         base_branch: str = "main",
         max_hops: int = 3,
-        optimize_for_llm: bool = False,
+        optimize_for_llm: bool = True,
         include_causal: bool = True,
         callback: Optional[ProgressCallback] = None
-    ) -> ExportResult:
-        """Export the knowledge graph to a file.
+    ) -> Path:
+        """Export a relevant slice of the knowledge graph for a PR.
 
-        This method exports a subset of the knowledge graph based on the provided filters.
-        It supports exporting in various formats, with options for compression and signing.
+        This method exports a subset of the knowledge graph focused on the files
+        modified in a specific PR, along with related nodes and edges. The export
+        is saved as a JSON file that can be used by the GitHub App for PR reviews.
 
         Args:
+            pr_sha: SHA of the PR head commit.
             output_path: Path to save the export file.
-            pr_sha: Optional SHA of a PR head commit to filter by.
-            entity_types: Optional list of entity types to include.
-            start_date: Optional start date for filtering entities.
-            end_date: Optional end date for filtering entities.
-            format: Export format (currently only "json" is supported).
             compress: Whether to compress the output file.
             sign: Whether to sign the output file with GPG.
             key_id: GPG key ID to use for signing.
-            base_branch: Base branch to compare against when using pr_sha.
+            base_branch: Base branch to compare against.
             max_hops: Maximum number of hops to traverse in the graph.
             optimize_for_llm: Whether to optimize the export for LLM consumption.
             include_causal: Whether to include causal relationships in the export.
             callback: Optional callback for progress reporting.
 
         Returns:
-            An ExportResult containing information about the export.
+            Path to the exported file.
 
         Raises:
-            ExportSDKError: If the export fails.
+            QueryError: If exporting the graph fails.
         """
-        from arc_memory.sdk.export import export_knowledge_graph
-        return export_knowledge_graph(
-            adapter=self.adapter,
-            repo_path=self.repo_path,
-            output_path=output_path,
-            pr_sha=pr_sha,
-            entity_types=entity_types,
-            start_date=start_date,
-            end_date=end_date,
-            format=format,
-            compress=compress,
-            sign=sign,
-            key_id=key_id,
-            base_branch=base_branch,
-            max_hops=max_hops,
-            optimize_for_llm=optimize_for_llm,
-            include_causal=include_causal,
-            callback=callback
-        )
+        try:
+            from arc_memory.export import export_graph as export_graph_impl
+
+            # Convert output_path to Path
+            output_path = Path(output_path)
+
+            # Export the graph
+            return export_graph_impl(
+                db_path=Path(self.adapter.db_path),
+                repo_path=self.repo_path,
+                pr_sha=pr_sha,
+                output_path=output_path,
+                compress=compress,
+                sign=sign,
+                key_id=key_id,
+                base_branch=base_branch,
+                max_hops=max_hops,
+                enhance_for_llm=optimize_for_llm,
+                include_causal=include_causal
+            )
+        except Exception as e:
+            raise QueryError(f"Failed to export graph: {e}") from e

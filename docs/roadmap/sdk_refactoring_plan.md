@@ -1409,24 +1409,392 @@ PR 2a will extract logic from query-related CLI commands into SDK methods, focus
 - Add shared testing utilities for adapters
 
 ### PR 5: Advanced Adapter Features
-- Implement advanced adapter features for LangChain and OpenAI
-- Create examples showing integration with both frameworks
-- Add comprehensive tests for all adapter functionality
-- Implement framework-specific helper functions
 
-### PR 6: Testing Infrastructure
-- Create comprehensive testing infrastructure
-- Implement test fixtures and mocks for different components
-- Add integration tests with actual frameworks
-- Implement performance benchmarks and regression tests
+#### Overview
+PR 5 focuses on enhancing the framework adapters with advanced features, comprehensive examples, specialized helper functions, and improved testing. This PR builds upon the foundation established in PR 3 and PR 4, providing a more robust and user-friendly integration experience for both developers and agents.
 
-### PR 7: CLI Updates and Documentation
-- Update CLI commands to use the SDK
-- Ensure backward compatibility
-- Add deprecation warnings for direct usage patterns
-- Create comprehensive documentation and examples
-- Add migration guides for existing users
-- Create demo for enterprise customers (e.g., Snowflake)
+#### 1. Create Examples Showing Integration with Both Frameworks
+
+**LangChain Integration Examples:**
+- Create a comprehensive Jupyter notebook demonstrating LangChain integration
+  - Basic agent setup with Arc Memory tools
+  - Using LangGraph for advanced agent workflows
+  - Integrating with chat memory for conversation persistence
+  - Combining Arc Memory with other LangChain tools
+- Develop example scripts for common use cases:
+  - Code understanding and exploration agent
+  - Decision trail analysis agent
+  - Impact assessment agent for code changes
+  - Multi-hop reasoning using the knowledge graph
+
+**OpenAI Integration Examples:**
+- Create a comprehensive Jupyter notebook demonstrating OpenAI integration
+  - Function calling with Arc Memory tools
+  - Using the Assistants API with Arc Memory
+  - Combining Arc Memory with other OpenAI capabilities
+  - Optimizing context windows with Arc Memory
+- Develop example scripts for common use cases:
+  - PR review assistant using Arc Memory
+  - Code explanation assistant with historical context
+  - Architectural analysis assistant
+  - Security impact assessment assistant
+
+**Cross-Framework Examples:**
+- Demonstrate how to use Arc Memory with multiple frameworks simultaneously
+- Show migration paths between frameworks
+- Illustrate framework-agnostic patterns for maximum flexibility
+
+#### 2. Implement Framework-Specific Helper Functions
+
+**LangChain-Specific Helpers:**
+- Implement `create_memory_chain()` for integrating Arc Memory with LangChain's memory systems
+- Add `create_decision_agent()` for specialized decision analysis using Arc Memory
+- Develop `create_impact_agent()` for code change impact assessment
+- Create `create_exploration_agent()` for codebase exploration and understanding
+- Add `create_multi_hop_agent()` for complex reasoning across the knowledge graph
+- Implement `create_causal_chain()` for reasoning about cause-effect relationships
+
+**OpenAI-Specific Helpers:**
+- Implement `create_optimized_prompts()` for efficient context utilization
+- Add `create_pr_review_assistant()` for specialized PR review capabilities
+- Develop `create_code_explanation_assistant()` with historical context integration
+- Create `create_architecture_assistant()` for system-level understanding
+- Add `create_security_assistant()` for security impact assessment
+- Implement `create_decision_assistant()` for reasoning about past decisions
+
+**Common Agent Pattern Helpers:**
+- Implement `create_reasoning_chain()` for step-by-step reasoning about code changes
+- Add `create_temporal_explorer()` for navigating code history
+- Develop `create_causal_analyzer()` for understanding cause-effect relationships
+- Create `create_impact_predictor()` for predicting change impacts
+- Add `create_knowledge_navigator()` for exploring the knowledge graph
+- Implement `create_context_optimizer()` for efficient context management
+
+#### 3. Add Comprehensive Tests for All Adapter Functionality
+
+**Edge Case and Error Handling Tests:**
+- Test behavior with empty or invalid inputs
+- Test error handling for missing dependencies
+- Test recovery from API failures
+- Test behavior with malformed knowledge graph data
+- Test performance with large inputs
+- Test concurrent usage patterns
+
+**Integration Tests with Actual Frameworks:**
+- Implement integration tests with LangChain using minimal dependencies
+- Create integration tests with OpenAI using the API
+- Test cross-framework interactions
+- Test with different versions of each framework
+- Test with various LLM providers (OpenAI, Anthropic, etc.)
+- Test with both cloud and local LLMs
+
+**Performance Benchmarks:**
+- Implement benchmark tests for adapter operations
+- Measure latency for common operations
+- Test memory usage patterns
+- Evaluate throughput for batch operations
+- Compare performance across different frameworks
+- Identify and optimize bottlenecks
+
+#### 4. Enhance Documentation
+
+**API Documentation:**
+- Create detailed API documentation for all adapter methods
+- Document parameter types, return values, and exceptions
+- Provide usage examples for each method
+- Document version compatibility information
+- Include performance considerations
+- Document security best practices
+
+**Usage Examples:**
+- Provide step-by-step guides for common integration patterns
+- Create cookbook-style examples for different use cases
+- Document best practices for efficient integration
+- Provide troubleshooting guides for common issues
+- Include performance optimization tips
+- Document advanced usage patterns
+
+**Migration Guides:**
+- Create guides for transitioning from CLI to SDK
+- Document equivalent SDK methods for each CLI command
+- Provide examples showing both CLI and SDK approaches
+- Highlight advantages of programmatic access
+- Include migration patterns for existing scripts
+- Document backward compatibility considerations
+
+#### Implementation Approach
+
+1. **Development Sequence:**
+   - Start with examples to validate the API design
+   - Implement helper functions based on patterns identified in examples
+   - Add comprehensive tests for all new functionality
+   - Create documentation based on implementation and tests
+
+2. **Testing Strategy:**
+   - Use mock objects for framework dependencies in unit tests
+   - Implement integration tests with minimal external dependencies
+   - Create benchmark tests for performance evaluation
+   - Test with both SQLite and Neo4j adapters
+
+3. **Documentation Approach:**
+   - Use docstrings for API documentation
+   - Create Jupyter notebooks for interactive examples
+   - Develop Markdown guides for migration and best practices
+   - Include diagrams for complex integration patterns
+
+#### Success Criteria
+
+- Comprehensive examples covering all major use cases for both frameworks
+- Helper functions that simplify common integration patterns
+- Test coverage exceeding 90% for all adapter code
+- Performance benchmarks establishing baseline metrics
+- Documentation covering all aspects of adapter usage
+- Successful integration with at least one real-world agent application
+
+### PR 6: CI Integration and Testing Infrastructure
+
+#### Overview
+PR 6 focuses on implementing the CI integration strategy and establishing a robust testing infrastructure to support it. This PR bridges the gap between the SDK and the GitHub PR workflow, enabling Arc Memory to provide valuable insights during code review.
+
+#### 1. CI Integration Implementation
+
+**GitHub Actions Workflow:**
+- Implement GitHub Actions workflow for Arc Memory integration
+- Create setup action for installing and configuring Arc Memory
+- Develop analysis action for PR impact assessment
+- Implement reporting action for posting results as PR comments
+- Create caching mechanism for knowledge graph persistence
+- Develop CI-specific configuration options
+
+**PR Analysis and Reporting:**
+- Implement blast radius prediction for changed files
+- Create dependency analysis for identifying affected components
+- Develop co-change analysis based on historical patterns
+- Implement impact scoring for prioritizing insights
+- Create formatted markdown reports for PR comments
+- Develop visualization of potential impacts
+
+**CI Performance Optimization:**
+- Implement incremental analysis for faster CI runs
+- Create parallel processing for different data sources
+- Optimize database operations for CI environments
+- Implement CI-specific logging and progress reporting
+- Develop caching strategies for query results
+- Create CI-specific command flags and options
+
+#### 2. Testing Infrastructure
+
+**Core Testing Framework:**
+- Implement comprehensive test suite for CI integration
+- Create test fixtures for GitHub PR scenarios
+- Develop mocks for GitHub API interactions
+- Implement test data generators for PR analysis
+- Create integration tests for end-to-end workflows
+- Develop performance tests for CI operations
+
+**Test Environments:**
+- Create test environments mimicking GitHub Actions
+- Implement local testing of CI workflows
+- Develop reproducible test scenarios for PR analysis
+- Create test repositories with known characteristics
+- Implement test harnesses for different configurations
+- Develop automated test runners for CI integration
+
+**Regression Prevention:**
+- Implement tests for known edge cases
+- Create regression tests for critical functionality
+- Develop tests for different repository sizes and structures
+- Implement tests for various PR scenarios
+- Create tests for error handling and recovery
+- Develop tests for performance characteristics
+
+#### 3. SDK-CI Integration
+
+**SDK Extensions for CI:**
+- Implement CI-specific SDK methods
+- Create helpers for PR analysis and reporting
+- Develop utilities for GitHub integration
+- Implement optimized query patterns for CI use cases
+- Create export functions for CI consumption
+- Develop configuration options for CI environments
+
+**Framework Adapter Integration:**
+- Extend framework adapters for CI use cases
+- Implement agent-based analysis capabilities
+- Create specialized tools for PR review
+- Develop integration with blast radius prediction
+- Implement context providers for PR analysis
+- Create agent templates for CI integration
+
+**Performance Optimization:**
+- Implement performance benchmarks for CI operations
+- Create optimization targets for CI workflows
+- Develop caching strategies for repeated operations
+- Implement parallel processing for CI tasks
+- Create memory optimization for CI environments
+- Develop strategies for handling large repositories
+
+#### Implementation Approach
+
+1. **Development Sequence:**
+   - Start with core GitHub Actions workflow implementation
+   - Develop PR analysis and reporting capabilities
+   - Implement testing infrastructure for CI integration
+   - Create SDK extensions for CI-specific functionality
+   - Optimize performance for CI environments
+
+2. **Testing Strategy:**
+   - Implement unit tests for individual components
+   - Create integration tests for end-to-end workflows
+   - Develop performance tests for CI operations
+   - Implement tests for different repository scenarios
+   - Create tests for error handling and recovery
+
+#### Success Criteria
+
+- Functional GitHub Actions workflow for Arc Memory integration
+- Effective PR analysis with meaningful insights
+- Clear, actionable PR comments with impact assessment
+- Robust testing infrastructure for CI integration
+- Optimized performance for CI environments
+- Seamless integration between SDK and CI workflow
+
+### PR 7: Open Source Documentation and Arc Cloud Preparation
+
+#### Overview
+PR 7 focuses on creating comprehensive documentation for the open source SDK offering and laying the groundwork for Arc Cloud. This PR prepares Arc Memory for its initial public launch and sets the stage for the fast follow with Arc Cloud.
+
+#### 1. Open Source SDK Documentation
+
+**Core SDK Documentation:**
+- Create detailed documentation for all SDK classes and methods
+- Develop architecture and design documentation
+- Create getting started guides for new users
+- Implement interactive examples in documentation
+- Develop conceptual documentation explaining key concepts
+- Create API reference documentation with complete parameter descriptions
+
+**Framework Integration Documentation:**
+- Create detailed guides for LangChain integration
+- Develop comprehensive documentation for OpenAI integration
+- Document best practices for framework integration
+- Provide troubleshooting guides for common integration issues
+- Create cookbook-style examples for different use cases
+- Develop documentation for extending to other frameworks
+
+**CI Integration Documentation:**
+- Create detailed documentation for GitHub Actions integration
+- Develop guides for setting up Arc Memory in CI workflows
+- Document PR analysis and reporting features
+- Create troubleshooting guides for CI integration
+- Develop best practices for CI configuration
+- Create examples of different CI integration patterns
+
+**Example Applications:**
+- Create example applications demonstrating SDK usage
+- Develop Jupyter notebooks with interactive examples
+- Implement real-world use cases as examples
+- Create examples showing integration with popular frameworks
+- Develop starter templates for common scenarios
+- Create examples focused on agent integration
+
+#### 2. Arc Cloud Preparation
+
+**Neo4j Adapter Implementation:**
+- Complete the Neo4j database adapter implementation
+- Implement GraphRAG-compatible query patterns
+- Create schema mapping between SQLite and Neo4j
+- Develop optimized query patterns for Neo4j
+- Implement vector search capabilities
+- Create performance benchmarks for Neo4j operations
+
+**Selective Sync Foundation:**
+- Implement core components for selective sync
+- Create data structures for change tracking
+- Develop conflict resolution strategies
+- Implement data filtering mechanisms
+- Create serialization formats for sync
+- Develop security mechanisms for data transfer
+
+**Cloud Architecture Design:**
+- Finalize cloud architecture design
+- Define API endpoints for cloud services
+- Design authentication and authorization system
+- Create data model for team collaboration
+- Develop scaling strategy for cloud deployment
+- Design monitoring and observability infrastructure
+
+**Team Collaboration Model:**
+- Design data structures for team collaboration
+- Implement permission models for shared access
+- Create team and organization abstractions
+- Develop notification mechanisms
+- Design conflict resolution for team edits
+- Create audit logging for team activities
+
+#### 3. Launch Preparation
+
+**Installation and Setup:**
+- Create streamlined installation process
+- Develop automated setup scripts
+- Implement configuration validation
+- Create environment detection and adaptation
+- Develop troubleshooting tools for installation issues
+- Create documentation for different installation scenarios
+
+**GitHub Repository Preparation:**
+- Finalize open source repository structure
+- Create comprehensive README and contribution guidelines
+- Implement issue templates and PR templates
+- Develop GitHub Actions for CI/CD
+- Create community guidelines and code of conduct
+- Implement automated documentation generation
+
+**Website and Documentation Portal:**
+- Design and implement documentation website
+- Create landing page highlighting key features
+- Implement searchable API documentation
+- Develop interactive examples and tutorials
+- Create FAQ and troubleshooting sections
+- Implement feedback mechanisms for documentation
+
+**Release Management:**
+- Create release process and checklist
+- Implement versioning strategy
+- Develop changelog generation
+- Create release notes templates
+- Implement automated package publishing
+- Develop update notification mechanisms
+
+#### Implementation Approach
+
+1. **Documentation Development:**
+   - Start with core API documentation derived from code
+   - Develop conceptual documentation explaining key concepts
+   - Create examples and tutorials based on common use cases
+   - Implement interactive documentation where appropriate
+   - Ensure documentation is accessible and searchable
+
+2. **Arc Cloud Preparation:**
+   - Implement Neo4j adapter as foundation for cloud offering
+   - Develop selective sync components for future cloud integration
+   - Design cloud architecture aligned with strategic roadmap
+   - Create team collaboration model for shared knowledge
+
+3. **Launch Strategy:**
+   - Prepare open source repository for public launch
+   - Create comprehensive documentation for initial users
+   - Develop streamlined installation and setup process
+   - Implement release management for sustainable development
+
+#### Success Criteria
+
+- Comprehensive documentation covering all aspects of the SDK
+- Functional Neo4j adapter ready for Arc Cloud development
+- Foundation for selective sync mechanism established
+- Cloud architecture design finalized and documented
+- Open source repository prepared for public launch
+- Installation and setup process streamlined for new users
 
 **Backward Compatibility Approach:**
 - Design the SDK with a clean, intuitive interface optimized for agent usage
@@ -1449,17 +1817,60 @@ The implementation plan still aligns with our three-phase approach:
 - **Phase 2 (1 month)**: PRs 3, 4, 5, and 6 implement the framework adapters and testing
 - **Phase 3 (0.5 months)**: PR 7 updates the CLI and creates comprehensive documentation
 
-## Next Steps
+## Next Steps and Progress Tracking
 
-1. Begin PR 1 by creating the core SDK structure with database integration
-2. Extract query functionality in PR 2a, focusing on `why` and `relate` commands
-3. Extract build functionality in PR 2b, focusing on `build` and `refresh` commands
-4. Implement the framework adapter architecture in PR 3
-5. Create basic adapters for both LangChain and OpenAI in PR 4
-6. Add advanced adapter features in PR 5
-7. Implement comprehensive testing infrastructure in PR 6
-8. Update the CLI and documentation in PR 7
-9. Test with Protocol Labs repositories to gather feedback throughout the process
+### Completed PRs
+1. ✅ **PR 1**: Created the core SDK structure with database integration
+2. ✅ **PR 2a**: Extracted query functionality, focusing on `why` and `relate` commands
+3. ✅ **PR 2b**: Extracted build functionality, focusing on `build` and `refresh` commands
+4. ✅ **PR 3**: Implemented the framework adapter architecture
+   - Created the base adapter protocol
+   - Added helper methods for working with adapters
+   - Implemented plugin discovery for framework adapters
+   - Added tests for the adapter architecture
+5. ✅ **PR 4**: Created basic adapters for both LangChain and OpenAI
+   - Implemented core adapters for both frameworks
+   - Created foundational patterns for both frameworks
+   - Implemented basic conversion of SDK functions to tool formats
+   - Added shared testing utilities for adapters
+
+### Upcoming PRs
+6. 🔄 **PR 5**: Advanced Adapter Features
+   - Create examples showing integration with both frameworks
+   - Implement framework-specific helper functions
+   - Add comprehensive tests for all adapter functionality
+   - Enhance documentation for framework adapters
+7. 📅 **PR 6**: CI Integration and Testing Infrastructure
+   - Implement GitHub Actions workflow for Arc Memory
+   - Create PR analysis and reporting capabilities
+   - Develop testing infrastructure for CI integration
+   - Implement SDK extensions for CI use cases
+   - Optimize performance for CI environments
+8. 📅 **PR 7**: Open Source Documentation and Arc Cloud Preparation
+   - Create comprehensive SDK documentation
+   - Implement Neo4j adapter for Arc Cloud
+   - Develop selective sync foundation
+   - Prepare for open source launch
+   - Design cloud architecture
+
+### Launch Roadmap
+1. 🚀 **Open Source Launch**: Release the SDK with CI integration
+   - Publish to GitHub and PyPI
+   - Launch documentation website
+   - Release GitHub Actions for CI integration
+   - Publish examples and tutorials
+2. 🚀 **Arc Cloud Fast Follow**: Launch cloud offering
+   - Implement selective sync between local and cloud
+   - Create team collaboration features
+   - Develop web interface for cloud access
+   - Implement authentication and authorization
+
+### Ongoing Activities
+- Test with Protocol Labs repositories to validate functionality
+- Optimize performance for CI environments and large repositories
+- Develop examples and documentation for key use cases
+- Prepare marketing materials for open source launch
+- Design and implement cloud architecture components
 
 ## Implementation Example Building on Existing Plugin Architecture
 
