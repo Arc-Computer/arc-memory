@@ -25,5 +25,9 @@ Example:
 """
 
 from arc_memory.sdk.core import Arc
+from arc_memory.sdk.adapters import discover_adapters
+
+# Discover and register framework adapters
+discover_adapters()
 
 __all__ = ["Arc"]

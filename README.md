@@ -68,6 +68,7 @@ Before you begin, ensure you have:
 - Git repository with commit history
 - GitHub account (for GitHub integration)
 - Linear account (optional, for Linear integration)
+- Ollama (required for natural language queries, see [Ollama installation](https://ollama.ai/download))
 
 ### Installation
 
@@ -96,8 +97,11 @@ pip install arc-memory[github]
 # Install with Linear integration
 pip install arc-memory[linear]
 
-# Install with LLM enhancement capabilities
+# Install with LLM enhancement capabilities (requires Ollama)
 pip install arc-memory[llm]
+
+# Note: Natural language queries require Ollama with local models
+# Install Ollama from https://ollama.ai/download
 
 # Install with all optional dependencies
 pip install arc-memory[all]
