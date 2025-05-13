@@ -51,7 +51,7 @@ class OpenAIClient:
 
     def generate(
         self,
-        model: str = "gpt-4o",
+        model: str = "gpt-4.1",
         prompt: str = "",
         system: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
@@ -60,8 +60,8 @@ class OpenAIClient:
         """Generate text using the specified model.
 
         Args:
-            model: The model to use (defaults to gpt-4o, the latest flagship model).
-                  Available models: gpt-4o, gpt-4o-2024-08-06, gpt-3.5-turbo
+            model: The model to use (defaults to gpt-4.1, the latest flagship model).
+                  Available models: gpt-4.1, gpt-4.1-mini, gpt-3.5-turbo
             prompt: The prompt to send to the model.
             system: The system message to use.
             options: Additional options to pass to the model.
@@ -141,7 +141,7 @@ Always base your responses on the specific information provided, and avoid makin
 
     def generate_with_streaming(
         self,
-        model: str = "gpt-4o",
+        model: str = "gpt-4.1",
         prompt: str = "",
         system: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
@@ -238,7 +238,7 @@ Always base your responses on the specific information provided, and avoid makin
 
     def generate_with_thinking(
         self,
-        model: str = "gpt-4o",
+        model: str = "gpt-4.1",
         prompt: str = "",
         system: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
@@ -316,7 +316,7 @@ def ensure_openai_available(api_key: Optional[str] = None) -> bool:
     try:
         client = OpenAIClient(api_key=api_key)
         response = client.generate(
-            model="gpt-4o",
+            model="gpt-4.1",
             prompt="Respond with a single word: Working",
             options={"temperature": 0.0}
         )

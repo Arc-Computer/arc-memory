@@ -402,7 +402,7 @@ Prioritize precision over coverage in your enhancements. Follow Arc Memory's sch
                         llm_provider = "ollama"
                     else:
                         # Set default model if not provided
-                        openai_model = llm_model or "gpt-3.5-turbo"
+                        openai_model = llm_model or "gpt-4.1"
 
                         # Create OpenAI client
                         try:
