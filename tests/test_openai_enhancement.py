@@ -66,7 +66,7 @@ def test_openai_enhancement(repo_path, model="gpt-4.1"):
     elapsed_without = time.time() - start_time
 
     # Get graph statistics without enhancement
-    conn_without = init_db(db_path=str(db_path_without))
+    conn_without = init_db(db_path=db_path_without)
     node_count_without = get_node_count(conn_without)
     edge_count_without = get_edge_count(conn_without)
 
@@ -92,7 +92,7 @@ def test_openai_enhancement(repo_path, model="gpt-4.1"):
     elapsed_with = time.time() - start_time
 
     # Get graph statistics with enhancement
-    conn_with = init_db(db_path=str(db_path_with))
+    conn_with = init_db(db_path=db_path_with)
     node_count_with = get_node_count(conn_with)
     edge_count_with = get_edge_count(conn_with)
 
@@ -117,8 +117,8 @@ def test_openai_enhancement(repo_path, model="gpt-4.1"):
     print("\n=== Testing queries ===")
 
     # Initialize Arc with both databases
-    arc_without = Arc(repo_path=repo_path, db_path=str(db_path_without))
-    arc_with = Arc(repo_path=repo_path, db_path=str(db_path_with))
+    arc_without = Arc(repo_path=repo_path, db_path=db_path_without)
+    arc_with = Arc(repo_path=repo_path, db_path=db_path_with)
 
     # Test query
     test_query = "What are the main components of this repository?"
