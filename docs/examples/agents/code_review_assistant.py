@@ -88,7 +88,13 @@ def analyze_changes(repo_path, files, api_key=None):
 
     # STEP 3: Convert relative paths to absolute for Arc Memory functions
     # ------------------------------------------------------------------
-    abs_files = [os.path.join(repo_path, f) for f in files]
+    # Make sure we have absolute paths for the files
+    abs_files = []
+    for f in files:
+        if os.path.isabs(f):
+            abs_files.append(f)
+        else:
+            abs_files.append(os.path.abspath(os.path.join(repo_path, f)))
 
     # STEP 4: Analyze the changes using Arc Memory's capabilities
     # ----------------------------------------------------------
