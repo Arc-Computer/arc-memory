@@ -33,18 +33,18 @@ Before running the demos, make sure you have:
 
 **Duration**: ~5 minutes
 
-## 2. LLM-Powered Blast Radius Visualization Demo
+## 2. Enhanced Blast Radius Visualization Demo
 
-- **Purpose**: Visually demonstrate the potential impact of changes to a file with LLM analysis.
+- **Purpose**: Visually demonstrate the potential impact of changes to a file with comprehensive SDK integration.
 - **Run the demo**:
   ```bash
-  ./demo_blast_radius.sh
+  ./demo_enhanced_blast_radius.sh
   ```
 - **Key points to highlight**:
-  - Visual representation of affected components
-  - LLM analysis of specific risks and recommendations
-  - Concrete testing strategies based on dependencies
-  - Actionable insights for safer code changes
+  - Full utilization of Arc Memory SDK methods (get_entity_details, get_decision_trail, get_related_entities)
+  - Rich visualization showing different relationship types
+  - Comprehensive LLM analysis with historical context
+  - Actionable insights for safer code changes based on real graph data
 
 **Duration**: ~3-4 minutes
 
