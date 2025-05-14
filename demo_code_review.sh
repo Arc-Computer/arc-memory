@@ -8,12 +8,12 @@ NC='\033[0m' # No Color
 
 echo -e "${GREEN}=== Arc Memory: Code Review Assistant Demo ===${NC}\n"
 
-echo -e "${BLUE}Step 1: Running Code Review Assistant on a file${NC}"
-echo -e "This will build/refresh the knowledge graph and analyze the file..."
-echo -e "${YELLOW}Command: python docs/examples/agents/code_review_assistant.py --repo . --files docs/examples/agents/code_review_assistant.py${NC}\n"
+echo -e "${BLUE}Step 1: Running LLM-Powered Code Review Assistant on a file${NC}"
+echo -e "This will use the knowledge graph and LLMs to provide an intelligent code review..."
+echo -e "${YELLOW}Command: python docs/examples/agents/llm_powered_code_review.py --repo . --files docs/examples/agents/llm_powered_code_review.py${NC}\n"
 
-# Run the code review assistant
-python docs/examples/agents/code_review_assistant.py --repo . --files docs/examples/agents/code_review_assistant.py
+# Run the LLM-powered code review assistant
+python docs/examples/agents/llm_powered_code_review.py --repo . --files docs/examples/agents/llm_powered_code_review.py
 
 echo -e "\n${BLUE}Step 2: Understanding why code exists (Temporal Knowledge)${NC}"
 echo -e "Let's explore why certain code exists and its history..."
