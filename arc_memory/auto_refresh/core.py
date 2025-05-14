@@ -569,6 +569,14 @@ Generate structured JSON following the requested schema for each enhancement tas
             # Get the last processed metadata for this ingestor
             from arc_memory.sql.db import get_connection
 
+            # Run the migration to ensure the metadata column exists
+            try:
+                from arc_memory.migrations.add_metadata_column import run_migration
+                run_migration(Path(db_path))
+            except Exception as e:
+                if verbose:
+                    print(f"  Warning: Failed to run migration: {e}")
+
             # Check if the database exists and get the last processed metadata
             db_conn = None
             last_processed = None
