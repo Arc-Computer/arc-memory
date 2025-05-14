@@ -220,7 +220,10 @@ def main():
 
     # Calculate nodes/second and edges/second
 nodes_per_second = results['nodes_added'] / results['elapsed_time'] if results['elapsed_time'] > 0 else 0
-    edges_per_second = results['edges_added'] / results['elapsed_time'] if results['elapsed_time'] > 0 else 0
+    edges_per_second = (
+        results['edges_added'] / results['elapsed_time']
+        if results['elapsed_time'] > 0 else 0
+    )
     print(f"Nodes/Second: {nodes_per_second:.2f}")
     print(f"Edges/Second: {edges_per_second:.2f}")
 
