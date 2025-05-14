@@ -79,7 +79,8 @@ def analyze_incident(repo_path, components, error_message=None, last_working_com
             use_llm=True if api_key else False,
             llm_provider="openai" if api_key else "ollama",
             llm_model="gpt-4.1" if api_key else None,
-            llm_enhancement_level="fast" if graph_exists else "standard",  # Fast for refreshes, standard for new builds
+            llm_enhancement_level="fast" if graph_exists else "standard",
+            # Fast for refreshes, standard for new builds
             verbose=True
         )
     except Exception as e:
