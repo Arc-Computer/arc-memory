@@ -15,21 +15,9 @@ echo -e "${YELLOW}Command: python docs/examples/agents/llm_powered_code_review.p
 # Run the LLM-powered code review assistant
 python docs/examples/agents/llm_powered_code_review.py --repo . --files docs/examples/agents/llm_powered_code_review.py
 
-echo -e "\n${BLUE}Step 2: Understanding why code exists (Temporal Knowledge)${NC}"
-echo -e "Let's explore why certain code exists and its history..."
-echo -e "${YELLOW}Command: arc why file docs/examples/agents/llm_powered_code_review.py 42${NC}\n"
+# Step 2 and 3 removed as they're not working correctly yet
 
-# Run the why command
-arc why file docs/examples/agents/llm_powered_code_review.py 42
-
-echo -e "\n${BLUE}Step 3: Finding relationships between components${NC}"
-echo -e "Let's see how different parts of the codebase are related..."
-echo -e "${YELLOW}Command: arc relate node file:docs/examples/agents/llm_powered_code_review.py${NC}\n"
-
-# Run the relate command
-arc relate node file:docs/examples/agents/llm_powered_code_review.py
-
-echo -e "\n${BLUE}Step 4: SDK Integration Example${NC}"
+echo -e "\n${BLUE}Step 2: SDK Integration Example${NC}"
 echo -e "Here's how easy it is to integrate Arc Memory into your own tools:"
 echo -e "${YELLOW}Code example:${NC}"
 echo -e "from arc_memory.sdk import Arc\n"
