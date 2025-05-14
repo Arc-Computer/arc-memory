@@ -38,6 +38,9 @@ pip install arc-memory[github]
 # Build a knowledge graph from your repository
 cd /path/to/your/repo
 arc build --github
+```
+
+Check out the [example agents](./docs/examples/agents/) and [demo applications](./demo/) to see Arc Memory in action.
 
 ## Core Features
 
