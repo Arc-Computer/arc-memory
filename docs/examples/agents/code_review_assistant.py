@@ -71,9 +71,9 @@ def analyze_changes(repo_path, files, api_key=None):
         # Use "fast" enhancement level for refreshes to reduce latency
         arc.build(
             include_github=True,
-            use_llm=True if api_key else False,
-            llm_provider="openai" if api_key else "ollama",
-            llm_model="gpt-4.1" if api_key else None,
+            use_llm=True,
+            llm_provider="openai",
+            llm_model="gpt-4.1",
             llm_enhancement_level="fast" if graph_exists else "standard",  # Fast for refreshes, standard for new builds
             verbose=True
         )

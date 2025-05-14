@@ -32,34 +32,34 @@ except ImportError:
 def analyze_pr_impact(repo_path, pr_number):
     """
     Analyze the potential impact of a PR.
-    
+
     Args:
         repo_path: Path to the repository
         pr_number: PR number to analyze
     """
     print(f"{Fore.GREEN}=== PR Impact Analysis Demo ==={Style.RESET_ALL}")
     print(f"{Fore.GREEN}=========================={Style.RESET_ALL}")
-    
+
     # Step 1: Initialize Arc Memory
     print(f"\n{Fore.BLUE}Initializing Arc Memory...{Style.RESET_ALL}")
     arc = Arc(repo_path=repo_path)
-    
+
     # Check if knowledge graph exists
     graph_exists = os.path.exists(os.path.expanduser("~/.arc/graph.db"))
     if not graph_exists:
         print(f"{Fore.YELLOW}Knowledge graph not found. Building a new graph...{Style.RESET_ALL}")
-        arc.build(include_github=True, verbose=True)
+        arc.build(include_github=True, use_llm=True, llm_provider="openai", llm_model="gpt-4.1", verbose=True)
     else:
         print(f"{Fore.BLUE}Knowledge graph found. Refreshing...{Style.RESET_ALL}")
-        arc.build(include_github=True, llm_enhancement_level="fast", verbose=True)
-    
+        arc.build(include_github=True, use_llm=True, llm_provider="openai", llm_model="gpt-4.1", llm_enhancement_level="fast", verbose=True)
+
     # Step 2: Get PR details
     print(f"\n{Fore.BLUE}Fetching PR #{pr_number} details...{Style.RESET_ALL}")
-    
+
     # Query the knowledge graph for PR details
     pr_entity_id = f"pr:{pr_number}"
     pr_details = None
-    
+
     try:
         pr_details = arc.get_entity_details(pr_entity_id)
         print(f"{Fore.GREEN}Found PR: {pr_details.title}{Style.RESET_ALL}")
@@ -78,13 +78,13 @@ def analyze_pr_impact(repo_path, pr_number):
                 ]
             }
         })
-    
+
     # Step 3: Get changed files
     print(f"\n{Fore.BLUE}Analyzing changed files...{Style.RESET_ALL}")
-    
+
     # Get changed files from PR details or use simulated data
     changed_files = pr_details.properties.get('files_changed', []) if hasattr(pr_details, 'properties') else []
-    
+
     # If no files found, use simulated data
     if not changed_files:
         changed_files = [
@@ -93,49 +93,49 @@ def analyze_pr_impact(repo_path, pr_number):
             'docs/examples/agents/code_review_assistant.py'
         ]
         print(f"{Fore.YELLOW}No files found in PR. Using simulated data for demo.{Style.RESET_ALL}")
-    
+
     print(f"{Fore.YELLOW}Files changed in PR #{pr_number}:{Style.RESET_ALL}")
     for file in changed_files:
         print(f"  - {file}")
-    
+
     # Step 4: Analyze impact for each file
     print(f"\n{Fore.BLUE}Analyzing potential impact...{Style.RESET_ALL}")
-    
+
     affected_components = set()
     total_impact_score = 0
-    
+
     for file in changed_files:
         print(f"\n{Fore.YELLOW}Impact analysis for {file}:{Style.RESET_ALL}")
-        
+
         # Get component impact
         component_id = f"file:{file}"
         impact_results = arc.analyze_component_impact(component_id=component_id)
-        
+
         # Calculate impact score (0-1)
         impact_score = min(len(impact_results) / 10, 1.0)
         total_impact_score += impact_score
-        
+
         # Display impact score
         impact_color = Fore.RED if impact_score > 0.7 else Fore.YELLOW if impact_score > 0.3 else Fore.GREEN
         print(f"  Impact Score: {impact_color}{impact_score:.2f}{Style.RESET_ALL}")
-        
+
         # Display potentially affected components
         print(f"  Potentially Affected Components:")
         for result in impact_results[:5]:
             affected_components.add(result.title if hasattr(result, 'title') else str(result))
             print(f"    - {result.title if hasattr(result, 'title') else str(result)}")
-    
+
     # Overall assessment
     avg_impact = total_impact_score / len(changed_files) if changed_files else 0
     risk_level = "High" if avg_impact > 0.7 else "Medium" if avg_impact > 0.3 else "Low"
     risk_color = Fore.RED if risk_level == "High" else Fore.YELLOW if risk_level == "Medium" else Fore.GREEN
-    
+
     print(f"\n{Fore.YELLOW}📈 OVERALL ASSESSMENT{Style.RESET_ALL}")
     print(f"{Fore.YELLOW}===================={Style.RESET_ALL}")
     print(f"Risk Level: {risk_color}{risk_level}{Style.RESET_ALL} ({avg_impact:.2f})")
     print(f"Affected Components: {len(affected_components)}")
     print(f"Review Priority: {risk_color}{'High' if risk_level == 'High' else 'Medium' if risk_level == 'Medium' else 'Low'}{Style.RESET_ALL}")
-    
+
     # Recommendation
     print(f"\n{Fore.YELLOW}💡 RECOMMENDATION{Style.RESET_ALL}")
     print(f"{Fore.YELLOW}================{Style.RESET_ALL}")
@@ -148,15 +148,15 @@ def analyze_pr_impact(repo_path, pr_number):
     else:
         print("This PR has minimal impact on the codebase.")
         print("Recommend standard review process.")
-    
+
     print(f"\n{Fore.GREEN}=== Demo Complete ==={Style.RESET_ALL}")
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python pr_impact_analysis.py <pr_number>")
         sys.exit(1)
-    
+
     repo_path = "."  # Current directory
     pr_number = sys.argv[1]
-    
+
     analyze_pr_impact(repo_path, pr_number)
