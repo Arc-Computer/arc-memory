@@ -198,6 +198,68 @@ class Arc:
         """Exit context manager."""
         self.close()
 
+    # Build API methods
+
+    def build(
+        self,
+        repo_path=None,
+        include_github=True,
+        include_linear=False,
+        use_llm=True,
+        llm_provider="openai",
+        llm_model="gpt-4o",
+        llm_enhancement_level="standard",
+        verbose=False,
+    ):
+        """Build or refresh the knowledge graph.
+
+        This method builds or refreshes the knowledge graph from various sources,
+        including Git, GitHub, Linear, and ADRs. It can also enhance the graph with
+        LLM-derived insights.
+
+        Args:
+            repo_path: Path to the Git repository. If None, uses the repo_path from initialization.
+            include_github: Whether to include GitHub data in the graph.
+            include_linear: Whether to include Linear data in the graph.
+            use_llm: Whether to use an LLM to enhance the graph. Default is True.
+            llm_provider: The LLM provider to use. Default is "openai".
+            llm_model: The LLM model to use. Default is "gpt-4o".
+            llm_enhancement_level: The level of LLM enhancement to apply ("minimal", "standard", or "deep").
+            verbose: Whether to print verbose output during the build process.
+
+        Returns:
+            A dictionary containing information about the build process, including
+            the number of nodes and edges added, updated, and removed.
+
+        Raises:
+            BuildError: If building the knowledge graph fails.
+        """
+        # Use the repo_path from initialization if not provided
+        if repo_path is None:
+            repo_path = self.repo_path
+
+        # Import here to avoid circular imports
+        from arc_memory.auto_refresh.core import refresh_knowledge_graph
+
+        try:
+            return refresh_knowledge_graph(
+                repo_path=repo_path,
+                include_github=include_github,
+                include_linear=include_linear,
+                use_llm=use_llm,
+                llm_provider=llm_provider,
+                llm_model=llm_model,
+                llm_enhancement_level=llm_enhancement_level,
+                verbose=verbose
+            )
+        except Exception as e:
+            raise BuildError(
+                what_happened="Failed to build knowledge graph",
+                why_it_happened=f"Error during knowledge graph build: {str(e)}",
+                how_to_fix_it="Check the error message for details. Ensure you have the necessary permissions and dependencies.",
+                details={"error": str(e)}
+            ) from e
+
     # Query API methods
 
     def query(

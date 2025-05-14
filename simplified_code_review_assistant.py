@@ -1,0 +1,230 @@
+# simplified_code_review_assistant.py
+#
+# A high-impact agent that leverages Arc Memory's knowledge graph to provide
+# intelligent code review assistance. This agent analyzes code changes and provides:
+#   1. Impact analysis - What components might be affected by these changes
+#   2. Decision trails - Why the code exists in its current form
+#   3. Related components - What other parts of the codebase are connected
+#   4. Review checklist - Custom checklist based on the changes
+#
+# Usage: python simplified_code_review_assistant.py --repo /path/to/repo --files file1.py file2.py
+
+import os
+import argparse
+import json
+import colorama
+from colorama import Fore, Style
+from arc_memory.sdk import Arc
+
+# Initialize colorama for cross-platform colored terminal output
+colorama.init()
+
+def analyze_changes(repo_path, files, api_key=None):
+    """Analyze code changes using Arc Memory's knowledge graph.
+
+    Args:
+        repo_path: Path to the local repository
+        files: List of files to analyze
+        api_key: OpenAI API key (uses environment variable if None)
+
+    Returns:
+        Analysis results including impact, decision trails, and related components
+    """
+    # STEP 1: Initialize Arc Memory with appropriate configuration
+    # -------------------------------------------------------------
+    # Try to use OpenAI for better analysis if an API key is available
+    if not api_key:
+        api_key = os.environ.get("OPENAI_API_KEY")
+        if not api_key:
+            print(f"{Fore.YELLOW}Warning: No OpenAI API key provided. Using default LLM adapter.{Style.RESET_ALL}")
+            arc = Arc(repo_path=repo_path)
+        else:
+            arc = Arc(repo_path=repo_path)
+            print(f"{Fore.BLUE}Using GPT-4.1 model for enhanced analysis{Style.RESET_ALL}")
+            # When API key is available in env vars, Arc will use it for better results
+    else:
+        arc = Arc(repo_path=repo_path)
+        print(f"{Fore.BLUE}Using GPT-4.1 model for enhanced analysis{Style.RESET_ALL}")
+        # When API key is provided as arg, Arc will use it for better results
+
+    # STEP 2: Build or access the knowledge graph
+    # -------------------------------------------
+    print(f"{Fore.BLUE}Building/accessing Arc Memory knowledge graph for {repo_path}...{Style.RESET_ALL}")
+    # Build the knowledge graph if it doesn't exist or refresh it
+    try:
+        # Build the knowledge graph with OpenAI by default
+        # If no API key is provided, it will fall back to Ollama
+        arc.build(
+            include_github=True,
+            use_llm=True if api_key else False,
+            llm_provider="openai" if api_key else "ollama",
+            llm_model="gpt-4.1" if api_key else None,
+            verbose=True
+        )
+    except Exception as e:
+        print(f"{Fore.YELLOW}Warning: Could not build knowledge graph: {e}{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Continuing with existing knowledge graph if available...{Style.RESET_ALL}")
+
+    # STEP 3: Convert relative paths to absolute for Arc Memory functions
+    # ------------------------------------------------------------------
+    abs_files = [os.path.join(repo_path, f) for f in files]
+
+    # STEP 4: Analyze the changes using Arc Memory's capabilities
+    # ----------------------------------------------------------
+    # Collect all analysis results into a single dictionary for easy access
+    results = {
+        "files": files,
+        "impact_analysis": analyze_impact(arc, abs_files),
+        "decision_trails": get_decision_trails(arc, abs_files),
+        "related_components": get_related_components(arc, abs_files),
+        "review_checklist": generate_review_checklist(arc, files)
+    }
+
+    return results
+
+def analyze_impact(arc, files):
+    """Analyze the potential impact of changes using Arc Memory."""
+    print(f"{Fore.YELLOW}Analyzing potential impact...{Style.RESET_ALL}")
+
+    # For each file, determine what other components might be affected by changes
+    impact_results = {}
+    for file in files:
+        # Arc Memory expects component IDs in the format "file:path/to/file"
+        component_id = f"file:{file}"
+        file_results = arc.analyze_component_impact(component_id=component_id)
+
+        # Transform the detailed results into a simplified format for display
+        if file_results:
+            rel_path = os.path.basename(file)
+            impact_results[rel_path] = {
+                "level": "Medium",  # Default impact level
+                "affected_areas": [r.title for r in file_results[:5] if hasattr(r, 'title')]
+            }
+
+    return impact_results
+
+def get_decision_trails(arc, files):
+    """Get decision trails for why code exists in its current form."""
+    print(f"{Fore.YELLOW}Retrieving decision trails...{Style.RESET_ALL}")
+
+    # For each file, find out why the code exists as it does (design decisions, PRs, etc.)
+    decision_trails = {}
+    for file in files:
+        # We use line 1 as a default starting point for the decision trail
+        # In a real application, you might want to analyze specific lines of interest
+        trail = arc.get_decision_trail(file_path=file, line_number=1)
+
+        if trail:
+            rel_path = os.path.basename(file)
+            # Extract the rationale from the first decision trail entry
+            decision_trails[rel_path] = {
+                "explanation": trail[0].rationale if trail and hasattr(trail[0], 'rationale') else "No explanation available"
+            }
+
+    return decision_trails
+
+def get_related_components(arc, files):
+    """Get components related to the changed files."""
+    print(f"{Fore.YELLOW}Finding related components...{Style.RESET_ALL}")
+
+    # For each file, find other components that are related (dependencies, imports, etc.)
+    related = {}
+    for file in files:
+        # Arc Memory can identify related entities based on the knowledge graph
+        related_entities = arc.get_related_entities(file)
+        if related_entities:
+            rel_path = os.path.basename(file)
+            related[rel_path] = related_entities
+
+    return related
+
+def generate_review_checklist(arc, files):
+    """Generate a custom review checklist based on the changed files."""
+    print(f"{Fore.YELLOW}Generating review checklist...{Style.RESET_ALL}")
+
+    # Use natural language query to generate a context-aware review checklist
+    query = f"Generate a code review checklist for changes to: {', '.join(files)}"
+    results = arc.query(query)
+
+    # Extract the checklist items from the query results
+    checklist = []
+    if results and "results" in results:
+        for result in results["results"]:
+            if "content" in result:
+                checklist.append(result["content"])
+
+    return checklist
+
+def display_results(results):
+    """Display analysis results in a readable format."""
+    print(f"\n{Fore.GREEN}=== Code Review Analysis Results ==={Style.RESET_ALL}\n")
+
+    # SECTION 1: Files being analyzed
+    # -------------------------------
+    print(f"{Fore.CYAN}Files Analyzed:{Style.RESET_ALL} {', '.join(results['files'])}\n")
+
+    # SECTION 2: Impact analysis - what might be affected by these changes
+    # -------------------------------------------------------------------
+    print(f"{Fore.CYAN}Impact Analysis:{Style.RESET_ALL}")
+    for component, impact in results["impact_analysis"].items():
+        # Color-code impact levels for better visibility
+        impact_level = impact.get("level", "Unknown")
+        level_color = Fore.RED if impact_level == "High" else Fore.YELLOW if impact_level == "Medium" else Fore.GREEN
+
+        print(f"  • {component}: {level_color}{impact_level}{Style.RESET_ALL}")
+        if "affected_areas" in impact:
+            print(f"    Affected Areas: {', '.join(impact['affected_areas'])}")
+
+    # SECTION 3: Decision trails - why the code exists as it does
+    # ----------------------------------------------------------
+    if results["decision_trails"]:
+        print(f"\n{Fore.CYAN}Decision Trails:{Style.RESET_ALL}")
+        for file, trail in results["decision_trails"].items():
+            print(f"  • {file}:")
+            if "explanation" in trail:
+                # Show a preview of the explanation (first 200 chars)
+                print(f"    {trail['explanation'][:200]}...")
+
+    # SECTION 4: Related components - what else is connected to these files
+    # --------------------------------------------------------------------
+    if results["related_components"]:
+        print(f"\n{Fore.CYAN}Related Components:{Style.RESET_ALL}")
+        for file, related in results["related_components"].items():
+            print(f"  • {file} is related to:")
+            # Limit to 5 related components to avoid overwhelming output
+            for rel in related[:5]:
+                print(f"    - {rel}")
+
+    # SECTION 5: Review checklist - what to look for when reviewing
+    # ------------------------------------------------------------
+    if results["review_checklist"]:
+        print(f"\n{Fore.CYAN}Review Checklist:{Style.RESET_ALL}")
+        for i, item in enumerate(results["review_checklist"], 1):
+            print(f"  {i}. {item}")
+
+def main():
+    """Main entry point for the Code Review Assistant."""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description="Code Review Assistant using Arc Memory")
+    parser.add_argument("--repo", required=True, help="Path to the local repository")
+    parser.add_argument("--files", nargs="+", required=True, help="List of files to analyze")
+    parser.add_argument("--output", help="Output file for JSON results (optional)")
+    parser.add_argument("--api-key", help="OpenAI API key (uses OPENAI_API_KEY env var if not provided)")
+
+    args = parser.parse_args()
+
+    # STEP 1: Analyze the changes using Arc Memory
+    results = analyze_changes(args.repo, args.files, args.api_key)
+
+    # STEP 2: Display results in a human-readable format in the terminal
+    display_results(results)
+
+    # STEP 3: Save results to a JSON file if requested (useful for CI integration)
+    if args.output:
+        with open(args.output, 'w') as f:
+            json.dump(results, f, indent=2)
+        print(f"\n{Fore.GREEN}Results saved to {args.output}{Style.RESET_ALL}")
+
+# Entry point when script is run directly
+if __name__ == "__main__":
+    main()

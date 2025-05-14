@@ -318,9 +318,9 @@ def refresh_knowledge_graph(
     db_path: Optional[str] = None,
     include_github: bool = False,
     include_linear: bool = False,
-    use_llm: bool = False,
-    llm_provider: str = "ollama",
-    llm_model: Optional[str] = None,
+    use_llm: bool = True,
+    llm_provider: str = "openai",
+    llm_model: Optional[str] = "gpt-4o",
     llm_enhancement_level: str = "standard",
     verbose: bool = False,
 ) -> Dict[str, Any]:

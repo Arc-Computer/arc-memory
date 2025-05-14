@@ -61,7 +61,7 @@ class OpenAIClient:
 
         Args:
             model: The model to use (defaults to gpt-4.1, the latest flagship model).
-                  Available models: gpt-4.1, gpt-4.1-mini, gpt-3.5-turbo
+                  Available models: gpt-4.1
             prompt: The prompt to send to the model.
             system: The system message to use.
             options: Additional options to pass to the model.
