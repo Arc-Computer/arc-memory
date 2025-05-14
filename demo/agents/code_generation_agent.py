@@ -267,16 +267,13 @@ def generate_improved_code(
         if hasattr(generation_results, "answer"):
             answer = generation_results.answer
             
-            # Extract code blocks from the answer
-            import re
-            code_blocks = re.findall(r'```(?:python)?\n(.*?)```', answer, re.DOTALL)
-            if code_blocks:
-                improved_code = code_blocks[0].strip()
-            
-            # Extract explanations (text outside of code blocks)
-            explanation_text = re.sub(r'```(?:python)?\n.*?```', '', answer, flags=re.DOTALL)
-            explanation_lines = [line.strip() for line in explanation_text.split('\n') if line.strip()]
-            explanations = explanation_lines
+            # Parse the answer as JSON
+            try:
+                response_data = json.loads(answer)
+                improved_code = response_data.get("code", "").strip()
+                explanations = response_data.get("explanations", [])
+            except json.JSONDecodeError:
+                raise ValueError("Failed to parse LLM response as JSON. Ensure the response is properly formatted.")
         
         # Step 5: Finalize the results
         progress.update("Finalizing results")
