@@ -207,7 +207,7 @@ class Arc:
         include_linear=False,
         use_llm=True,
         llm_provider="openai",
-        llm_model="gpt-4o",
+        llm_model="gpt-4.1",
         llm_enhancement_level="standard",
         verbose=False,
     ):
@@ -223,7 +223,7 @@ class Arc:
             include_linear: Whether to include Linear data in the graph.
             use_llm: Whether to use an LLM to enhance the graph. Default is True.
             llm_provider: The LLM provider to use. Default is "openai".
-            llm_model: The LLM model to use. Default is "gpt-4o".
+            llm_model: The LLM model to use. Default is "gpt-4.1".
             llm_enhancement_level: The level of LLM enhancement to apply ("minimal", "standard", or "deep").
             verbose: Whether to print verbose output during the build process.
 

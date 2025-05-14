@@ -320,7 +320,7 @@ def refresh_knowledge_graph(
     include_linear: bool = False,
     use_llm: bool = True,
     llm_provider: str = "openai",
-    llm_model: Optional[str] = "gpt-4o",
+    llm_model: Optional[str] = "gpt-4.1",
     llm_enhancement_level: str = "standard",
     verbose: bool = False,
 ) -> Dict[str, Any]:
