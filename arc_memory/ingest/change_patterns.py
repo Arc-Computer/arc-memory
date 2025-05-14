@@ -286,10 +286,122 @@ class ChangePatternIngestor:
 
         # Different handling based on provider
         if self.llm_provider == "openai" and self.openai_client:
-            # OpenAI-specific implementation would go here
-            pass
+            # OpenAI-specific implementation
+            enhanced_nodes = []
+            enhanced_edges = []
+
+            # Process each pattern node with OpenAI
+            for pattern_node in nodes:
+                if pattern_node.type == NodeType.CHANGE_PATTERN:
+                    # Create a description of the pattern for the LLM
+                    pattern = f"Pattern: {pattern_node.title}\n"
+                    pattern += f"Files: {', '.join(pattern_node.files)}\n"
+                    pattern += f"Frequency: {pattern_node.frequency} occurrences\n"
+
+                    # Use OpenAI to enhance the pattern description
+                    try:
+                        response = self.openai_client.chat.completions.create(
+                            model="gpt-4.1",
+                            messages=[
+                                {"role": "system", "content": """You are a specialized software engineering assistant that analyzes code change patterns.
+Your task is to analyze patterns of files that change together and provide insights about:
+1. The likely architectural relationship between these files
+2. Potential coupling issues or dependencies
+3. Suggestions for improving the codebase organization
+4. Possible refactoring opportunities
+
+Be specific, concise, and focus on actionable insights."""},
+                                {"role": "user", "content": f"Analyze and enhance the following change pattern:\n{pattern}"}
+                            ],
+                            temperature=0.3,
+                            max_tokens=500
+                        )
+
+                        enhanced_description = response.choices[0].message.content.strip()
+
+                        # Create a new node with the enhanced description
+                        enhanced_node_id = f"{pattern_node.id}:enhanced"
+                        enhanced_node = ChangePatternNode(
+                            id=enhanced_node_id,
+                            type=NodeType.CHANGE_PATTERN,
+                            title=f"Enhanced {pattern_node.title}",
+                            pattern_type="enhanced_co_change",
+                            files=pattern_node.files,
+                            frequency=pattern_node.frequency,
+                            impact=pattern_node.impact,
+                            description=enhanced_description,
+                            confidence=0.8
+                        )
+                        enhanced_nodes.append(enhanced_node)
+
+                        # Create an edge from the original pattern to the enhanced one
+                        edge = Edge(
+                            src=pattern_node.id,
+                            dst=enhanced_node_id,
+                            rel=EdgeRel.CORRELATES_WITH,
+                            properties={"enhancement": "llm_analysis"}
+                        )
+                        enhanced_edges.append(edge)
+                    except Exception as e:
+                        logger.error(f"Error enhancing pattern with OpenAI: {e}")
+
+            return enhanced_nodes, enhanced_edges
+
         elif self.ollama_client:
-            # Ollama-specific implementation would go here
-            pass
+            # Ollama-specific implementation
+            enhanced_nodes = []
+            enhanced_edges = []
+
+            # Process each pattern node with Ollama
+            for pattern_node in nodes:
+                if pattern_node.type == NodeType.CHANGE_PATTERN:
+                    # Create a description of the pattern for the LLM
+                    pattern = f"Pattern: {pattern_node.title}\n"
+                    pattern += f"Files: {', '.join(pattern_node.files)}\n"
+                    pattern += f"Frequency: {pattern_node.frequency} occurrences\n"
+
+                    # Use Ollama to enhance the pattern description
+                    try:
+                        response = self.ollama_client.generate(
+                            model="qwen3:4b",
+                            prompt=f"Analyze and enhance the following change pattern:\n{pattern}",
+                            system="""You are a specialized software engineering assistant that analyzes code change patterns.
+Your task is to analyze patterns of files that change together and provide insights about:
+1. The likely architectural relationship between these files
+2. Potential coupling issues or dependencies
+3. Suggestions for improving the codebase organization
+4. Possible refactoring opportunities
+
+Be specific, concise, and focus on actionable insights.""",
+                            options={"temperature": 0.3}
+                        )
+
+                        # Create a new node with the enhanced description
+                        enhanced_node_id = f"{pattern_node.id}:enhanced"
+                        enhanced_node = ChangePatternNode(
+                            id=enhanced_node_id,
+                            type=NodeType.CHANGE_PATTERN,
+                            title=f"Enhanced {pattern_node.title}",
+                            pattern_type="enhanced_co_change",
+                            files=pattern_node.files,
+                            frequency=pattern_node.frequency,
+                            impact=pattern_node.impact,
+                            description=response,
+                            confidence=0.7
+                        )
+                        enhanced_nodes.append(enhanced_node)
+
+                        # Create an edge from the original pattern to the enhanced one
+                        edge = Edge(
+                            src=pattern_node.id,
+                            dst=enhanced_node_id,
+                            rel=EdgeRel.CORRELATES_WITH,
+                            properties={"enhancement": "llm_analysis"}
+                        )
+                        enhanced_edges.append(edge)
+                    except Exception as e:
+                        logger.error(f"Error enhancing pattern with Ollama: {e}")
+
+            return enhanced_nodes, enhanced_edges
 
         return [], []
