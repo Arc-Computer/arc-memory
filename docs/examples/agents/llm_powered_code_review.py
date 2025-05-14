@@ -25,10 +25,23 @@ import time
 
 from arc_memory.sdk import Arc
 
-# Suppress OpenAI debug logs - set to ERROR level to completely hide the messages
-logging.getLogger("openai").setLevel(logging.ERROR)
-logging.getLogger("arc_memory.llm.openai_client").setLevel(logging.ERROR)
+# Completely suppress all OpenAI and API-related debug logs
+logging.getLogger("openai").setLevel(logging.CRITICAL)
+logging.getLogger("arc_memory.llm").setLevel(logging.CRITICAL)
+logging.getLogger("arc_memory.llm.openai_client").setLevel(logging.CRITICAL)
+logging.getLogger("urllib3").setLevel(logging.CRITICAL)
+logging.getLogger("httpx").setLevel(logging.CRITICAL)
 logging.getLogger().setLevel(logging.WARNING)
+
+# Monkey patch the OpenAI client's logger to completely suppress the "Acknowledged" messages
+import arc_memory.llm.openai_client
+original_warning = arc_memory.llm.openai_client.logger.warning
+
+def silent_warning(msg, *args, **kwargs):
+    if "OpenAI API returned unexpected response" not in str(msg):
+        original_warning(msg, *args, **kwargs)
+
+arc_memory.llm.openai_client.logger.warning = silent_warning
 
 # Initialize colorama for cross-platform colored terminal output
 colorama.init()
@@ -113,6 +126,33 @@ def perform_llm_powered_review(arc: Arc, repo_path: str, files: List[str]) -> Di
     """
     print(f"{Fore.BLUE}Performing LLM-powered code review...{Style.RESET_ALL}")
 
+    # Create a simple progress tracker
+    class ProgressTracker:
+        def __init__(self, total_steps: int):
+            self.total_steps = total_steps
+            self.current_step = 0
+            self.start_time = time.time()
+            self.last_update_time = self.start_time
+            self.update_interval = 0.5  # Update progress bar every 0.5 seconds
+
+        def update(self, step_name: str = ""):
+            self.current_step += 1
+            current_time = time.time()
+            if current_time - self.last_update_time >= self.update_interval:
+                self.last_update_time = current_time
+                percent = int((self.current_step / self.total_steps) * 100)
+                elapsed = current_time - self.start_time
+                bar_length = 30
+                filled_length = int(bar_length * self.current_step / self.total_steps)
+                bar = '█' * filled_length + '░' * (bar_length - filled_length)
+
+                # Clear the current line and print the progress bar
+                print(f"\r{Fore.BLUE}[{bar}] {percent}% | {elapsed:.1f}s | {step_name}{' ' * 20}{Style.RESET_ALL}", end='', flush=True)
+
+        def complete(self):
+            print(f"\r{Fore.GREEN}[{'█' * 30}] 100% | {time.time() - self.start_time:.1f}s | Complete{' ' * 20}{Style.RESET_ALL}")
+            print()
+
     # Convert relative paths to absolute
     abs_files = []
     for f in files:
@@ -135,6 +175,12 @@ def perform_llm_powered_review(arc: Arc, repo_path: str, files: List[str]) -> Di
         "overall_assessment": {},
     }
 
+    # Calculate total steps for progress tracking
+    # For each file: context gathering + LLM query + processing results
+    # Plus overall assessment at the end
+    total_steps = len(abs_files) * 3 + 1
+    progress = ProgressTracker(total_steps)
+
     # Review each file individually
     for file_path in abs_files:
         file_name = os.path.basename(file_path)
@@ -149,7 +195,7 @@ def perform_llm_powered_review(arc: Arc, repo_path: str, files: List[str]) -> Di
         content = file_contents[file_path]
 
         # First, get some context about the file from the knowledge graph
-        print(f"{Fore.BLUE}  Getting file history and context...{Style.RESET_ALL}")
+        progress.update("Getting file history and context")
 
         # Get decision trail for the file (line 1 as a starting point)
         try:
@@ -159,7 +205,22 @@ def perform_llm_powered_review(arc: Arc, repo_path: str, files: List[str]) -> Di
                 decision_context = "File history:\n"
                 for entry in decision_trail[:3]:  # Limit to first 3 entries
                     if hasattr(entry, 'rationale') and entry.rationale:
-                        decision_context += f"- {entry.rationale}\n"
+                        # Add commit ID if available
+                        commit_id = entry.id.split(':')[-1][:8] if hasattr(entry, 'id') and ':' in entry.id else "unknown"
+                        # Add timestamp if available
+                        timestamp = entry.timestamp if hasattr(entry, 'timestamp') else ""
+                        timestamp_str = f" ({timestamp})" if timestamp else ""
+
+                        decision_context += f"- [commit:{commit_id}{timestamp_str}] {entry.rationale}\n"
+
+                        # Add PR or issue reference if available
+                        if hasattr(entry, 'related_entities'):
+                            for related in entry.related_entities[:2]:  # Limit to first 2 related entities
+                                if hasattr(related, 'id') and hasattr(related, 'title'):
+                                    if 'pr:' in related.id or 'issue:' in related.id:
+                                        entity_type = 'PR' if 'pr:' in related.id else 'Issue'
+                                        entity_id = related.id.split(':')[-1]
+                                        decision_context += f"  - Related {entity_type} #{entity_id}: {related.title}\n"
         except Exception as e:
             decision_context = f"Could not get decision trail: {e}\n"
 
@@ -182,7 +243,36 @@ def perform_llm_powered_review(arc: Arc, repo_path: str, files: List[str]) -> Di
                 related_context = "Related components:\n"
                 for entity in related_entities[:5]:  # Limit to first 5 entities
                     if hasattr(entity, 'title') and entity.title:
-                        related_context += f"- {entity.title} ({entity.relationship if hasattr(entity, 'relationship') else 'related'})\n"
+                        # Get entity type and ID
+                        entity_type = "unknown"
+                        entity_id = "unknown"
+                        if hasattr(entity, 'id') and ':' in entity.id:
+                            parts = entity.id.split(':')
+                            entity_type = parts[0]
+                            entity_id = parts[1]
+
+                        # Get relationship type with more descriptive text
+                        relationship = entity.relationship if hasattr(entity, 'relationship') else 'related'
+                        rel_description = relationship
+                        if relationship == "imports":
+                            rel_description = "imports/uses"
+                        elif relationship == "imported_by":
+                            rel_description = "imported/used by"
+                        elif relationship == "depends_on":
+                            rel_description = "depends on"
+                        elif relationship == "depended_by":
+                            rel_description = "depended on by"
+
+                        related_context += f"- {entity.title} ({rel_description})\n"
+                        related_context += f"  Type: {entity_type}, ID: {entity_id}\n"
+
+                        # Add additional properties if available
+                        if hasattr(entity, 'properties'):
+                            props = entity.properties
+                            if isinstance(props, dict):
+                                for key, value in props.items():
+                                    if key in ['author', 'created_at', 'language', 'function_name', 'class_name']:
+                                        related_context += f"  {key}: {value}\n"
         except Exception as e:
             related_context = f"Could not get related components: {e}\n"
 
@@ -205,7 +295,38 @@ def perform_llm_powered_review(arc: Arc, repo_path: str, files: List[str]) -> Di
                 impact_context = "Impact analysis:\n"
                 for result in impact_results[:5]:  # Limit to first 5 results
                     if hasattr(result, 'title') and result.title:
-                        impact_context += f"- {result.title} (impact: {result.impact_score if hasattr(result, 'impact_score') else 'unknown'})\n"
+                        # Get impact score with descriptive text
+                        impact_score = result.impact_score if hasattr(result, 'impact_score') else 0.0
+                        impact_level = "unknown"
+                        if impact_score > 0.8:
+                            impact_level = "high"
+                        elif impact_score > 0.5:
+                            impact_level = "medium"
+                        else:
+                            impact_level = "low"
+
+                        # Get impact type with descriptive text
+                        impact_type = result.impact_type if hasattr(result, 'impact_type') else "unknown"
+                        type_description = impact_type
+                        if impact_type == "direct":
+                            type_description = "direct dependency"
+                        elif impact_type == "indirect":
+                            type_description = "indirect dependency"
+                        elif impact_type == "potential":
+                            type_description = "potential impact (co-change pattern)"
+
+                        impact_context += f"- {result.title} (impact: {impact_level}, type: {type_description})\n"
+
+                        # Add impact path if available
+                        if hasattr(result, 'impact_path') and result.impact_path:
+                            path_str = " -> ".join([p.split(":")[-1] if ":" in p else p for p in result.impact_path])
+                            impact_context += f"  Path: {path_str}\n"
+
+                        # Add related entities if available
+                        if hasattr(result, 'related_entities') and result.related_entities:
+                            for entity in result.related_entities[:2]:  # Limit to first 2 related entities
+                                if hasattr(entity, 'title'):
+                                    impact_context += f"  Related: {entity.title}\n"
         except Exception as e:
             impact_context = f"Could not get impact analysis: {e}\n"
 
@@ -237,9 +358,11 @@ def perform_llm_powered_review(arc: Arc, repo_path: str, files: List[str]) -> Di
 
         try:
             # Use the query method which leverages LLMs to process natural language against the graph
+            progress.update("Querying LLM for code insights")
             review_results = arc.query(query)
 
             # Extract the review insights
+            progress.update("Processing review results")
             file_review = {
                 "understanding": review_results.query_understanding if hasattr(review_results, "query_understanding") else "",
                 "answer": review_results.answer if hasattr(review_results, "answer") else "",
@@ -257,7 +380,7 @@ def perform_llm_powered_review(arc: Arc, repo_path: str, files: List[str]) -> Di
             results["file_reviews"][file_name] = file_review
 
         except Exception as e:
-            print(f"{Fore.YELLOW}Error reviewing {file_name}: {e}{Style.RESET_ALL}")
+            print(f"\n{Fore.YELLOW}Error reviewing {file_name}: {e}{Style.RESET_ALL}")
             # Add a placeholder review
             results["file_reviews"][file_name] = {
                 "understanding": f"Error reviewing {file_name}",
@@ -265,11 +388,14 @@ def perform_llm_powered_review(arc: Arc, repo_path: str, files: List[str]) -> Di
                 "reasoning": "",
                 "evidence": []
             }
+            # Update progress for the remaining steps
+            progress.update("Error occurred")
+            progress.update("Skipping remaining steps")
 
     # Generate an overall assessment
     try:
         # First, gather context about all files from the knowledge graph
-        print(f"{Fore.BLUE}Gathering context for overall assessment...{Style.RESET_ALL}")
+        progress.update("Generating overall assessment")
 
         # Get file summaries
         file_summaries = []
@@ -299,6 +425,8 @@ def perform_llm_powered_review(arc: Arc, repo_path: str, files: List[str]) -> Di
         4. Any architectural implications
 
         Focus on being specific and actionable. Provide concrete recommendations rather than general advice.
+        Be sure to include specific file names, function names, and concrete examples from the knowledge graph.
+        Mention specific commits, PRs, or issues that are relevant to these changes when possible.
         """
 
         overall_results = arc.query(overall_query)
@@ -308,12 +436,17 @@ def perform_llm_powered_review(arc: Arc, repo_path: str, files: List[str]) -> Di
             "reasoning": overall_results.reasoning if hasattr(overall_results, "reasoning") else "",
         }
 
+        # Complete the progress tracking
+        progress.complete()
+
     except Exception as e:
-        print(f"{Fore.YELLOW}Error generating overall assessment: {e}{Style.RESET_ALL}")
+        print(f"\n{Fore.YELLOW}Error generating overall assessment: {e}{Style.RESET_ALL}")
         results["overall_assessment"] = {
             "summary": "Could not generate overall assessment",
             "reasoning": f"Error: {e}"
         }
+        # Complete the progress tracking even if there was an error
+        progress.complete()
 
     return results
 
