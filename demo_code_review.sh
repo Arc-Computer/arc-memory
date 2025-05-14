@@ -17,17 +17,17 @@ python docs/examples/agents/llm_powered_code_review.py --repo . --files docs/exa
 
 echo -e "\n${BLUE}Step 2: Understanding why code exists (Temporal Knowledge)${NC}"
 echo -e "Let's explore why certain code exists and its history..."
-echo -e "${YELLOW}Command: arc why file docs/examples/agents/code_review_assistant.py 42${NC}\n"
+echo -e "${YELLOW}Command: arc why file docs/examples/agents/llm_powered_code_review.py 42${NC}\n"
 
 # Run the why command
-arc why file docs/examples/agents/code_review_assistant.py 42
+arc why file docs/examples/agents/llm_powered_code_review.py 42
 
 echo -e "\n${BLUE}Step 3: Finding relationships between components${NC}"
 echo -e "Let's see how different parts of the codebase are related..."
-echo -e "${YELLOW}Command: arc relate node file:docs/examples/agents/code_review_assistant.py${NC}\n"
+echo -e "${YELLOW}Command: arc relate node file:docs/examples/agents/llm_powered_code_review.py${NC}\n"
 
 # Run the relate command
-arc relate node file:docs/examples/agents/code_review_assistant.py
+arc relate node file:docs/examples/agents/llm_powered_code_review.py
 
 echo -e "\n${BLUE}Step 4: SDK Integration Example${NC}"
 echo -e "Here's how easy it is to integrate Arc Memory into your own tools:"
