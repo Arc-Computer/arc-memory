@@ -27,7 +27,7 @@
    Arc tracks decision → implication → code-change chains, enabling multi-hop reasoning to show why decisions were made and their predicted impact.
 
 4. **Enhance PR reviews.**
-   Arc's GitHub PR Bot surfaces decision trails and blast-radius hints directly in PR comments, giving reviewers instant context before they hit "Approve."
+   Arc's GitHub Actions integration surfaces decision trails and blast-radius hints directly in PR comments, giving reviewers instant context before they hit "Approve."
 
 ## Why It Matters
 
@@ -53,11 +53,11 @@ As AI generates exponentially more code, the critical bottleneck shifts from *ge
 
 - The **Knowledge Graph** includes causal relationships, semantic analysis, and temporal patterns, providing a rich foundation for understanding your codebase.
 
-- The **SDK** provides programmatic access to the knowledge graph, with framework adapters for LangChain, OpenAI, and other agent frameworks.
+- The **SDK** provides programmatic access to the knowledge graph, with framework agnostic adapters for LangChain, OpenAI, and other agent frameworks.
 
-- The **Export Functionality** creates optimized JSON payloads for the PR bot, enabling it to provide context-rich insights during code reviews.
+- The **Export Functionality** creates optimized JSON payloads for GitHub Actions, enabling context-rich insights during code reviews.
 
-- Through the **GitHub PR Bot**, you interact with decision trails directly in your pull request workflow.
+- Through the **GitHub Actions Integration**, you interact with decision trails directly in your pull request workflow.
 
 ## Getting Started
 
@@ -154,13 +154,13 @@ pip install -e ".[dev]"
 
    This will show you the decision trail for line 42 in file.py, including related commits, PRs, and issues that explain why this code exists.
 
-3. **Export knowledge graph for PR bot**
+3. **Export knowledge graph for GitHub Actions**
 
    ```bash
    arc export <commit-sha> export.json
    ```
 
-   This will export a relevant slice of the knowledge graph for the PR bot to use, including causal relationships and reasoning paths.
+   This will export a relevant slice of the knowledge graph for GitHub Actions to use, including causal relationships and reasoning paths.
 
 ## Core Features
 
@@ -206,9 +206,9 @@ arc why query "What decision led to using SQLite instead of PostgreSQL?"
 
 [Learn more about decision trails →](./docs/cli/why.md)
 
-### Export for PR Bot (`arc export`)
+### Export for GitHub Actions (`arc export`)
 
-Export a relevant slice of the knowledge graph for the PR bot:
+Export a relevant slice of the knowledge graph for GitHub Actions integration:
 
 ```bash
 # Export for a specific commit
@@ -250,12 +250,12 @@ Let's walk through a complete example of using Arc to understand a code change:
    arc why query "Why was rate limiting added to the users endpoint?"
    ```
 
-4. Export the knowledge graph for PR review:
+4. Export the knowledge graph for GitHub Actions:
    ```bash
    arc export HEAD export.json --compress
    ```
 
-   This creates a JSON payload that the PR bot can use to provide context-rich insights during code review.
+   This creates a JSON payload that GitHub Actions can use to provide context-rich insights during code review.
 
 ### The Flywheel Effect
 
@@ -263,10 +263,11 @@ As you use Arc in your daily workflow:
 
 1. Your knowledge graph becomes more valuable with each commit, PR, and issue
 2. Causal relationships become more comprehensive as the graph evolves
-3. PR reviews become more efficient with rich contextual information
+3. Code reviews become more efficient with rich contextual information
 4. Decision trails become richer and more insightful
+5. Developer onboarding accelerates as knowledge is preserved and accessible
 
-This creates a reinforcing flywheel where each component makes the others more powerful.
+This creates a reinforcing flywheel where each component makes the others more powerful, and your codebase becomes increasingly self-documenting.
 
 ## Telemetry
 
@@ -306,9 +307,9 @@ To disable telemetry: `arc config telemetry off`
 
 For additional documentation, visit [arc.computer](https://www.arc.computer).
 
-## SDK for Agent Integration
+## SDK for Developers and Agents
 
-Arc Memory provides a framework-agnostic SDK that enables AI agents to access and reason over your codebase's history and structure:
+Arc Memory provides a clean, Pythonic SDK that enables both developers and AI agents to programmatically access the knowledge graph:
 
 ```python
 from arc_memory import Arc
@@ -332,7 +333,7 @@ for component in impact:
     print(f"Affected: {component.title} (Impact score: {component.impact_score})")
 ```
 
-The SDK includes adapters for popular agent frameworks like LangChain and OpenAI, making it easy to integrate Arc Memory into your existing AI workflows.
+The SDK follows a framework-agnostic design with adapters for popular frameworks like LangChain and OpenAI, making it easy to integrate Arc Memory into your development workflows or AI applications.
 
 ## License
 
