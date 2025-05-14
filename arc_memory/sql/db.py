@@ -26,6 +26,24 @@ from arc_memory.schema.models import (
 logger = get_logger(__name__)
 
 
+def ensure_path(path_obj):
+    """Convert a string path to a Path object if needed.
+
+    Args:
+        path_obj: A string path or Path object
+
+    Returns:
+        A Path object
+    """
+    if path_obj is None:
+        return None
+
+    if isinstance(path_obj, str):
+        return Path(path_obj)
+
+    return path_obj
+
+
 class DateTimeEncoder(json.JSONEncoder):
     """Custom JSON encoder for datetime and date objects."""
 
@@ -186,9 +204,8 @@ def init_db(db_path: Optional[Path] = None, test_mode: bool = False) -> Any:
     if db_path is None:
         db_path = DEFAULT_DB_PATH
 
-    # Convert db_path to Path if it's a string
-    if isinstance(db_path, str):
-        db_path = Path(db_path)
+    # Ensure db_path is a Path object
+    db_path = ensure_path(db_path)
 
     # Ensure parent directory exists
     try:
@@ -346,11 +363,9 @@ def compress_db(
     if output_path is None:
         output_path = DEFAULT_COMPRESSED_DB_PATH
 
-    # Convert paths to Path objects if they're strings
-    if isinstance(db_path, str):
-        db_path = Path(db_path)
-    if isinstance(output_path, str):
-        output_path = Path(output_path)
+    # Ensure paths are Path objects
+    db_path = ensure_path(db_path)
+    output_path = ensure_path(output_path)
 
     if not db_path.exists():
         error_msg = f"Database file not found: {db_path}"
@@ -441,11 +456,9 @@ def decompress_db(
     if output_path is None:
         output_path = DEFAULT_DB_PATH
 
-    # Convert paths to Path objects if they're strings
-    if isinstance(compressed_path, str):
-        compressed_path = Path(compressed_path)
-    if isinstance(output_path, str):
-        output_path = Path(output_path)
+    # Ensure paths are Path objects
+    compressed_path = ensure_path(compressed_path)
+    output_path = ensure_path(output_path)
 
     if not compressed_path.exists():
         error_msg = f"Compressed database file not found: {compressed_path}"
