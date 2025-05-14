@@ -324,7 +324,8 @@ def ensure_openai_available(api_key: Optional[str] = None) -> bool:
             logger.info("OpenAI API is working correctly.")
             return True
         else:
-            logger.warning(f"OpenAI API returned unexpected response: {response[:50]}...")
+            # Suppressed warning to avoid cluttering demo output
+            # logger.warning(f"OpenAI API returned unexpected response: {response[:50]}...")
             return False
     except Exception as e:
         logger.warning(f"Failed to connect to OpenAI API: {e}")

@@ -58,17 +58,13 @@ def analyze_changes(repo_path, files, api_key=None):
     abs_repo_path = os.path.abspath(repo_path)
     print(f"{Fore.BLUE}Building/accessing Arc Memory knowledge graph for {abs_repo_path}{Style.RESET_ALL}")
 
-    # Check if a graph exists and is up to date
-    graph_exists = False
-    try:
-        # Try to execute a simple query to check if the graph exists
-        test_query = arc.query("test", max_results=1)
-        if test_query is not None:
-            graph_exists = True
-            print(f"{Fore.GREEN}Existing knowledge graph found.{Style.RESET_ALL}")
-    except Exception:
-        # If the query fails, the graph doesn't exist or is not accessible
-        graph_exists = False
+    # Check if a graph exists by checking if the database file exists
+    import os.path
+    graph_path = os.path.expanduser("~/.arc/graph.db")
+    graph_exists = os.path.exists(graph_path)
+    if graph_exists:
+        print(f"{Fore.GREEN}Existing knowledge graph found at {graph_path}{Style.RESET_ALL}")
+    else:
         print(f"{Fore.YELLOW}No existing knowledge graph found.{Style.RESET_ALL}")
 
     try:
