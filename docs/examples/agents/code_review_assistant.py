@@ -12,9 +12,14 @@
 import os
 import argparse
 import json
+import logging
 import colorama
 from colorama import Fore, Style
 from arc_memory.sdk import Arc
+
+# Suppress OpenAI debug logs
+logging.getLogger("openai").setLevel(logging.WARNING)
+logging.getLogger("arc_memory.llm.openai_client").setLevel(logging.WARNING)
 
 # Initialize colorama for cross-platform colored terminal output
 colorama.init()
