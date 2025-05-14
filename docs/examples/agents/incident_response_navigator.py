@@ -70,30 +70,16 @@ def analyze_incident(repo_path, components, error_message=None, last_working_com
         print(f"{Fore.YELLOW}No existing knowledge graph found.{Style.RESET_ALL}")
 
     try:
-        if not graph_exists:
-            # Build a new knowledge graph if one doesn't exist
-            print(f"{Fore.BLUE}Building new knowledge graph...{Style.RESET_ALL}")
-            arc.build(
-                include_github=True,
-                use_llm=True if api_key else False,
-                llm_provider="openai" if api_key else "ollama",
-                llm_model="gpt-4.1" if api_key else None,
-                verbose=True
-            )
-        else:
-            # Refresh the existing knowledge graph to get the latest changes
-            print(f"{Fore.BLUE}Refreshing existing knowledge graph...{Style.RESET_ALL}")
-            # Import the refresh function
-            from arc_memory.auto_refresh.core import refresh_knowledge_graph
-
-            refresh_knowledge_graph(
-                repo_path=repo_path,
-                include_github=True,
-                use_llm=True if api_key else False,
-                llm_provider="openai" if api_key else "ollama",
-                llm_model="gpt-4.1" if api_key else None,
-                verbose=True
-            )
+        # Always use the build method, which will handle both initial builds and incremental updates
+        # The build method now uses the refresh_knowledge_graph function which supports incremental updates
+        print(f"{Fore.BLUE}{'Refreshing' if graph_exists else 'Building'} knowledge graph...{Style.RESET_ALL}")
+        arc.build(
+            include_github=True,
+            use_llm=True if api_key else False,
+            llm_provider="openai" if api_key else "ollama",
+            llm_model="gpt-4.1" if api_key else None,
+            verbose=True
+        )
     except Exception as e:
         print(f"{Fore.YELLOW}Warning: Could not build/refresh knowledge graph: {e}{Style.RESET_ALL}")
         print(f"{Fore.YELLOW}Continuing with existing knowledge graph if available...{Style.RESET_ALL}")
