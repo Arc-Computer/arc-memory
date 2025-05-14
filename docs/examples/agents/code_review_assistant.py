@@ -49,7 +49,9 @@ def analyze_changes(repo_path, files, api_key=None):
 
     # STEP 2: Build or access the knowledge graph
     # -------------------------------------------
-    print(f"{Fore.BLUE}Building/accessing Arc Memory knowledge graph for {repo_path}...{Style.RESET_ALL}")
+    # Convert to absolute path for better display
+    abs_repo_path = os.path.abspath(repo_path)
+    print(f"{Fore.BLUE}Building/accessing Arc Memory knowledge graph for {abs_repo_path}{Style.RESET_ALL}")
 
     # Check if a graph exists and is up to date
     graph_exists = False
