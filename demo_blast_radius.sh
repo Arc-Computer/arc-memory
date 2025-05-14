@@ -11,10 +11,10 @@ echo -e "${GREEN}=== Arc Memory: Blast Radius Visualization Demo ===${NC}\n"
 
 echo -e "${BLUE}Running LLM-Powered Blast Radius Visualization on a key file${NC}"
 echo -e "This will analyze the potential impact of changes to a core file..."
-echo -e "${YELLOW}Command: python docs/examples/agents/llm_powered_blast_radius.py arc_memory/auto_refresh/core.py${NC}\n"
+echo -e "${YELLOW}Command: python docs/examples/agents/llm_powered_blast_radius.py arc_memory/sdk/core.py${NC}\n"
 
 # Run the blast radius visualization
-python docs/examples/agents/llm_powered_blast_radius.py arc_memory/auto_refresh/core.py
+python docs/examples/agents/llm_powered_blast_radius.py arc_memory/sdk/core.py
 
 echo -e "\n${GREEN}=== Demo Complete ===${NC}"
 echo -e "Arc Memory gives you and your agents the context needed to understand code,"

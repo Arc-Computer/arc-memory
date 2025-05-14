@@ -66,7 +66,7 @@ class ProgressTracker:
         self.start_time = time.time()
         self.last_update_time = self.start_time
         self.update_interval = 0.5  # Update progress bar every 0.5 seconds
-        
+
     def update(self, step_name: str = ""):
         self.current_step += 1
         current_time = time.time()
@@ -77,10 +77,10 @@ class ProgressTracker:
             bar_length = 30
             filled_length = int(bar_length * self.current_step / self.total_steps)
             bar = '█' * filled_length + '░' * (bar_length - filled_length)
-            
+
             # Clear the current line and print the progress bar
             print(f"\r{Fore.BLUE}[{bar}] {percent}% | {elapsed:.1f}s | {step_name}{' ' * 20}{Style.RESET_ALL}", end='', flush=True)
-            
+
     def complete(self):
         print(f"\r{Fore.GREEN}[{'█' * 30}] 100% | {time.time() - self.start_time:.1f}s | Complete{' ' * 20}{Style.RESET_ALL}")
         print()
@@ -88,21 +88,21 @@ class ProgressTracker:
 def get_llm_impact_analysis(arc, file_path, impact_results):
     """
     Use LLM to analyze the impact of changes to a file.
-    
+
     Args:
         arc: Arc Memory instance
         file_path: Path to the file being analyzed
         impact_results: Results from analyze_component_impact
-        
+
     Returns:
         Dictionary with LLM analysis results
     """
     # Create a progress tracker
     progress = ProgressTracker(3)  # 3 steps: context gathering, LLM query, processing results
-    
+
     # Step 1: Gather context about the file and its impact
     progress.update("Gathering context")
-    
+
     # Format impact results for the LLM
     impact_context = []
     for result in impact_results:
@@ -113,7 +113,7 @@ def get_llm_impact_analysis(arc, file_path, impact_results):
             "impact_type": result.impact_type if hasattr(result, 'impact_type') else "unknown"
         }
         impact_context.append(impact_info)
-    
+
     # Get file content (first 1000 chars)
     file_content = ""
     try:
@@ -121,55 +121,55 @@ def get_llm_impact_analysis(arc, file_path, impact_results):
             file_content = f.read(1000)
     except Exception as e:
         file_content = f"Could not read file: {e}"
-    
+
     # Step 2: Query the LLM for analysis
     progress.update("Analyzing impact with LLM")
-    
+
     query = f"""
     I'm analyzing the potential impact (blast radius) of changes to the file {file_path}.
-    
+
     Here's what I know about the file:
     ```
     {file_content}
     ```
-    
+
     Here are the components that might be affected by changes to this file:
     {json.dumps(impact_context, indent=2)}
-    
+
     Based on this information, please provide:
-    
+
     1. An overall assessment of the blast radius (high/medium/low) and why
     2. Specific risks associated with changing this file
     3. Recommendations for safely making changes to this file
     4. Testing strategies to ensure changes don't break dependent components
-    
+
     Be specific and reference actual components, functions, or patterns from the knowledge graph.
     Mention specific file names and relationships when possible.
     """
-    
+
     try:
         # Use the query method which leverages LLMs to process natural language against the graph
         analysis_results = arc.query(query)
-        
+
         # Step 3: Process the results
         progress.update("Processing results")
-        
+
         # Extract the analysis
         analysis = {
             "assessment": analysis_results.answer if hasattr(analysis_results, "answer") else "",
             "reasoning": analysis_results.reasoning if hasattr(analysis_results, "reasoning") else "",
             "evidence": []
         }
-        
+
         # Extract evidence
         if hasattr(analysis_results, "evidence"):
             for evidence in analysis_results.evidence[:3]:  # Limit to top 3 pieces of evidence
                 if hasattr(evidence, "content"):
                     analysis["evidence"].append(evidence.content)
-        
+
         progress.complete()
         return analysis
-        
+
     except Exception as e:
         print(f"\n{Fore.YELLOW}Error getting LLM analysis: {e}{Style.RESET_ALL}")
         progress.complete()
@@ -206,18 +206,66 @@ def visualize_blast_radius(repo_path, file_path):
     print(f"\n{Fore.BLUE}Analyzing impact for {file_path}...{Style.RESET_ALL}")
 
     # Get component impact
-    component_id = f"file:{file_path}"
+    # Try multiple approaches to find the component in the knowledge graph
+    impact_results = []
+
+    # Approach 1: Try with the full path
     try:
+        component_id = f"file:{file_path}"
+        print(f"{Fore.BLUE}Trying component ID: {component_id}{Style.RESET_ALL}")
         impact_results = arc.analyze_component_impact(component_id=component_id, max_depth=3)
+        if impact_results:
+            print(f"{Fore.GREEN}Found component with ID: {component_id}{Style.RESET_ALL}")
     except Exception as e:
-        print(f"{Fore.YELLOW}Error analyzing impact: {e}{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}Trying with just the filename...{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Error with full path: {e}{Style.RESET_ALL}")
+
+    # Approach 2: Try with absolute path
+    if not impact_results:
+        try:
+            abs_path = os.path.abspath(file_path)
+            component_id = f"file:{abs_path}"
+            print(f"{Fore.BLUE}Trying component ID: {component_id}{Style.RESET_ALL}")
+            impact_results = arc.analyze_component_impact(component_id=component_id, max_depth=3)
+            if impact_results:
+                print(f"{Fore.GREEN}Found component with ID: {component_id}{Style.RESET_ALL}")
+        except Exception as e:
+            print(f"{Fore.YELLOW}Error with absolute path: {e}{Style.RESET_ALL}")
+
+    # Approach 3: Try with just the filename
+    if not impact_results:
         try:
             component_id = f"file:{os.path.basename(file_path)}"
+            print(f"{Fore.BLUE}Trying component ID: {component_id}{Style.RESET_ALL}")
             impact_results = arc.analyze_component_impact(component_id=component_id, max_depth=3)
-        except Exception as e2:
-            print(f"{Fore.YELLOW}Still couldn't analyze impact. Using simulated data for demo.{Style.RESET_ALL}")
-            impact_results = []
+            if impact_results:
+                print(f"{Fore.GREEN}Found component with ID: {component_id}{Style.RESET_ALL}")
+        except Exception as e:
+            print(f"{Fore.YELLOW}Error with filename: {e}{Style.RESET_ALL}")
+
+    # Approach 4: Try querying the graph to find the component
+    if not impact_results:
+        try:
+            # Use a query to find information about the file
+            query = f"What is the component ID for the file {file_path}?"
+            print(f"{Fore.BLUE}Querying for component ID...{Style.RESET_ALL}")
+            query_result = arc.query(query)
+
+            # Try to extract a component ID from the response
+            if hasattr(query_result, "answer") and "file:" in query_result.answer:
+                # Extract component ID from the answer
+                import re
+                match = re.search(r'file:[^\s,\'")\]]+', query_result.answer)
+                if match:
+                    component_id = match.group(0)
+                    print(f"{Fore.BLUE}Found potential component ID in query: {component_id}{Style.RESET_ALL}")
+                    try:
+                        impact_results = arc.analyze_component_impact(component_id=component_id, max_depth=3)
+                        if impact_results:
+                            print(f"{Fore.GREEN}Found component with ID: {component_id}{Style.RESET_ALL}")
+                    except Exception as e:
+                        print(f"{Fore.YELLOW}Error with queried ID: {e}{Style.RESET_ALL}")
+        except Exception as e:
+            print(f"{Fore.YELLOW}Error querying for component ID: {e}{Style.RESET_ALL}")
 
     if not impact_results:
         print(f"{Fore.YELLOW}No impact results found. Using simulated data for demo.{Style.RESET_ALL}")
@@ -322,23 +370,23 @@ def visualize_blast_radius(repo_path, file_path):
     # Print LLM analysis
     print(f"\n{Fore.CYAN}LLM Analysis of Impact:{Style.RESET_ALL}")
     print(f"{Fore.CYAN}{'=' * 20}{Style.RESET_ALL}")
-    
+
     if llm_analysis["assessment"]:
         # Split the assessment into sections based on numbered points
         assessment_lines = llm_analysis["assessment"].split('\n')
         current_section = []
         sections = []
-        
+
         for line in assessment_lines:
             if line.strip().startswith(('1.', '2.', '3.', '4.')):
                 if current_section:
                     sections.append('\n'.join(current_section))
                     current_section = []
             current_section.append(line)
-        
+
         if current_section:
             sections.append('\n'.join(current_section))
-        
+
         # Display each section with appropriate formatting
         for section in sections:
             if section.strip().startswith('1.'):
@@ -349,7 +397,7 @@ def visualize_blast_radius(repo_path, file_path):
                 print(f"{Fore.YELLOW}Recommendations:{Style.RESET_ALL}")
             elif section.strip().startswith('4.'):
                 print(f"{Fore.YELLOW}Testing Strategies:{Style.RESET_ALL}")
-            
+
             print(f"{section.strip()}\n")
     else:
         print(f"{Fore.RED}No LLM analysis available.{Style.RESET_ALL}")
@@ -370,7 +418,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="LLM-Powered Blast Radius Visualization")
     parser.add_argument("file_path", help="Path to the file to analyze")
     parser.add_argument("--repo", default=".", help="Path to the repository (default: current directory)")
-    
+
     args = parser.parse_args()
-    
+
     visualize_blast_radius(args.repo, args.file_path)
