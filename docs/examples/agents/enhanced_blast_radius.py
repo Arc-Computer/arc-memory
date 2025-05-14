@@ -377,6 +377,46 @@ def visualize_blast_radius(repo_path: str, file_path: str):
             max_depth=3
         )
         print(f"{Fore.GREEN}Found {len(impact_results)} potentially affected components{Style.RESET_ALL}")
+
+        # If no impact results, use related entities as impact results
+        if not impact_results:
+            print(f"{Fore.YELLOW}No impact results found. Using related entities as impact results...{Style.RESET_ALL}")
+            try:
+                related = arc.get_related_entities(component_id)
+                if related:
+                    # Convert related entities to impact results
+                    from collections import namedtuple
+                    ImpactResult = namedtuple('ImpactResult', ['id', 'title', 'impact_score', 'impact_type'])
+                    impact_results = []
+
+                    for entity in related:
+                        if hasattr(entity, 'id') and hasattr(entity, 'title'):
+                            # Assign impact score based on relationship type
+                            impact_score = 0.5  # Default
+                            impact_type = "related"
+
+                            if hasattr(entity, 'relationship'):
+                                rel = entity.relationship.lower()
+                                if "import" in rel or "depend" in rel:
+                                    impact_score = 0.8
+                                    impact_type = "direct"
+                                elif "call" in rel or "use" in rel:
+                                    impact_score = 0.7
+                                    impact_type = "direct"
+                                elif "inherit" in rel or "extend" in rel:
+                                    impact_score = 0.9
+                                    impact_type = "direct"
+
+                            impact_results.append(ImpactResult(
+                                id=entity.id,
+                                title=entity.title,
+                                impact_score=impact_score,
+                                impact_type=impact_type
+                            ))
+
+                    print(f"{Fore.GREEN}Converted {len(impact_results)} related entities to impact results{Style.RESET_ALL}")
+            except Exception as e:
+                print(f"{Fore.YELLOW}Error converting related entities: {e}{Style.RESET_ALL}")
     except Exception as e:
         print(f"{Fore.RED}Error analyzing impact: {e}{Style.RESET_ALL}")
         sys.exit(1)
