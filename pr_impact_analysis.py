@@ -47,11 +47,10 @@ def analyze_pr_impact(repo_path, pr_number):
     # Check if knowledge graph exists
     graph_exists = os.path.exists(os.path.expanduser("~/.arc/graph.db"))
     if not graph_exists:
-        print(f"{Fore.YELLOW}Knowledge graph not found. Building a new graph...{Style.RESET_ALL}")
-        arc.build(include_github=True, use_llm=True, llm_provider="openai", llm_model="gpt-4.1", verbose=True)
+        print(f"{Fore.RED}Error: Knowledge graph not found. Please run the Code Review Assistant demo first to build the graph.{Style.RESET_ALL}")
+        sys.exit(1)
     else:
-        print(f"{Fore.BLUE}Knowledge graph found. Refreshing...{Style.RESET_ALL}")
-        arc.build(include_github=True, use_llm=True, llm_provider="openai", llm_model="gpt-4.1", llm_enhancement_level="fast", verbose=True)
+        print(f"{Fore.GREEN}Using existing knowledge graph...{Style.RESET_ALL}")
 
     # Step 2: Get PR details
     print(f"\n{Fore.BLUE}Fetching PR #{pr_number} details...{Style.RESET_ALL}")
