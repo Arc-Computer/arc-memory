@@ -1,4 +1,4 @@
-# simplified_code_review_assistant.py
+# Code_review_assistant.py
 #
 # A high-impact agent that leverages Arc Memory's knowledge graph to provide
 # intelligent code review assistance. This agent analyzes code changes and provides:
@@ -7,7 +7,7 @@
 #   3. Related components - What other parts of the codebase are connected
 #   4. Review checklist - Custom checklist based on the changes
 #
-# Usage: python simplified_code_review_assistant.py --repo /path/to/repo --files file1.py file2.py
+# Usage: python code_review_assistant.py --repo /path/to/repo --files file1.py file2.py
 
 import os
 import sys
