@@ -41,6 +41,7 @@ ENV/
 *.swp
 *.swo
 .cursor
+agent.md
 
 # Arc Memory specific
 graph.db
