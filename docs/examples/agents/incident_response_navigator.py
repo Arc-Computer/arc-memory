@@ -73,11 +73,13 @@ def analyze_incident(repo_path, components, error_message=None, last_working_com
         # Always use the build method, which will handle both initial builds and incremental updates
         # The build method now uses the refresh_knowledge_graph function which supports incremental updates
         print(f"{Fore.BLUE}{'Refreshing' if graph_exists else 'Building'} knowledge graph...{Style.RESET_ALL}")
+        # Use "fast" enhancement level for refreshes to reduce latency
         arc.build(
             include_github=True,
             use_llm=True if api_key else False,
             llm_provider="openai" if api_key else "ollama",
             llm_model="gpt-4.1" if api_key else None,
+            llm_enhancement_level="fast" if graph_exists else "standard",  # Fast for refreshes, standard for new builds
             verbose=True
         )
     except Exception as e:

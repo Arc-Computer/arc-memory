@@ -135,13 +135,14 @@ def run_benchmark(force_full=False):
         print("\nPerforming incremental update...")
         start_time = time.time()
 
-        # Use the refresh_knowledge_graph function directly
+        # Use the refresh_knowledge_graph function directly with "fast" enhancement level
         result = refresh_knowledge_graph(
             repo_path=repo_path,
             include_github=True,
             use_llm=use_llm,
             llm_provider=llm_provider,
             llm_model=llm_model,
+            llm_enhancement_level="fast",  # Use fast enhancement level for incremental updates
             verbose=True
         )
 
