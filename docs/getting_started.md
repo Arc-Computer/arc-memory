@@ -43,6 +43,8 @@ Arc Memory builds a knowledge graph from your development artifacts, then provid
 
 ## Installation
 
+### Basic Installation
+
 Install Arc Memory using pip:
 
 ```bash
@@ -57,6 +59,70 @@ pip install arc-memory[all]
 
 # Install with specific optional dependencies
 pip install arc-memory[github,linear,neo4j]
+
+# For OpenAI integration (recommended for best analysis)
+pip install arc-memory[openai]
+```
+
+### One-Line Installation Script
+
+For a streamlined setup, you can use our installation script:
+
+```bash
+curl -sSL https://arc.computer/install.sh | bash
+```
+
+The script will:
+1. Check for Python 3.10+
+2. Install Arc Memory with the specified options
+3. Verify the installation
+4. Provide next steps
+
+You can customize the installation with options:
+
+```bash
+# Install with GitHub integration
+curl -sSL https://arc.computer/install.sh | bash -s -- --with-github
+
+# Install with LLM enhancement
+curl -sSL https://arc.computer/install.sh | bash -s -- --with-llm
+
+# Install with all features
+curl -sSL https://arc.computer/install.sh | bash -s -- --all
+```
+
+### Installation in Virtual Environments
+
+For isolated installations, we recommend using virtual environments:
+
+```bash
+# Create a virtual environment
+python -m venv arc-env
+
+# Activate the environment
+# On Windows:
+arc-env\Scripts\activate
+# On macOS/Linux:
+source arc-env/bin/activate
+
+# Install Arc Memory
+pip install arc-memory[all]
+```
+
+### Docker Installation
+
+For containerized environments, you can use our Docker image:
+
+```bash
+# Pull the latest image
+docker pull arccomputer/arc-memory:latest
+
+# Run Arc Memory in a container
+docker run -it --rm \
+  -v $(pwd):/workspace \
+  -v ~/.arc:/root/.arc \
+  arccomputer/arc-memory:latest \
+  arc build
 ```
 
 ## Building Your First Knowledge Graph
@@ -456,9 +522,206 @@ export_path = arc.export_graph(
 print(f"Exported knowledge graph to: {export_path}")
 ```
 
+## GitHub Actions Integration
+
+Arc Memory can be integrated into your CI/CD pipeline using GitHub Actions, providing automated PR analysis and insights.
+
+### Setting Up GitHub Actions
+
+1. Create a `.github/workflows/arc-memory.yml` file in your repository:
+
+```yaml
+name: Arc Memory PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - main
+      - master
+
+jobs:
+  arc-memory-analysis:
+    name: Arc Memory Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Full history for accurate analysis
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Arc Memory
+        run: |
+          python -m pip install --upgrade pip
+          pip install arc-memory[github]
+
+      - name: Cache Knowledge Graph
+        uses: actions/cache@v3
+        with:
+          path: ~/.arc/graph.db
+          key: ${{ runner.os }}-arc-${{ github.repository }}-${{ hashFiles('.git/HEAD') }}
+          restore-keys: |
+            ${{ runner.os }}-arc-${{ github.repository }}-
+
+      - name: Build Knowledge Graph
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          arc build --github --incremental --verbose
+
+      - name: Analyze PR Impact
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Export the knowledge graph for this PR
+          arc export --pr-sha $PR_SHA --output-path pr_analysis.json --compress --optimize-for-llm
+
+          # Generate the PR analysis
+          arc ci analyze --pr $PR_NUMBER --output-format markdown > pr_analysis.md
+
+      - name: Post Analysis as PR Comment
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const analysis = fs.readFileSync('pr_analysis.md', 'utf8');
+
+            // Check if there's an existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+
+            const arcComment = comments.find(comment =>
+              comment.body.includes('## Arc Memory Analysis')
+            );
+
+            const commentBody = `## Arc Memory Analysis
+
+            This automated analysis is powered by [Arc Memory](https://github.com/Arc-Computer/arc-memory).
+
+            ${analysis}
+
+            <details>
+            <summary>How to improve this analysis</summary>
+
+            - Add more context to your PR description
+            - Link to related issues and PRs
+            - Build a more comprehensive knowledge graph with \`arc build --llm-enhancement\`
+            - Provide feedback by reacting to this comment
+            </details>`;
+
+            if (arcComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: arcComment.id,
+                body: commentBody
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+            }
+```
+
+### Customizing the GitHub Actions Workflow
+
+You can customize the workflow based on your needs:
+
+#### Using OpenAI for Enhanced Analysis
+
+For higher quality analysis, you can use OpenAI models:
+
+```yaml
+- name: Build Knowledge Graph with OpenAI Enhancement
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+  run: |
+    arc build --github --incremental --verbose --llm-provider openai --llm-model gpt-4o --llm-enhancement
+```
+
+#### Configuring Analysis Depth
+
+You can adjust the analysis depth based on your repository size:
+
+```yaml
+- name: Analyze PR Impact
+  env:
+    GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    PR_NUMBER: ${{ github.event.pull_request.number }}
+    PR_SHA: ${{ github.event.pull_request.head.sha }}
+  run: |
+    arc export --pr-sha $PR_SHA --output-path pr_analysis.json --compress --optimize-for-llm --max-hops 2
+    arc ci analyze --pr $PR_NUMBER --output-format markdown --analysis-depth standard > pr_analysis.md
+```
+
+#### Scheduled Knowledge Graph Updates
+
+For large repositories, you can set up scheduled updates:
+
+```yaml
+name: Arc Memory Update
+
+on:
+  schedule:
+    - cron: '0 0 * * *'  # Daily at midnight
+
+jobs:
+  update-knowledge-graph:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Arc Memory
+        run: |
+          python -m pip install --upgrade pip
+          pip install arc-memory[github]
+
+      - name: Update Knowledge Graph
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          arc build --github --verbose
+
+      - name: Cache Updated Knowledge Graph
+        uses: actions/cache/save@v3
+        with:
+          path: ~/.arc/graph.db
+          key: ${{ runner.os }}-arc-${{ github.repository }}-${{ hashFiles('.git/HEAD') }}
+```
+
 ## Next Steps
 
-- [SDK Examples](./examples/sdk_examples.md) - More detailed examples of using the SDK
+- [SDK Examples](./examples/README.md) - More detailed examples of using the SDK
 - [Framework Adapters](./sdk/adapters.md) - Integrating with agent frameworks
-- [CLI Reference](./cli/build.md) - Using the Arc Memory CLI
+- [CLI Reference](./cli/README.md) - Using the Arc Memory CLI
 - [API Reference](./sdk/api_reference.md) - Detailed API documentation
+- [GitHub Actions Examples](./examples/github_actions/README.md) - More GitHub Actions examples

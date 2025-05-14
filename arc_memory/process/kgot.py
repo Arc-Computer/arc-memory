@@ -6,11 +6,18 @@ externalizes reasoning processes into the knowledge graph itself.
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from arc_memory.llm.ollama_client import OllamaClient
 from arc_memory.logging_conf import get_logger
 from arc_memory.schema.models import Edge, EdgeRel, Node, NodeType
+
+# Import OpenAI client conditionally to avoid hard dependency
+try:
+    from arc_memory.llm.openai_client import OpenAIClient
+    OPENAI_AVAILABLE = True
+except ImportError:
+    OPENAI_AVAILABLE = False
 
 logger = get_logger(__name__)
 
@@ -664,6 +671,8 @@ def enhance_with_reasoning_structures(
     edges: List[Edge],
     repo_path: Optional[Path] = None,
     ollama_client: Optional[OllamaClient] = None,
+    openai_client: Optional[Any] = None,
+    llm_provider: str = "ollama",
     enhancement_level: str = "standard",
     system_prompt: Optional[str] = None
 ) -> Tuple[List[Node], List[Edge]]:
@@ -674,6 +683,8 @@ def enhance_with_reasoning_structures(
         edges: List of edges in the knowledge graph.
         repo_path: Optional path to the repository.
         ollama_client: Optional Ollama client for LLM processing.
+        openai_client: Optional OpenAI client for LLM processing.
+        llm_provider: The LLM provider to use ("ollama" or "openai").
         enhancement_level: Level of enhancement to apply ("fast", "standard", or "deep").
         system_prompt: Optional system prompt for the LLM.
 
@@ -706,8 +717,317 @@ def enhance_with_reasoning_structures(
             Provide confidence scores for each element of your analysis, and be thorough in capturing all aspects of the decision process.
             Consider second-order effects and connections between different decisions."""
 
-    # Initialize the KGoT processor
-    processor = KGoTProcessor(ollama_client=ollama_client, system_prompt=system_prompt)
+    # Initialize the KGoT processor with the appropriate client
+    if llm_provider == "openai" and OPENAI_AVAILABLE and openai_client is not None:
+        # Create a custom KGoTProcessor that uses OpenAI
+        class OpenAIKGoTProcessor(KGoTProcessor):
+            def __init__(self, openai_client, system_prompt=None):
+                self.openai_client = openai_client
+                self.system_prompt = system_prompt
+
+            def _generate_reasoning_structure(
+                self, decision_point: Node, nodes: List[Node], edges: List[Edge]
+            ) -> Tuple[List[Node], List[Edge]]:
+                # Get context for the decision point
+                context = self._get_decision_context(decision_point, nodes, edges)
+
+                # Create prompt for the LLM (same as in the parent class)
+                prompt = f"""
+                Analyze this decision point and generate a reasoning structure that explains the decision process.
+
+                Decision point: {decision_point.title}
+                Type: {decision_point.type}
+
+                Context:
+                {json.dumps(context, indent=2)}
+
+                Generate a reasoning structure with:
+                1. The key question or problem being addressed
+                2. The alternatives that were considered (with pros and cons for each)
+                3. The criteria used for evaluation (with importance ratings)
+                4. The reasoning process that led to the decision (step by step)
+                5. The implications of the decision (with confidence scores)
+
+                Format your response as JSON with the following structure:
+                {{
+                    "question": "What was the key question?",
+                    "confidence": 0.9, // Confidence in the question formulation (0.0-1.0)
+                    "alternatives": [
+                        {{
+                            "name": "Alternative 1",
+                            "description": "Description of alternative 1",
+                            "pros": ["Pro 1", "Pro 2"],
+                            "cons": ["Con 1", "Con 2"],
+                            "confidence": 0.8 // Confidence that this was a real alternative (0.0-1.0)
+                        }},
+                        {{
+                            "name": "Alternative 2",
+                            "description": "Description of alternative 2",
+                            "pros": ["Pro 1", "Pro 2"],
+                            "cons": ["Con 1", "Con 2"],
+                            "confidence": 0.7
+                        }}
+                    ],
+                    "criteria": [
+                        {{
+                            "name": "Criterion 1",
+                            "description": "Description of criterion 1",
+                            "importance": "high", // high, medium, or low
+                            "confidence": 0.9 // Confidence that this was a real criterion (0.0-1.0)
+                        }},
+                        {{
+                            "name": "Criterion 2",
+                            "description": "Description of criterion 2",
+                            "importance": "medium",
+                            "confidence": 0.8
+                        }}
+                    ],
+                    "reasoning": [
+                        {{
+                            "step": 1,
+                            "description": "First step in the reasoning process",
+                            "confidence": 0.9 // Confidence in this reasoning step (0.0-1.0)
+                        }},
+                        {{
+                            "step": 2,
+                            "description": "Second step in the reasoning process",
+                            "confidence": 0.8
+                        }}
+                    ],
+                    "implications": [
+                        {{
+                            "description": "Implication 1",
+                            "severity": "high", // high, medium, or low
+                            "confidence": 0.9 // Confidence in this implication (0.0-1.0)
+                        }},
+                        {{
+                            "description": "Implication 2",
+                            "severity": "medium",
+                            "confidence": 0.8
+                        }}
+                    ]
+                }}
+                """
+
+                try:
+                    # Generate response from OpenAI
+                    response = self.openai_client.generate(
+                        model="gpt-4.1",
+                        prompt=prompt,
+                        system=self.system_prompt,
+                        options={"temperature": 0.3},
+                    )
+
+                    # Parse the response (same as in the parent class)
+                    try:
+                        # Use the robust JSON extraction function from semantic_analysis
+                        from arc_memory.process.semantic_analysis import _extract_json_from_llm_response
+                        try:
+                            data = _extract_json_from_llm_response(response)
+                        except ValueError:
+                            # Fallback to a minimal structure
+                            logger.warning(f"Could not parse JSON from LLM response for {decision_point.id}")
+                            data = {
+                                "question": "What decision was made?",
+                                "alternatives": [],
+                                "criteria": [],
+                                "reasoning": [],
+                                "implications": []
+                            }
+                    except ImportError:
+                        # Handle the case where semantic_analysis module can't be imported
+                        logger.error("Could not import _extract_json_from_llm_response from semantic_analysis")
+                        # Fallback to a minimal structure
+                        data = {
+                            "question": f"What decision was made in {decision_point.title}?",
+                            "alternatives": [],
+                            "criteria": [],
+                            "reasoning": [],
+                            "implications": []
+                        }
+
+                    # Create reasoning nodes and edges (same as in the parent class)
+                    # This is a direct copy of the parent class implementation
+                    reasoning_nodes = []
+                    reasoning_edges = []
+
+                    # Create question node
+                    question_id = f"reasoning:question:{decision_point.id}"
+                    question_confidence = data.get("confidence", 0.7)  # Default confidence if not provided
+                    question_node = Node(
+                        id=question_id,
+                        type=NodeType.REASONING_QUESTION,
+                        title=data.get("question", "Unknown question"),
+                        extra={
+                            "decision_point": decision_point.id,
+                            "confidence": question_confidence,
+                        },
+                    )
+                    reasoning_nodes.append(question_node)
+
+                    # Connect question to decision point
+                    question_edge = Edge(
+                        src=question_id,
+                        dst=decision_point.id,
+                        rel=EdgeRel.REASONS_ABOUT,
+                        properties={
+                            "type": "question",
+                            "confidence": question_confidence,
+                        },
+                    )
+                    reasoning_edges.append(question_edge)
+
+                    # Create alternative nodes
+                    for i, alt in enumerate(data.get("alternatives", [])):
+                        alt_id = f"reasoning:alternative:{decision_point.id}:{i}"
+                        alt_confidence = alt.get("confidence", 0.7)  # Default confidence if not provided
+
+                        # Prepare pros and cons for the extra field
+                        pros = alt.get("pros", [])
+                        cons = alt.get("cons", [])
+
+                        alt_node = Node(
+                            id=alt_id,
+                            type=NodeType.REASONING_ALTERNATIVE,
+                            title=alt.get("name", f"Alternative {i+1}"),
+                            body=alt.get("description", ""),
+                            extra={
+                                "decision_point": decision_point.id,
+                                "confidence": alt_confidence,
+                                "pros": pros,
+                                "cons": cons,
+                            },
+                        )
+                        reasoning_nodes.append(alt_node)
+
+                        # Connect alternative to question
+                        alt_edge = Edge(
+                            src=question_id,
+                            dst=alt_id,
+                            rel=EdgeRel.HAS_ALTERNATIVE,
+                            properties={
+                                "index": i,
+                                "confidence": alt_confidence,
+                            },
+                        )
+                        reasoning_edges.append(alt_edge)
+
+                    # Create criteria nodes
+                    for i, criterion in enumerate(data.get("criteria", [])):
+                        criterion_id = f"reasoning:criterion:{decision_point.id}:{i}"
+                        criterion_confidence = criterion.get("confidence", 0.7)  # Default confidence if not provided
+                        importance = criterion.get("importance", "medium")  # Default importance if not provided
+
+                        criterion_node = Node(
+                            id=criterion_id,
+                            type=NodeType.REASONING_CRITERION,
+                            title=criterion.get("name", f"Criterion {i+1}"),
+                            body=criterion.get("description", ""),
+                            extra={
+                                "decision_point": decision_point.id,
+                                "confidence": criterion_confidence,
+                                "importance": importance,
+                            },
+                        )
+                        reasoning_nodes.append(criterion_node)
+
+                        # Connect criterion to question
+                        criterion_edge = Edge(
+                            src=question_id,
+                            dst=criterion_id,
+                            rel=EdgeRel.HAS_CRITERION,
+                            properties={
+                                "index": i,
+                                "confidence": criterion_confidence,
+                                "importance": importance,
+                            },
+                        )
+                        reasoning_edges.append(criterion_edge)
+
+                    # Create reasoning step nodes
+                    prev_step_id = question_id
+                    for step in data.get("reasoning", []):
+                        step_id = f"reasoning:step:{decision_point.id}:{step.get('step', 0)}"
+                        step_confidence = step.get("confidence", 0.7)  # Default confidence if not provided
+
+                        step_node = Node(
+                            id=step_id,
+                            type=NodeType.REASONING_STEP,
+                            title=f"Step {step.get('step', 0)}",
+                            body=step.get("description", ""),
+                            extra={
+                                "decision_point": decision_point.id,
+                                "confidence": step_confidence,
+                            },
+                        )
+                        reasoning_nodes.append(step_node)
+
+                        # Connect step to previous step
+                        step_edge = Edge(
+                            src=prev_step_id,
+                            dst=step_id,
+                            rel=EdgeRel.NEXT_STEP,
+                            properties={
+                                "step": step.get("step", 0),
+                                "confidence": step_confidence,
+                            },
+                        )
+                        reasoning_edges.append(step_edge)
+                        prev_step_id = step_id
+
+                    # Create implication nodes
+                    for i, implication in enumerate(data.get("implications", [])):
+                        impl_id = f"reasoning:implication:{decision_point.id}:{i}"
+
+                        # Handle both string and dict formats for implications
+                        if isinstance(implication, dict):
+                            impl_description = implication.get("description", f"Implication {i+1}")
+                            impl_confidence = implication.get("confidence", 0.7)
+                            impl_severity = implication.get("severity", "medium")
+                        else:
+                            impl_description = implication
+                            impl_confidence = 0.7  # Default confidence
+                            impl_severity = "medium"  # Default severity
+
+                        impl_node = Node(
+                            id=impl_id,
+                            type=NodeType.REASONING_IMPLICATION,
+                            title=f"Implication {i+1}",
+                            body=impl_description,
+                            extra={
+                                "decision_point": decision_point.id,
+                                "confidence": impl_confidence,
+                                "severity": impl_severity,
+                            },
+                        )
+                        reasoning_nodes.append(impl_node)
+
+                        # Connect implication to decision point
+                        impl_edge = Edge(
+                            src=decision_point.id,
+                            dst=impl_id,
+                            rel=EdgeRel.HAS_IMPLICATION,
+                            properties={
+                                "index": i,
+                                "confidence": impl_confidence,
+                                "severity": impl_severity,
+                            },
+                        )
+                        reasoning_edges.append(impl_edge)
+
+                    return reasoning_nodes, reasoning_edges
+
+                except Exception as e:
+                    logger.error(f"Error generating reasoning structure with OpenAI: {e}")
+                    return [], []
+
+        # Use the OpenAI processor
+        processor = OpenAIKGoTProcessor(openai_client=openai_client, system_prompt=system_prompt)
+        logger.info("Using OpenAI for reasoning structure generation")
+    else:
+        # Use the default Ollama processor
+        processor = KGoTProcessor(ollama_client=ollama_client, system_prompt=system_prompt)
+        logger.info("Using Ollama for reasoning structure generation")
 
     # For fast enhancement level, limit the scope of analysis
     if enhancement_level == "fast":

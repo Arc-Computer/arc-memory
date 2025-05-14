@@ -1,0 +1,110 @@
+name: Arc Memory PR Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - main
+      - master
+
+jobs:
+  arc-memory-analysis:
+    name: Arc Memory Analysis
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Full history for accurate analysis
+      
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+      
+      - name: Install Arc Memory
+        run: |
+          python -m pip install --upgrade pip
+          pip install arc-memory[github]
+      
+      - name: Cache Knowledge Graph
+        uses: actions/cache@v3
+        with:
+          path: ~/.arc/graph.db
+          key: ${{ runner.os }}-arc-${{ github.repository }}-${{ hashFiles('.git/HEAD') }}
+          restore-keys: |
+            ${{ runner.os }}-arc-${{ github.repository }}-
+      
+      - name: Build Knowledge Graph
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          arc build --github --incremental --verbose
+      
+      - name: Analyze PR Impact
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # Export the knowledge graph for this PR
+          arc export --pr-sha $PR_SHA --output-path pr_analysis.json --compress --optimize-for-llm
+          
+          # Generate the PR analysis
+          arc ci analyze --pr $PR_NUMBER --output-format markdown > pr_analysis.md
+      
+      - name: Post Analysis as PR Comment
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const analysis = fs.readFileSync('pr_analysis.md', 'utf8');
+            
+            // Check if there's an existing comment
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            
+            const arcComment = comments.find(comment => 
+              comment.body.includes('## Arc Memory Analysis')
+            );
+            
+            const commentBody = `## Arc Memory Analysis
+            
+            This automated analysis is powered by [Arc Memory](https://github.com/Arc-Computer/arc-memory).
+            
+            ${analysis}
+            
+            <details>
+            <summary>How to improve this analysis</summary>
+            
+            - Add more context to your PR description
+            - Link to related issues and PRs
+            - Build a more comprehensive knowledge graph with `arc build --llm-enhancement`
+            - Provide feedback by reacting to this comment
+            </details>`;
+            
+            if (arcComment) {
+              // Update existing comment
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: arcComment.id,
+                body: commentBody
+              });
+            } else {
+              // Create new comment
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body: commentBody
+              });
+            }

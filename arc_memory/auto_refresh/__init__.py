@@ -8,10 +8,12 @@ from arc_memory.auto_refresh.core import (
     check_refresh_needed,
     refresh_all_sources,
     refresh_source,
+    refresh_knowledge_graph,
 )
 
 __all__ = [
     "check_refresh_needed",
     "refresh_all_sources",
     "refresh_source",
+    "refresh_knowledge_graph",
 ]

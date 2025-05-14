@@ -25,7 +25,8 @@ def query_knowledge_graph(
     max_results: int = 5,
     max_hops: int = 3,
     include_causal: bool = True,
-    callback: Optional[ProgressCallback] = None
+    callback: Optional[ProgressCallback] = None,
+    timeout: int = 60
 ) -> QueryResult:
     """Query the knowledge graph using natural language.
 
@@ -40,12 +41,17 @@ def query_knowledge_graph(
         max_hops: Maximum number of hops in the graph traversal.
         include_causal: Whether to prioritize causal relationships.
         callback: Optional callback for progress reporting.
+        timeout: Maximum time in seconds to wait for Ollama response.
 
     Returns:
         A QueryResult containing the answer and supporting evidence.
 
     Raises:
         QueryError: If the query fails.
+
+    Note:
+        This method requires Ollama to be installed and running. If Ollama is not
+        available, it will return an error message with installation instructions.
     """
     try:
         # Report progress
@@ -74,7 +80,8 @@ def query_knowledge_graph(
             db_path=db_path,
             query=question,
             max_results=max_results,
-            max_hops=max_hops
+            max_hops=max_hops,
+            timeout=timeout
         )
 
         # Report progress
