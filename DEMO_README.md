@@ -18,51 +18,35 @@ Before running the demos, make sure you have:
 - [ ] Test all demo scripts one final time
 - [ ] Have all terminal windows pre-arranged
 
-## 1. Code Review Assistant Demo
+## 1. LLM-Powered Code Review Assistant Demo
 
-- **Purpose**: Showcase how Arc Memory provides context for code review and understanding.
+- **Purpose**: Showcase how Arc Memory provides intelligent context for code review and understanding.
 - **Run the demo**:
   ```bash
   ./demo_code_review.sh
   ```
 - **Key points to highlight**:
-  - Incremental updates (52% faster than before)
-  - Decision trails showing why code exists
-  - Impact analysis showing what might be affected
-  - Relationships between components
-  - Easy SDK integration
+  - LLM-powered analysis of code context and history
+  - Detailed insights into code purpose and dependencies
+  - Specific recommendations based on codebase patterns
+  - Easy SDK integration for custom tools
 
 **Duration**: ~5 minutes
 
-## 2. PR Impact Analysis Demo
+## 2. LLM-Powered Blast Radius Visualization Demo
 
-- **Purpose**: Show how Arc Memory can predict the impact of changes before they're merged.
+- **Purpose**: Visually demonstrate the potential impact of changes to a file with LLM analysis.
 - **Run the demo**:
   ```bash
-  python pr_impact_analysis.py 71
-  ```
-- **Key points to highlight**:
-  - Automatic identification of affected components
-  - Risk assessment based on impact analysis
-  - Recommendations for review process
-  - Integration potential with CI/CD pipelines
-
-**Duration**: ~3-4 minutes
-
-## 3. Blast Radius Visualization Demo
-
-- **Purpose**: Visually demonstrate the potential impact of changes to a file.
-- **Run the demo**:
-  ```bash
-  python blast_radius_viz.py arc_memory/auto_refresh/core.py
+  ./demo_blast_radius.sh
   ```
 - **Key points to highlight**:
   - Visual representation of affected components
-  - Centrality of the changed file in the codebase
-  - Strength of relationships between components
-  - Potential for integration with PR review tools
+  - LLM analysis of specific risks and recommendations
+  - Concrete testing strategies based on dependencies
+  - Actionable insights for safer code changes
 
-**Duration**: ~2-3 minutes
+**Duration**: ~3-4 minutes
 
 ## Talking Points
 
