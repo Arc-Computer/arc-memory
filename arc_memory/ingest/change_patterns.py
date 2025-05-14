@@ -57,7 +57,7 @@ class ChangePatternIngestor:
         llm_enhancement_level: str = "standard",
         ollama_client: Optional[OllamaClient] = None,
         openai_client: Optional[Any] = None,
-        llm_provider: str = "ollama",
+        llm_provider: str = "openai",
     ) -> Tuple[List[Node], List[Edge], Dict[str, Any]]:
         """Ingest change pattern data from a repository.
 
