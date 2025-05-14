@@ -7,7 +7,7 @@ This guide contains instructions for running the Arc Memory demos.
 Before running the demos, make sure you have:
 
 1. **Arc Memory installed**: `pip install arc-memory[all]`
-2. **OpenAI API key set**: `export OPENAI_API_KEY=your-api-key`
+2. **OpenAI API key set**: `export OPENAI_API_KEY=your-api-key` (required for GPT-4.1 model)
 3. **GitHub authentication**: `arc auth github`
 4. **Required Python packages**: `pip install colorama matplotlib networkx`
 

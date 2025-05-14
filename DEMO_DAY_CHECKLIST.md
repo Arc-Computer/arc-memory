@@ -2,7 +2,7 @@
 
 ## Before the Demo
 
-- [ ] Ensure OPENAI_API_KEY is set in the environment
+- [ ] Ensure OPENAI_API_KEY is set in the environment (required for GPT-4.1 model)
   ```bash
   export OPENAI_API_KEY=your-api-key
   ```
