@@ -179,6 +179,101 @@ def get_llm_impact_analysis(arc, file_path, impact_results):
             "evidence": []
         }
 
+def find_key_files(arc):
+    """
+    Find key files in the repository that are guaranteed to have rich data in the knowledge graph.
+
+    Args:
+        arc: Arc Memory instance
+
+    Returns:
+        List of key files with their component IDs
+    """
+    # Try to find key files using a query
+    try:
+        query = "What are the most important files in the repository? List the top 5 files with their component IDs."
+        print(f"{Fore.BLUE}Querying for key files in the repository...{Style.RESET_ALL}")
+        query_result = arc.query(query)
+
+        # Try to extract component IDs from the response
+        if hasattr(query_result, "answer"):
+            import re
+            # Look for file: patterns in the answer
+            matches = re.findall(r'file:[^\s,\'")\]]+', query_result.answer)
+            if matches:
+                key_files = []
+                for match in matches[:5]:  # Limit to top 5
+                    component_id = match
+                    file_path = component_id.replace("file:", "")
+                    key_files.append((file_path, component_id))
+                return key_files
+    except Exception as e:
+        print(f"{Fore.YELLOW}Error querying for key files: {e}{Style.RESET_ALL}")
+
+    # Fallback: Return a list of known important files
+    return [
+        ("arc_memory/sdk/core.py", "file:arc_memory/sdk/core.py"),
+        ("arc_memory/auto_refresh/core.py", "file:arc_memory/auto_refresh/core.py"),
+        ("arc_memory/sdk/query.py", "file:arc_memory/sdk/query.py"),
+        ("arc_memory/sdk/impact.py", "file:arc_memory/sdk/impact.py"),
+        ("arc_memory/sdk/decision_trail.py", "file:arc_memory/sdk/decision_trail.py")
+    ]
+
+def get_real_impact_data(arc, file_path):
+    """
+    Get real impact data for a file from the knowledge graph.
+
+    Args:
+        arc: Arc Memory instance
+        file_path: Path to the file to analyze
+
+    Returns:
+        List of impact results, component ID used, and whether real data was found
+    """
+    # Try multiple approaches to find the component in the knowledge graph
+    impact_results = []
+    component_id_used = None
+
+    # Approach 1: Try with the full path
+    try:
+        component_id = f"file:{file_path}"
+        print(f"{Fore.BLUE}Trying component ID: {component_id}{Style.RESET_ALL}")
+        impact_results = arc.analyze_component_impact(component_id=component_id, max_depth=3)
+        if impact_results:
+            print(f"{Fore.GREEN}Found component with ID: {component_id}{Style.RESET_ALL}")
+            component_id_used = component_id
+            return impact_results, component_id_used, True
+    except Exception as e:
+        print(f"{Fore.YELLOW}Error with full path: {e}{Style.RESET_ALL}")
+
+    # Approach 2: Try with absolute path
+    try:
+        abs_path = os.path.abspath(file_path)
+        component_id = f"file:{abs_path}"
+        print(f"{Fore.BLUE}Trying component ID: {component_id}{Style.RESET_ALL}")
+        impact_results = arc.analyze_component_impact(component_id=component_id, max_depth=3)
+        if impact_results:
+            print(f"{Fore.GREEN}Found component with ID: {component_id}{Style.RESET_ALL}")
+            component_id_used = component_id
+            return impact_results, component_id_used, True
+    except Exception as e:
+        print(f"{Fore.YELLOW}Error with absolute path: {e}{Style.RESET_ALL}")
+
+    # Approach 3: Try with just the filename
+    try:
+        component_id = f"file:{os.path.basename(file_path)}"
+        print(f"{Fore.BLUE}Trying component ID: {component_id}{Style.RESET_ALL}")
+        impact_results = arc.analyze_component_impact(component_id=component_id, max_depth=3)
+        if impact_results:
+            print(f"{Fore.GREEN}Found component with ID: {component_id}{Style.RESET_ALL}")
+            component_id_used = component_id
+            return impact_results, component_id_used, True
+    except Exception as e:
+        print(f"{Fore.YELLOW}Error with filename: {e}{Style.RESET_ALL}")
+
+    # No real data found
+    return [], None, False
+
 def visualize_blast_radius(repo_path, file_path):
     """
     Visualize the blast radius of changes to a file.
@@ -205,70 +300,31 @@ def visualize_blast_radius(repo_path, file_path):
     # Step 2: Analyze component impact
     print(f"\n{Fore.BLUE}Analyzing impact for {file_path}...{Style.RESET_ALL}")
 
-    # Get component impact
-    # Try multiple approaches to find the component in the knowledge graph
-    impact_results = []
+    # Try to get real impact data for the specified file
+    impact_results, component_id_used, real_data_found = get_real_impact_data(arc, file_path)
 
-    # Approach 1: Try with the full path
-    try:
-        component_id = f"file:{file_path}"
-        print(f"{Fore.BLUE}Trying component ID: {component_id}{Style.RESET_ALL}")
-        impact_results = arc.analyze_component_impact(component_id=component_id, max_depth=3)
-        if impact_results:
-            print(f"{Fore.GREEN}Found component with ID: {component_id}{Style.RESET_ALL}")
-    except Exception as e:
-        print(f"{Fore.YELLOW}Error with full path: {e}{Style.RESET_ALL}")
+    # If no real data found, try key files until we find one with data
+    if not real_data_found:
+        print(f"{Fore.YELLOW}No impact data found for {file_path}. Trying key files...{Style.RESET_ALL}")
+        key_files = find_key_files(arc)
 
-    # Approach 2: Try with absolute path
-    if not impact_results:
-        try:
-            abs_path = os.path.abspath(file_path)
-            component_id = f"file:{abs_path}"
-            print(f"{Fore.BLUE}Trying component ID: {component_id}{Style.RESET_ALL}")
-            impact_results = arc.analyze_component_impact(component_id=component_id, max_depth=3)
-            if impact_results:
-                print(f"{Fore.GREEN}Found component with ID: {component_id}{Style.RESET_ALL}")
-        except Exception as e:
-            print(f"{Fore.YELLOW}Error with absolute path: {e}{Style.RESET_ALL}")
+        for key_file_path, key_component_id in key_files:
+            print(f"{Fore.BLUE}Trying key file: {key_file_path}{Style.RESET_ALL}")
+            try:
+                key_impact_results = arc.analyze_component_impact(component_id=key_component_id, max_depth=3)
+                if key_impact_results:
+                    print(f"{Fore.GREEN}Found impact data for key file: {key_file_path}{Style.RESET_ALL}")
+                    impact_results = key_impact_results
+                    file_path = key_file_path  # Update file_path to the key file
+                    component_id_used = key_component_id
+                    real_data_found = True
+                    break
+            except Exception as e:
+                print(f"{Fore.YELLOW}Error with key file {key_file_path}: {e}{Style.RESET_ALL}")
 
-    # Approach 3: Try with just the filename
-    if not impact_results:
-        try:
-            component_id = f"file:{os.path.basename(file_path)}"
-            print(f"{Fore.BLUE}Trying component ID: {component_id}{Style.RESET_ALL}")
-            impact_results = arc.analyze_component_impact(component_id=component_id, max_depth=3)
-            if impact_results:
-                print(f"{Fore.GREEN}Found component with ID: {component_id}{Style.RESET_ALL}")
-        except Exception as e:
-            print(f"{Fore.YELLOW}Error with filename: {e}{Style.RESET_ALL}")
-
-    # Approach 4: Try querying the graph to find the component
-    if not impact_results:
-        try:
-            # Use a query to find information about the file
-            query = f"What is the component ID for the file {file_path}?"
-            print(f"{Fore.BLUE}Querying for component ID...{Style.RESET_ALL}")
-            query_result = arc.query(query)
-
-            # Try to extract a component ID from the response
-            if hasattr(query_result, "answer") and "file:" in query_result.answer:
-                # Extract component ID from the answer
-                import re
-                match = re.search(r'file:[^\s,\'")\]]+', query_result.answer)
-                if match:
-                    component_id = match.group(0)
-                    print(f"{Fore.BLUE}Found potential component ID in query: {component_id}{Style.RESET_ALL}")
-                    try:
-                        impact_results = arc.analyze_component_impact(component_id=component_id, max_depth=3)
-                        if impact_results:
-                            print(f"{Fore.GREEN}Found component with ID: {component_id}{Style.RESET_ALL}")
-                    except Exception as e:
-                        print(f"{Fore.YELLOW}Error with queried ID: {e}{Style.RESET_ALL}")
-        except Exception as e:
-            print(f"{Fore.YELLOW}Error querying for component ID: {e}{Style.RESET_ALL}")
-
-    if not impact_results:
-        print(f"{Fore.YELLOW}No impact results found. Using simulated data for demo.{Style.RESET_ALL}")
+    # If still no real data found, use simulated data
+    if not real_data_found:
+        print(f"{Fore.YELLOW}No impact data found for any key files. Using simulated data for demo.{Style.RESET_ALL}")
         # Create simulated impact results for demo purposes
         from collections import namedtuple
         ImpactResult = namedtuple('ImpactResult', ['id', 'title', 'impact_score', 'impact_type'])
