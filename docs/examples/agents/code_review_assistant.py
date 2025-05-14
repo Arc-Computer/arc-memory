@@ -10,6 +10,7 @@
 # Usage: python simplified_code_review_assistant.py --repo /path/to/repo --files file1.py file2.py
 
 import os
+import sys
 import argparse
 import json
 import logging
@@ -66,22 +67,24 @@ def analyze_changes(repo_path, files, api_key=None):
     else:
         print(f"{Fore.YELLOW}No existing knowledge graph found.{Style.RESET_ALL}")
 
-    try:
-        # Always use the build method, which will handle both initial builds and incremental updates
-        # The build method now uses the refresh_knowledge_graph function which supports incremental updates
-        print(f"{Fore.BLUE}{'Refreshing' if graph_exists else 'Building'} knowledge graph...{Style.RESET_ALL}")
-        # Use "fast" enhancement level for refreshes to reduce latency
-        arc.build(
-            include_github=True,
-            use_llm=True,
-            llm_provider="openai",
-            llm_model="gpt-4.1",
-            llm_enhancement_level="fast" if graph_exists else "standard",  # Fast for refreshes, standard for new builds
-            verbose=True
-        )
-    except Exception as e:
-        print(f"{Fore.YELLOW}Warning: Could not build/refresh knowledge graph: {e}{Style.RESET_ALL}")
-        print(f"{Fore.YELLOW}Continuing with existing knowledge graph if available...{Style.RESET_ALL}")
+    if not graph_exists:
+        try:
+            # Only build the graph if it doesn't exist
+            print(f"{Fore.BLUE}Building knowledge graph...{Style.RESET_ALL}")
+            arc.build(
+                include_github=True,
+                use_llm=True,
+                llm_provider="openai",
+                llm_model="gpt-4.1",
+                llm_enhancement_level="standard",
+                verbose=True
+            )
+        except Exception as e:
+            print(f"{Fore.RED}Error: Could not build knowledge graph: {e}{Style.RESET_ALL}")
+            print(f"{Fore.RED}Please build the knowledge graph manually with 'arc build --github'{Style.RESET_ALL}")
+            sys.exit(1)
+    else:
+        print(f"{Fore.GREEN}Using existing knowledge graph...{Style.RESET_ALL}")
 
     # STEP 3: Convert relative paths to absolute for Arc Memory functions
     # ------------------------------------------------------------------
