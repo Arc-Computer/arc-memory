@@ -768,6 +768,7 @@ Generate structured JSON following the requested schema for each enhancement tas
         print(f"Writing graph to database ({len(all_nodes)} nodes, {len(all_edges)} edges)...")
 
     # Initialize the database
+    # The init_db function will handle string paths
     conn = init_db(db_path)
 
     # Add nodes and edges

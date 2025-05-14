@@ -186,6 +186,10 @@ def init_db(db_path: Optional[Path] = None, test_mode: bool = False) -> Any:
     if db_path is None:
         db_path = DEFAULT_DB_PATH
 
+    # Convert db_path to Path if it's a string
+    if isinstance(db_path, str):
+        db_path = Path(db_path)
+
     # Ensure parent directory exists
     try:
         db_path.parent.mkdir(exist_ok=True, parents=True)
@@ -342,6 +346,12 @@ def compress_db(
     if output_path is None:
         output_path = DEFAULT_COMPRESSED_DB_PATH
 
+    # Convert paths to Path objects if they're strings
+    if isinstance(db_path, str):
+        db_path = Path(db_path)
+    if isinstance(output_path, str):
+        output_path = Path(output_path)
+
     if not db_path.exists():
         error_msg = f"Database file not found: {db_path}"
         logger.error(error_msg)
@@ -430,6 +440,12 @@ def decompress_db(
         compressed_path = DEFAULT_COMPRESSED_DB_PATH
     if output_path is None:
         output_path = DEFAULT_DB_PATH
+
+    # Convert paths to Path objects if they're strings
+    if isinstance(compressed_path, str):
+        compressed_path = Path(compressed_path)
+    if isinstance(output_path, str):
+        output_path = Path(output_path)
 
     if not compressed_path.exists():
         error_msg = f"Compressed database file not found: {compressed_path}"
