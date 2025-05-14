@@ -1,0 +1,18 @@
+{
+  "repository_path": "/Users/jarrodbarnes/arc-memory",
+  "database_path": "/Users/jarrodbarnes/.arc/graph.db",
+  "graph_exists": true,
+  "node_count": 3254,
+  "edge_count": 7172,
+  "has_timestamps": true,
+  "timestamp_count": 5,
+  "use_llm": true,
+  "llm_provider": "openai",
+  "llm_model": "gpt-4.1",
+  "build_type": "incremental",
+  "elapsed_time": 59.14727997779846,
+  "nodes_added": 1345,
+  "edges_added": 1529,
+  "has_timestamps_after": true,
+  "timestamp_count_after": 5
+}
