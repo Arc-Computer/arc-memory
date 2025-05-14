@@ -59,7 +59,6 @@ def analyze_changes(repo_path, files, api_key=None):
     print(f"{Fore.BLUE}Building/accessing Arc Memory knowledge graph for {abs_repo_path}{Style.RESET_ALL}")
 
     # Check if a graph exists by checking if the database file exists
-    import os.path
     graph_path = os.path.expanduser("~/.arc/graph.db")
     graph_exists = os.path.exists(graph_path)
     if graph_exists:
