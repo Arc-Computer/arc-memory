@@ -68,7 +68,7 @@ class ProgressTracker:
         self.start_time = time.time()
         self.last_update_time = self.start_time
         self.update_interval = 0.5  # Update progress bar every 0.5 seconds
-        
+
     def update(self, step_name: str = ""):
         self.current_step += 1
         current_time = time.time()
@@ -79,10 +79,10 @@ class ProgressTracker:
             bar_length = 30
             filled_length = int(bar_length * self.current_step / self.total_steps)
             bar = '█' * filled_length + '░' * (bar_length - filled_length)
-            
+
             # Clear the current line and print the progress bar
             print(f"\r{Fore.BLUE}[{bar}] {percent}% | {elapsed:.1f}s | {step_name}{' ' * 20}{Style.RESET_ALL}", end='', flush=True)
-            
+
     def complete(self):
         print(f"\r{Fore.GREEN}[{'█' * 30}] 100% | {time.time() - self.start_time:.1f}s | Complete{' ' * 20}{Style.RESET_ALL}")
         print()
@@ -91,10 +91,10 @@ def find_key_files(arc: Arc) -> List[Tuple[str, str]]:
     """
     Find key files in the repository that are guaranteed to have rich data in the knowledge graph.
     Uses the SDK's query method to ask the LLM for important files.
-    
+
     Args:
         arc: Arc Memory instance
-        
+
     Returns:
         List of key files with their component IDs
     """
@@ -103,7 +103,7 @@ def find_key_files(arc: Arc) -> List[Tuple[str, str]]:
         query = "What are the most important files in the repository? List the top 5 files with their component IDs."
         print(f"{Fore.BLUE}Querying for key files in the repository...{Style.RESET_ALL}")
         query_result = arc.query(query)
-        
+
         # Try to extract component IDs from the response
         if hasattr(query_result, "answer"):
             import re
@@ -118,7 +118,7 @@ def find_key_files(arc: Arc) -> List[Tuple[str, str]]:
                 return key_files
     except Exception as e:
         print(f"{Fore.YELLOW}Error querying for key files: {e}{Style.RESET_ALL}")
-    
+
     # Fallback: Return a list of known important files
     return [
         ("arc_memory/sdk/core.py", "file:arc_memory/sdk/core.py"),
@@ -130,12 +130,12 @@ def find_key_files(arc: Arc) -> List[Tuple[str, str]]:
 
 def get_component_id(arc: Arc, file_path: str) -> Optional[str]:
     """
-    Get the component ID for a file path using the SDK's entity details method.
-    
+    Get the component ID for a file path using direct component checks.
+
     Args:
         arc: Arc Memory instance
         file_path: Path to the file
-        
+
     Returns:
         Component ID if found, None otherwise
     """
@@ -145,47 +145,69 @@ def get_component_id(arc: Arc, file_path: str) -> Optional[str]:
         f"file:{os.path.abspath(file_path)}",
         f"file:{os.path.basename(file_path)}"
     ]
-    
+
     for component_id in component_ids_to_try:
         try:
             print(f"{Fore.BLUE}Checking if component exists: {component_id}{Style.RESET_ALL}")
-            # Use get_entity_details to check if the component exists
-            entity_details = arc.get_entity_details(component_id)
-            if entity_details:
-                print(f"{Fore.GREEN}Found component: {entity_details.title}{Style.RESET_ALL}")
+            # Try to use analyze_component_impact to check if the component exists
+            # This is more reliable than get_entity_details for checking existence
+            impact_results = arc.analyze_component_impact(component_id=component_id, max_depth=1)
+            if impact_results is not None:  # Even if empty list, the component exists
+                print(f"{Fore.GREEN}Found component: {os.path.basename(file_path)}{Style.RESET_ALL}")
                 return component_id
         except Exception as e:
             print(f"{Fore.YELLOW}Component not found with ID {component_id}: {e}{Style.RESET_ALL}")
-    
+
+    # Try using get_related_entities as a fallback
+    try:
+        # Try with just the filename
+        component_id = f"file:{os.path.basename(file_path)}"
+        related = arc.get_related_entities(component_id)
+        if related:
+            print(f"{Fore.GREEN}Found component via related entities: {os.path.basename(file_path)}{Style.RESET_ALL}")
+            return component_id
+    except Exception as e:
+        print(f"{Fore.YELLOW}Component not found via related entities: {e}{Style.RESET_ALL}")
+
     return None
 
 def get_llm_impact_analysis(arc: Arc, file_path: str, component_id: str, impact_results: List[Any]) -> Dict[str, Any]:
     """
     Use LLM to analyze the impact of changes to a file with enriched context from multiple SDK methods.
-    
+
     Args:
         arc: Arc Memory instance
         file_path: Path to the file being analyzed
         component_id: Component ID of the file
         impact_results: Results from analyze_component_impact
-        
+
     Returns:
         Dictionary with LLM analysis results
     """
     # Create a progress tracker
     progress = ProgressTracker(5)  # 5 steps: entity details, decision trail, related entities, LLM query, processing
-    
-    # Step 1: Get entity details
-    progress.update("Getting entity details")
+
+    # Step 1: Get basic file information instead of entity details
+    progress.update("Getting file information")
     try:
-        entity_details = arc.get_entity_details(component_id, include_related=True)
-        entity_context = f"Entity details: {entity_details.title} ({entity_details.type})\n"
-        if hasattr(entity_details, 'properties') and entity_details.properties:
-            entity_context += f"Properties: {json.dumps(entity_details.properties, indent=2)}\n"
+        # Just use basic file information instead of entity_details
+        file_name = os.path.basename(file_path)
+        file_dir = os.path.dirname(file_path)
+        entity_context = f"File: {file_name}\n"
+        entity_context += f"Directory: {file_dir}\n"
+        entity_context += f"Component ID: {component_id}\n"
+
+        # Try to get file stats
+        try:
+            file_stats = os.stat(file_path)
+            entity_context += f"Size: {file_stats.st_size} bytes\n"
+            entity_context += f"Last modified: {time.ctime(file_stats.st_mtime)}\n"
+        except Exception:
+            pass
     except Exception as e:
-        print(f"{Fore.YELLOW}Could not get entity details: {e}{Style.RESET_ALL}")
-        entity_context = f"Could not get entity details: {e}\n"
-    
+        print(f"{Fore.YELLOW}Could not get file information: {e}{Style.RESET_ALL}")
+        entity_context = f"File: {os.path.basename(file_path)}\n"
+
     # Step 2: Get decision trail
     progress.update("Getting decision trail")
     try:
@@ -199,7 +221,7 @@ def get_llm_impact_analysis(arc: Arc, file_path: str, component_id: str, impact_
     except Exception as e:
         print(f"{Fore.YELLOW}Could not get decision trail: {e}{Style.RESET_ALL}")
         decision_context = f"Could not get decision trail: {e}\n"
-    
+
     # Step 3: Get related entities
     progress.update("Getting related entities")
     try:
@@ -212,7 +234,7 @@ def get_llm_impact_analysis(arc: Arc, file_path: str, component_id: str, impact_
     except Exception as e:
         print(f"{Fore.YELLOW}Could not get related entities: {e}{Style.RESET_ALL}")
         related_context = f"Could not get related entities: {e}\n"
-    
+
     # Step 4: Format impact results for the LLM
     progress.update("Preparing impact data")
     impact_context = []
@@ -224,7 +246,7 @@ def get_llm_impact_analysis(arc: Arc, file_path: str, component_id: str, impact_
             "impact_type": result.impact_type if hasattr(result, 'impact_type') else "unknown"
         }
         impact_context.append(impact_info)
-    
+
     # Get file content (first 1000 chars)
     file_content = ""
     try:
@@ -232,61 +254,61 @@ def get_llm_impact_analysis(arc: Arc, file_path: str, component_id: str, impact_
             file_content = f.read(1000)
     except Exception as e:
         file_content = f"Could not read file: {e}"
-    
+
     # Step 5: Query the LLM for analysis
     progress.update("Analyzing impact with LLM")
-    
+
     query = f"""
     I'm analyzing the potential impact (blast radius) of changes to the file {file_path}.
-    
+
     Here's what I know about the file:
     ```
     {file_content}
     ```
-    
+
     Entity information:
     {entity_context}
-    
+
     Decision history:
     {decision_context}
-    
+
     Related entities:
     {related_context}
-    
+
     Here are the components that might be affected by changes to this file:
     {json.dumps(impact_context, indent=2)}
-    
+
     Based on this information, please provide:
-    
+
     1. An overall assessment of the blast radius (high/medium/low) and why
     2. Specific risks associated with changing this file
     3. Recommendations for safely making changes to this file
     4. Testing strategies to ensure changes don't break dependent components
-    
+
     Be specific and reference actual components, functions, or patterns from the knowledge graph.
     Mention specific file names and relationships when possible.
     """
-    
+
     try:
         # Use the query method which leverages LLMs to process natural language against the graph
         analysis_results = arc.query(query)
-        
+
         # Extract the analysis
         analysis = {
             "assessment": analysis_results.answer if hasattr(analysis_results, "answer") else "",
             "reasoning": analysis_results.reasoning if hasattr(analysis_results, "reasoning") else "",
             "evidence": []
         }
-        
+
         # Extract evidence
         if hasattr(analysis_results, "evidence"):
             for evidence in analysis_results.evidence[:3]:  # Limit to top 3 pieces of evidence
                 if hasattr(evidence, "content"):
                     analysis["evidence"].append(evidence.content)
-        
+
         progress.complete()
         return analysis
-        
+
     except Exception as e:
         print(f"\n{Fore.YELLOW}Error getting LLM analysis: {e}{Style.RESET_ALL}")
         progress.complete()
@@ -322,25 +344,25 @@ def visualize_blast_radius(repo_path: str, file_path: str):
     # Step 2: Get component ID for the file
     print(f"\n{Fore.BLUE}Finding component ID for {file_path}...{Style.RESET_ALL}")
     component_id = get_component_id(arc, file_path)
-    
+
     # If component not found, try key files
     if not component_id:
         print(f"{Fore.YELLOW}Component not found for {file_path}. Trying key files...{Style.RESET_ALL}")
         key_files = find_key_files(arc)
-        
+
         for key_file_path, key_component_id in key_files:
             print(f"{Fore.BLUE}Trying key file: {key_file_path}{Style.RESET_ALL}")
             try:
-                # Check if this component exists
-                entity_details = arc.get_entity_details(key_component_id)
-                if entity_details:
-                    print(f"{Fore.GREEN}Found component: {entity_details.title}{Style.RESET_ALL}")
+                # Check if this component exists using analyze_component_impact
+                impact_results = arc.analyze_component_impact(component_id=key_component_id, max_depth=1)
+                if impact_results is not None:  # Even if empty list, the component exists
+                    print(f"{Fore.GREEN}Found component: {os.path.basename(key_file_path)}{Style.RESET_ALL}")
                     component_id = key_component_id
                     file_path = key_file_path  # Update file_path to the key file
                     break
             except Exception as e:
                 print(f"{Fore.YELLOW}Error with key file {key_file_path}: {e}{Style.RESET_ALL}")
-    
+
     if not component_id:
         print(f"{Fore.RED}Error: Could not find any valid components in the knowledge graph.{Style.RESET_ALL}")
         sys.exit(1)
@@ -404,15 +426,15 @@ def visualize_blast_radius(repo_path: str, file_path: str):
             node_name = os.path.basename(entity.id[5:])  # Remove "file:" prefix
         else:
             node_name = entity.title if hasattr(entity, 'title') else "Unknown"
-        
+
         # Skip if this node is already in the graph
         if node_name in G.nodes():
             continue
-        
+
         # Add node
         relationship = getattr(entity, 'relationship', "related")
         G.add_node(node_name, type="related")
-        
+
         # Add edge
         if hasattr(entity, 'direction') and entity.direction == "incoming":
             G.add_edge(node_name, central_node, weight=0.5, relationship=relationship)
@@ -450,7 +472,7 @@ def visualize_blast_radius(repo_path: str, file_path: str):
 
     # Define edge weights based on impact score or relationship
     edge_weights = []
-    for u, v, data in G.edges(data=True):
+    for _, _, data in G.edges(data=True):
         weight = data.get('weight', 0.5)
         edge_weights.append(weight * 3)
 
@@ -484,23 +506,23 @@ def visualize_blast_radius(repo_path: str, file_path: str):
     # Print LLM analysis
     print(f"\n{Fore.CYAN}LLM Analysis of Impact:{Style.RESET_ALL}")
     print(f"{Fore.CYAN}{'=' * 20}{Style.RESET_ALL}")
-    
+
     if llm_analysis["assessment"]:
         # Split the assessment into sections based on numbered points
         assessment_lines = llm_analysis["assessment"].split('\n')
         current_section = []
         sections = []
-        
+
         for line in assessment_lines:
             if line.strip().startswith(('1.', '2.', '3.', '4.')):
                 if current_section:
                     sections.append('\n'.join(current_section))
                     current_section = []
             current_section.append(line)
-        
+
         if current_section:
             sections.append('\n'.join(current_section))
-        
+
         # Display each section with appropriate formatting
         for section in sections:
             if section.strip().startswith('1.'):
@@ -511,7 +533,7 @@ def visualize_blast_radius(repo_path: str, file_path: str):
                 print(f"{Fore.YELLOW}Recommendations:{Style.RESET_ALL}")
             elif section.strip().startswith('4.'):
                 print(f"{Fore.YELLOW}Testing Strategies:{Style.RESET_ALL}")
-            
+
             print(f"{section.strip()}\n")
     else:
         print(f"{Fore.RED}No LLM analysis available.{Style.RESET_ALL}")
@@ -532,7 +554,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Enhanced Blast Radius Visualization")
     parser.add_argument("file_path", help="Path to the file to analyze")
     parser.add_argument("--repo", default=".", help="Path to the repository (default: current directory)")
-    
+
     args = parser.parse_args()
-    
+
     visualize_blast_radius(args.repo, args.file_path)
