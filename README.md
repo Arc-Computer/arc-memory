@@ -29,6 +29,19 @@
 4. **Enhance PR reviews.**
    Arc's GitHub Actions integration surfaces decision trails and blast-radius hints directly in PR comments, giving reviewers instant context before they hit "Approve."
 
+## How Arc Memory Differs
+
+Arc Memory takes a fundamentally different approach from traditional code analysis tools:
+
+### Temporal Understanding
+Unlike static code analysis tools, Arc captures why code evolved the way it did, preserving institutional knowledge even as teams change. The bi-temporal knowledge graph tracks not just what changed, but the reasoning and decisions behind those changes across time.
+
+### Predictive Insights
+Arc predicts the blast radius of code modifications before you merge, reducing incidents and regressions. By analyzing the causal relationships between components, Arc can identify which parts of your system might be affected by a change, helping you make more informed decisions.
+
+### Agent-Ready Architecture
+Arc's knowledge graph powers intelligent agents that can review code with historical context, navigate incidents with causal understanding, and implement self-healing improvements. The framework-agnostic design treats agent interactions as function calls for maximum composability, allowing integration with any agent framework.
+
 ## Quick Start
 
 ```bash
