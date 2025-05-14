@@ -50,19 +50,35 @@ def analyze_changes(repo_path, files, api_key=None):
     # STEP 2: Build or access the knowledge graph
     # -------------------------------------------
     print(f"{Fore.BLUE}Building/accessing Arc Memory knowledge graph for {repo_path}...{Style.RESET_ALL}")
-    # Build the knowledge graph if it doesn't exist or refresh it
+
+    # Check if a graph exists and is up to date
+    graph_exists = False
     try:
-        # Build the knowledge graph with OpenAI by default
-        # If no API key is provided, it will fall back to Ollama
+        # Try to execute a simple query to check if the graph exists
+        test_query = arc.query("test", max_results=1)
+        if test_query is not None:
+            graph_exists = True
+            print(f"{Fore.GREEN}Existing knowledge graph found.{Style.RESET_ALL}")
+    except Exception:
+        # If the query fails, the graph doesn't exist or is not accessible
+        graph_exists = False
+        print(f"{Fore.YELLOW}No existing knowledge graph found.{Style.RESET_ALL}")
+
+    try:
+        # Always use the build method, which will handle both initial builds and incremental updates
+        # The build method now uses the refresh_knowledge_graph function which supports incremental updates
+        print(f"{Fore.BLUE}{'Refreshing' if graph_exists else 'Building'} knowledge graph...{Style.RESET_ALL}")
+        # Use "fast" enhancement level for refreshes to reduce latency
         arc.build(
             include_github=True,
             use_llm=True if api_key else False,
             llm_provider="openai" if api_key else "ollama",
             llm_model="gpt-4.1" if api_key else None,
+            llm_enhancement_level="fast" if graph_exists else "standard",  # Fast for refreshes, standard for new builds
             verbose=True
         )
     except Exception as e:
-        print(f"{Fore.YELLOW}Warning: Could not build knowledge graph: {e}{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Warning: Could not build/refresh knowledge graph: {e}{Style.RESET_ALL}")
         print(f"{Fore.YELLOW}Continuing with existing knowledge graph if available...{Style.RESET_ALL}")
 
     # STEP 3: Convert relative paths to absolute for Arc Memory functions

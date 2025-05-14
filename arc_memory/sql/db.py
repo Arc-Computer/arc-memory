@@ -26,6 +26,24 @@ from arc_memory.schema.models import (
 logger = get_logger(__name__)
 
 
+def ensure_path(path_obj):
+    """Convert a string path to a Path object if needed.
+
+    Args:
+        path_obj: A string path or Path object
+
+    Returns:
+        A Path object
+    """
+    if path_obj is None:
+        return None
+
+    if isinstance(path_obj, str):
+        return Path(path_obj)
+
+    return path_obj
+
+
 class DateTimeEncoder(json.JSONEncoder):
     """Custom JSON encoder for datetime and date objects."""
 
@@ -186,6 +204,9 @@ def init_db(db_path: Optional[Path] = None, test_mode: bool = False) -> Any:
     if db_path is None:
         db_path = DEFAULT_DB_PATH
 
+    # Ensure db_path is a Path object
+    db_path = ensure_path(db_path)
+
     # Ensure parent directory exists
     try:
         db_path.parent.mkdir(exist_ok=True, parents=True)
@@ -342,6 +363,10 @@ def compress_db(
     if output_path is None:
         output_path = DEFAULT_COMPRESSED_DB_PATH
 
+    # Ensure paths are Path objects
+    db_path = ensure_path(db_path)
+    output_path = ensure_path(output_path)
+
     if not db_path.exists():
         error_msg = f"Database file not found: {db_path}"
         logger.error(error_msg)
@@ -430,6 +455,10 @@ def decompress_db(
         compressed_path = DEFAULT_COMPRESSED_DB_PATH
     if output_path is None:
         output_path = DEFAULT_DB_PATH
+
+    # Ensure paths are Path objects
+    compressed_path = ensure_path(compressed_path)
+    output_path = ensure_path(output_path)
 
     if not compressed_path.exists():
         error_msg = f"Compressed database file not found: {compressed_path}"
@@ -1086,46 +1115,3 @@ def build_networkx_graph(conn: Any) -> Any:
             f"Failed to build NetworkX graph: {e}",
             details={"error": str(e)}
         )
-
-
-def trace_history(
-    conn: Any, file_path: str, line_number: int, max_nodes: int = 3
-) -> List[Dict[str, Any]]:
-    """Trace the history of a file line.
-
-    This is a placeholder implementation. The actual implementation would use
-    git blame to find the commit that last modified the line, then follow
-    the graph to find related PRs, issues, and ADRs.
-
-    Args:
-        conn: A connection to the database (real or mock).
-        file_path: The path to the file.
-        line_number: The line number.
-        max_nodes: The maximum number of nodes to return.
-
-    Returns:
-        A list of nodes in the history trace.
-    """
-    # Check if we're using a test database
-    if hasattr(conn, 'nodes') and hasattr(conn, 'edges'):
-        # Return mock data for test mode
-        logger.info(f"Tracing history for {file_path}:{line_number} in test mode")
-        return [
-            {
-                "id": "commit:test-commit-id",
-                "type": "commit",
-                "title": "Test commit",
-                "body": "This is a test commit for tracing history",
-                "timestamp": datetime.now().isoformat(),
-                "author": "Test User",
-            }
-        ]
-
-    # This is a placeholder. The actual implementation would:
-    # 1. Use git blame to find the commit that last modified the line
-    # 2. Follow MERGES edges to find the PR that merged the commit
-    # 3. Follow MENTIONS edges to find issues mentioned in the PR
-    # 4. Follow DECIDES edges to find ADRs that decided on the file
-    # 5. Return the nodes in order (newest first)
-    logger.warning("trace_history is not fully implemented yet")
-    return []

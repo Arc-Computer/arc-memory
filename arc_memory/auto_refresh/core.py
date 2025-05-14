@@ -30,7 +30,7 @@ from arc_memory.process.kgot import enhance_with_reasoning_structures
 from arc_memory.process.semantic_analysis import enhance_with_semantic_analysis
 from arc_memory.process.temporal_analysis import enhance_with_temporal_analysis
 from arc_memory.schema.models import Edge, Node
-from arc_memory.sql.db import add_nodes_and_edges, compress_db, ensure_arc_dir, init_db
+from arc_memory.sql.db import add_nodes_and_edges, compress_db, ensure_arc_dir, ensure_path, get_db_path, init_db
 
 # Import OpenAI client conditionally to avoid hard dependency
 try:
@@ -40,6 +40,109 @@ except ImportError:
     OPENAI_AVAILABLE = False
 
 logger = get_logger(__name__)
+
+
+def get_ingestor_metadata(ingestor_name, db_path, verbose=False):
+    """Get the last processed metadata for an ingestor.
+
+    This function handles running the migration to ensure the metadata column exists,
+    and then retrieves the last processed metadata for the specified ingestor.
+
+    Args:
+        ingestor_name: The name of the ingestor.
+        db_path: Path to the database file.
+        verbose: Whether to print verbose output.
+
+    Returns:
+        The last processed metadata for the ingestor, or None if not found.
+    """
+    from arc_memory.sql.db import get_connection
+
+    # Run the migration to ensure the metadata column exists
+    try:
+        from arc_memory.migrations.add_metadata_column import run_migration
+        run_migration(Path(db_path))
+    except Exception as e:
+        if verbose:
+            print(f"  Warning: Failed to run migration: {e}")
+
+    # Check if the database exists and get the last processed metadata
+    db_conn = None
+    last_processed = None
+    try:
+        db_conn = get_connection(Path(db_path), check_exists=True)
+
+        # Try to get the last processed metadata for this ingestor
+        cursor = db_conn.cursor()
+        cursor.execute(
+            "SELECT metadata FROM refresh_timestamps WHERE source = ?",
+            (ingestor_name,)
+        )
+        result = cursor.fetchone()
+
+        if result and result[0]:
+            import json
+            last_processed = json.loads(result[0])
+            if verbose:
+                print(f"  Found last processed metadata for {ingestor_name}")
+    except Exception as e:
+        if verbose:
+            print(f"  No last processed metadata found for {ingestor_name}: {e}")
+        last_processed = None
+    finally:
+        if db_conn:
+            db_conn.close()
+
+    return last_processed
+
+
+def save_ingestor_metadata(ingestor_name, metadata, db_path, verbose=False):
+    """Save metadata for an ingestor for future incremental updates.
+
+    Args:
+        ingestor_name: The name of the ingestor.
+        metadata: The metadata to save.
+        db_path: Path to the database file.
+        verbose: Whether to print verbose output.
+
+    Returns:
+        True if successful, False otherwise.
+    """
+    if not metadata:
+        return False
+
+    from arc_memory.sql.db import get_connection
+
+    try:
+        # Connect to the database
+        db_conn = get_connection(Path(db_path), check_exists=False)
+
+        # Create the refresh_timestamps table if it doesn't exist
+        cursor = db_conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS refresh_timestamps (
+                source TEXT PRIMARY KEY,
+                timestamp TEXT,
+                metadata TEXT
+            )
+        """)
+
+        # Save the metadata
+        import json
+        cursor.execute(
+            "INSERT OR REPLACE INTO refresh_timestamps (source, timestamp, metadata) VALUES (?, ?, ?)",
+            (ingestor_name, datetime.now().isoformat(), json.dumps(metadata))
+        )
+        db_conn.commit()
+        db_conn.close()
+
+        if verbose:
+            print(f"  Saved metadata for {ingestor_name} for future incremental updates")
+        return True
+    except Exception as e:
+        if verbose:
+            print(f"  Failed to save metadata for {ingestor_name}: {e}")
+        return False
 
 
 def check_refresh_needed(
@@ -566,33 +669,36 @@ Generate structured JSON following the requested schema for each enhancement tas
         ingestor_start = time.time()
 
         try:
+            # Get the last processed metadata for this ingestor
+            last_processed = get_ingestor_metadata(ingestor_name, db_path, verbose)
+
             # Call the ingest method with the appropriate parameters for each ingestor type
             if ingestor_name == "git":
                 nodes, edges, metadata = ingestor.ingest(
                     repo_path=repo_path,
-                    last_processed=None,  # Use None for full builds or populate for incremental
+                    last_processed=last_processed,  # Use last_processed for incremental builds
                 )
             elif ingestor_name == "github":
                 nodes, edges, metadata = ingestor.ingest(
                     repo_path=repo_path,
-                    last_processed=None,  # Use None for full builds or populate for incremental
+                    last_processed=last_processed,  # Use last_processed for incremental builds
                 )
             elif ingestor_name == "adr":
                 nodes, edges, metadata = ingestor.ingest(
                     repo_path=repo_path,
-                    last_processed=None,
+                    last_processed=last_processed,
                 )
             elif ingestor_name == "code_analysis":
                 nodes, edges, metadata = ingestor.ingest(
                     repo_path=repo_path,
-                    last_processed=None,
+                    last_processed=last_processed,
                     llm_enhancement_level=llm_enhancement_level if use_llm else "none",
                     ollama_client=llm_client if llm_provider == "ollama" and use_llm else None,
                 )
             elif ingestor_name == "change_patterns":
                 nodes, edges, metadata = ingestor.ingest(
                     repo_path=repo_path,
-                    last_processed=None,
+                    last_processed=last_processed,
                     llm_enhancement_level=llm_enhancement_level if use_llm else "none",
                     ollama_client=llm_client if llm_provider == "ollama" and use_llm else None,
                 )
@@ -601,11 +707,11 @@ Generate structured JSON following the requested schema for each enhancement tas
                 if hasattr(ingestor, "ingest") and "repo_path" in ingestor.ingest.__code__.co_varnames:
                     nodes, edges, metadata = ingestor.ingest(
                         repo_path=repo_path,
-                        last_processed=None,
+                        last_processed=last_processed,
                     )
                 else:
                     nodes, edges, metadata = ingestor.ingest(
-                        last_processed=None,
+                        last_processed=last_processed,
                     )
         except Exception as e:
             if verbose:
@@ -615,6 +721,9 @@ Generate structured JSON following the requested schema for each enhancement tas
         ingestor_time = time.time() - ingestor_start
         all_nodes.extend(nodes)
         all_edges.extend(edges)
+
+        # Save the metadata for this ingestor for future incremental updates
+        save_ingestor_metadata(ingestor_name, metadata, db_path, verbose)
 
         if verbose:
             print(f"✅ [{idx}/{len(ingestors)}] {ingestor_name}: {len(nodes)} nodes, {len(edges)} edges ({ingestor_time:.1f}s)")
@@ -698,9 +807,8 @@ Generate structured JSON following the requested schema for each enhancement tas
     if verbose:
         print(f"Writing graph to database ({len(all_nodes)} nodes, {len(all_edges)} edges)...")
 
-    db_start = time.time()
-
     # Initialize the database
+    # The init_db function will handle string paths
     conn = init_db(db_path)
 
     # Add nodes and edges
