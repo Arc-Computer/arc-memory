@@ -1,7 +1,7 @@
 # Arc: The Memory Layer for Engineering Teams
 
 <p align="center">
-  <img src="public/Arc SDK Header.png" alt="Arc Logo"/> 
+  <img src="public/Arc SDK Header.png" alt="Arc Logo"/>
 </p>
 
 <p align="center">
@@ -28,7 +28,7 @@
 
 4. **Enhance PR reviews.**
    Arc's GitHub Actions integration surfaces decision trails and blast-radius hints directly in PR comments, giving reviewers instant context before they hit "Approve."
-   
+
 ## Quick Start
 
 ```bash
@@ -123,6 +123,10 @@ for component in impact:
 ```
 
 The SDK follows a framework-agnostic design with adapters for popular frameworks like LangChain and OpenAI, making it easy to integrate Arc Memory into your development workflows or AI applications.
+
+## Privacy
+
+Telemetry is disabled by default. Arc Memory respects your privacy and will only collect anonymous usage data if you explicitly opt in.
 
 ## License
 

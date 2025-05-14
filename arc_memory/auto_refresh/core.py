@@ -405,6 +405,7 @@ def refresh_knowledge_graph(
 
     # LLM setup if enhancement is enabled
     llm_client = None
+    openai_client = None
     if use_llm:
         if verbose:
             print("Setting up LLM enhancement...")
@@ -492,7 +493,8 @@ Generate structured JSON following the requested schema for each enhancement tas
 
             # Create OpenAI client
             try:
-                llm_client = OpenAIClient()
+                openai_client = OpenAIClient()
+                llm_client = openai_client  # Set llm_client to openai_client for compatibility
                 if verbose:
                     print(f"✅ LLM setup complete with OpenAI model: {llm_model}")
 
@@ -635,6 +637,8 @@ Generate structured JSON following the requested schema for each enhancement tas
                 repo_path=repo_path,
                 enhancement_level=llm_enhancement_level,
                 ollama_client=llm_client if llm_provider == "ollama" else None,
+                openai_client=openai_client if llm_provider == "openai" else None,
+                llm_provider=llm_provider,
             )
             if verbose:
                 print(f"✅ Semantic analysis complete ({time.time() - enhancement_start:.1f}s)")
@@ -654,6 +658,8 @@ Generate structured JSON following the requested schema for each enhancement tas
                 repo_path=repo_path,
                 enhancement_level=llm_enhancement_level,
                 ollama_client=llm_client if llm_provider == "ollama" else None,
+                openai_client=openai_client if llm_provider == "openai" else None,
+                llm_provider=llm_provider,
             )
             if verbose:
                 print(f"✅ Temporal analysis complete ({time.time() - temporal_start:.1f}s)")
@@ -673,6 +679,8 @@ Generate structured JSON following the requested schema for each enhancement tas
                     all_edges,
                     repo_path=repo_path,
                     ollama_client=llm_client if llm_provider == "ollama" else None,
+                    openai_client=openai_client if llm_provider == "openai" else None,
+                    llm_provider=llm_provider,
                     enhancement_level=llm_enhancement_level,
                     system_prompt=system_prompt
                 )
