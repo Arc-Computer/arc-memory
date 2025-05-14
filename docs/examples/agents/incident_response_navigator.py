@@ -55,19 +55,47 @@ def analyze_incident(repo_path, components, error_message=None, last_working_com
     # STEP 2: Build or access the knowledge graph
     # -------------------------------------------
     print(f"{Fore.BLUE}Building/accessing Arc Memory knowledge graph for {repo_path}...{Style.RESET_ALL}")
-    # Build the knowledge graph if it doesn't exist or refresh it
+
+    # Check if a graph exists and is up to date
+    graph_exists = False
     try:
-        # Build the knowledge graph with OpenAI by default
-        # If no API key is provided, it will fall back to Ollama
-        arc.build(
-            include_github=True,
-            use_llm=True if api_key else False,
-            llm_provider="openai" if api_key else "ollama",
-            llm_model="gpt-4.1" if api_key else None,
-            verbose=True
-        )
+        # Try to execute a simple query to check if the graph exists
+        test_query = arc.query("test", max_results=1)
+        if test_query is not None:
+            graph_exists = True
+            print(f"{Fore.GREEN}Existing knowledge graph found.{Style.RESET_ALL}")
+    except Exception:
+        # If the query fails, the graph doesn't exist or is not accessible
+        graph_exists = False
+        print(f"{Fore.YELLOW}No existing knowledge graph found.{Style.RESET_ALL}")
+
+    try:
+        if not graph_exists:
+            # Build a new knowledge graph if one doesn't exist
+            print(f"{Fore.BLUE}Building new knowledge graph...{Style.RESET_ALL}")
+            arc.build(
+                include_github=True,
+                use_llm=True if api_key else False,
+                llm_provider="openai" if api_key else "ollama",
+                llm_model="gpt-4.1" if api_key else None,
+                verbose=True
+            )
+        else:
+            # Refresh the existing knowledge graph to get the latest changes
+            print(f"{Fore.BLUE}Refreshing existing knowledge graph...{Style.RESET_ALL}")
+            # Import the refresh function
+            from arc_memory.auto_refresh.core import refresh_knowledge_graph
+
+            refresh_knowledge_graph(
+                repo_path=repo_path,
+                include_github=True,
+                use_llm=True if api_key else False,
+                llm_provider="openai" if api_key else "ollama",
+                llm_model="gpt-4.1" if api_key else None,
+                verbose=True
+            )
     except Exception as e:
-        print(f"{Fore.YELLOW}Warning: Could not build knowledge graph: {e}{Style.RESET_ALL}")
+        print(f"{Fore.YELLOW}Warning: Could not build/refresh knowledge graph: {e}{Style.RESET_ALL}")
         print(f"{Fore.YELLOW}Continuing with existing knowledge graph if available...{Style.RESET_ALL}")
 
     # STEP 3: Convert relative paths to absolute for Arc Memory functions
