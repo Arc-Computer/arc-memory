@@ -314,7 +314,7 @@ Be specific, concise, and focus on actionable insights."""},
                                 {"role": "user", "content": f"Analyze and enhance the following change pattern:\n{pattern}"}
                             ],
                             temperature=0.3,
-                            max_tokens=500
+                            max_tokens=1000
                         )
 
                         enhanced_description = response.choices[0].message.content.strip()
