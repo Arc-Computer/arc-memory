@@ -62,7 +62,7 @@ def process_data(data_file, output_dir, format="json", verbose=False):
                     parsed['processed'] = True
                     parsed['timestamp'] = time.time()
                     results.append(parsed)
-            except:
+            except Exception:
                 # Ignore invalid items
                 if verbose:
                     print(f"Ignoring invalid item: {item}")
