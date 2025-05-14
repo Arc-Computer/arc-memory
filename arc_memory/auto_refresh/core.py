@@ -566,33 +566,63 @@ Generate structured JSON following the requested schema for each enhancement tas
         ingestor_start = time.time()
 
         try:
+            # Get the last processed metadata for this ingestor
+            from arc_memory.sql.db import get_connection
+
+            # Check if the database exists and get the last processed metadata
+            db_conn = None
+            last_processed = None
+            try:
+                db_conn = get_connection(Path(db_path), check_exists=True)
+
+                # Try to get the last processed metadata for this ingestor
+                cursor = db_conn.cursor()
+                cursor.execute(
+                    "SELECT metadata FROM refresh_timestamps WHERE source = ?",
+                    (ingestor_name,)
+                )
+                result = cursor.fetchone()
+
+                if result and result[0]:
+                    import json
+                    last_processed = json.loads(result[0])
+                    if verbose:
+                        print(f"  Found last processed metadata for {ingestor_name}")
+            except Exception as e:
+                if verbose:
+                    print(f"  No last processed metadata found for {ingestor_name}: {e}")
+                last_processed = None
+            finally:
+                if db_conn:
+                    db_conn.close()
+
             # Call the ingest method with the appropriate parameters for each ingestor type
             if ingestor_name == "git":
                 nodes, edges, metadata = ingestor.ingest(
                     repo_path=repo_path,
-                    last_processed=None,  # Use None for full builds or populate for incremental
+                    last_processed=last_processed,  # Use last_processed for incremental builds
                 )
             elif ingestor_name == "github":
                 nodes, edges, metadata = ingestor.ingest(
                     repo_path=repo_path,
-                    last_processed=None,  # Use None for full builds or populate for incremental
+                    last_processed=last_processed,  # Use last_processed for incremental builds
                 )
             elif ingestor_name == "adr":
                 nodes, edges, metadata = ingestor.ingest(
                     repo_path=repo_path,
-                    last_processed=None,
+                    last_processed=last_processed,
                 )
             elif ingestor_name == "code_analysis":
                 nodes, edges, metadata = ingestor.ingest(
                     repo_path=repo_path,
-                    last_processed=None,
+                    last_processed=last_processed,
                     llm_enhancement_level=llm_enhancement_level if use_llm else "none",
                     ollama_client=llm_client if llm_provider == "ollama" and use_llm else None,
                 )
             elif ingestor_name == "change_patterns":
                 nodes, edges, metadata = ingestor.ingest(
                     repo_path=repo_path,
-                    last_processed=None,
+                    last_processed=last_processed,
                     llm_enhancement_level=llm_enhancement_level if use_llm else "none",
                     ollama_client=llm_client if llm_provider == "ollama" and use_llm else None,
                 )
@@ -601,11 +631,11 @@ Generate structured JSON following the requested schema for each enhancement tas
                 if hasattr(ingestor, "ingest") and "repo_path" in ingestor.ingest.__code__.co_varnames:
                     nodes, edges, metadata = ingestor.ingest(
                         repo_path=repo_path,
-                        last_processed=None,
+                        last_processed=last_processed,
                     )
                 else:
                     nodes, edges, metadata = ingestor.ingest(
-                        last_processed=None,
+                        last_processed=last_processed,
                     )
         except Exception as e:
             if verbose:
@@ -615,6 +645,37 @@ Generate structured JSON following the requested schema for each enhancement tas
         ingestor_time = time.time() - ingestor_start
         all_nodes.extend(nodes)
         all_edges.extend(edges)
+
+        # Save the metadata for this ingestor for future incremental updates
+        if metadata:
+            try:
+                # Connect to the database
+                db_conn = get_connection(Path(db_path), check_exists=False)
+
+                # Create the refresh_timestamps table if it doesn't exist
+                cursor = db_conn.cursor()
+                cursor.execute("""
+                    CREATE TABLE IF NOT EXISTS refresh_timestamps (
+                        source TEXT PRIMARY KEY,
+                        timestamp TEXT,
+                        metadata TEXT
+                    )
+                """)
+
+                # Save the metadata
+                import json
+                cursor.execute(
+                    "INSERT OR REPLACE INTO refresh_timestamps (source, timestamp, metadata) VALUES (?, ?, ?)",
+                    (ingestor_name, datetime.now().isoformat(), json.dumps(metadata))
+                )
+                db_conn.commit()
+                db_conn.close()
+
+                if verbose:
+                    print(f"  Saved metadata for {ingestor_name} for future incremental updates")
+            except Exception as e:
+                if verbose:
+                    print(f"  Failed to save metadata for {ingestor_name}: {e}")
 
         if verbose:
             print(f"✅ [{idx}/{len(ingestors)}] {ingestor_name}: {len(nodes)} nodes, {len(edges)} edges ({ingestor_time:.1f}s)")
@@ -697,8 +758,6 @@ Generate structured JSON following the requested schema for each enhancement tas
     # Store the graph
     if verbose:
         print(f"Writing graph to database ({len(all_nodes)} nodes, {len(all_edges)} edges)...")
-
-    db_start = time.time()
 
     # Initialize the database
     conn = init_db(db_path)
