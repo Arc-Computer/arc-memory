@@ -156,7 +156,12 @@ class ArcEnvironment:
         # Calculate reward based on prediction accuracy
         # This is a simplified reward calculation
         correct_predictions = set(predicted_radius).intersection(connected_nodes)
-        precision = len(correct_predictions) / len(predicted_radius) if predicted_radius else 0
+        
+        # Calculate precision with improved readability
+        precision = 0
+        if predicted_radius:
+            precision = len(correct_predictions) / len(predicted_radius)
+            
         recall = len(correct_predictions) / len(connected_nodes) if connected_nodes else 0
         
         # F1 score as reward

@@ -113,7 +113,7 @@ class RLTrainer:
                 
                 # Record reward components if using MultiComponentReward
                 if isinstance(self.reward_function, MultiComponentReward):
-                    # Calculate individual components
+                    # Calculate individual components and record them
                     r_corr = self.reward_function._calculate_correctness_reward(state, action, next_state, info)
                     r_comp = self.reward_function._calculate_completion_reward(state, action, next_state, info)
                     r_reas = self.reward_function._calculate_reasoning_reward(state, action, next_state, info)
@@ -145,28 +145,29 @@ class RLTrainer:
             
             # Record action counts
             for action_type, count in action_counts.items():
-                if action_type in self.metrics["action_counts"]:
-                    self.metrics["action_counts"][action_type].append(count)
-                else:
-                    self.metrics["action_counts"][action_type] = [count]
+                if action_type not in self.metrics["action_counts"]:
+                    self.metrics["action_counts"][action_type] = []
+                self.metrics["action_counts"][action_type].append(count)
             
-            # Record reward components
-            for component, value in episode_reward_components.items():
-                self.metrics["reward_components"][component].append(value)
+            # Record reward components if using MultiComponentReward
+            if isinstance(self.reward_function, MultiComponentReward):
+                for component, value in episode_reward_components.items():
+                    self.metrics["reward_components"][component].append(value)
             
             # Log progress
             if (episode + 1) % 10 == 0:
                 logger.info(f"Episode {episode + 1}/{num_episodes}, Reward: {episode_reward:.2f}")
             
-            # Evaluate the agent
+            # Save the agent periodically
+            if (episode + 1) % save_interval == 0:
+                save_path = os.path.join(self.save_dir, f"agent_episode_{episode + 1}.json")
+                self.agent.save(save_path)
+                logger.info(f"Saved agent to {save_path}")
+            
+            # Evaluate the agent periodically
             if (episode + 1) % eval_interval == 0:
                 eval_metrics = self.evaluate(num_episodes=5)
-                logger.info(f"Evaluation after episode {episode + 1}: Avg reward: {eval_metrics['avg_reward']:.2f}")
-            
-            # Save the agent
-            if (episode + 1) % save_interval == 0:
-                self.save_agent(f"agent_episode_{episode + 1}")
-                logger.info(f"Saved agent after episode {episode + 1}")
+                logger.info(f"Evaluation metrics: {eval_metrics}")
         
         logger.info("Training completed")
         
