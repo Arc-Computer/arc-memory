@@ -72,18 +72,25 @@ class TestMultiComponentReward(unittest.TestCase):
     def test_calculate_reward(self):
         """Test the calculate_reward method."""
         # Mock the component methods
-        with patch.object(self.reward_function, "_calculate_correctness_reward", return_value=0.8):
-            with patch.object(self.reward_function, "_calculate_completion_reward", return_value=0.6):
-                with patch.object(self.reward_function, "_calculate_reasoning_reward", return_value=0.7):
-                    with patch.object(self.reward_function, "_calculate_tool_use_reward", return_value=0.9):
-                        with patch.object(self.reward_function, "_calculate_kg_enrichment_reward", return_value=0.5):
-                            with patch.object(self.reward_function, "_calculate_coordination_reward", return_value=0.4):
-                                # Calculate reward
-                                reward = self.reward_function.calculate_reward({}, {}, {}, {})
-                                
-                                # Check that the reward is the sum of the components
-                                expected_reward = 0.8 + 0.6 + 0.7 + 0.9 + 0.5 + 0.4
-                                self.assertEqual(reward, expected_reward)
+        mock_values = {
+            "_calculate_correctness_reward": 0.8,
+            "_calculate_completion_reward": 0.6,
+            "_calculate_reasoning_reward": 0.7,
+            "_calculate_tool_use_reward": 0.9,
+            "_calculate_kg_enrichment_reward": 0.5,
+            "_calculate_coordination_reward": 0.4
+        }
+        
+        with patch.multiple(
+            self.reward_function,
+            **{name: MagicMock(return_value=value) for name, value in mock_values.items()}
+        ):
+            # Calculate reward
+            reward = self.reward_function.calculate_reward({}, {}, {}, {})
+            
+            # Check that the reward is the sum of the components
+            expected_reward = sum(mock_values.values())
+            self.assertEqual(reward, expected_reward)
     
     def test_calculate_reward_weighted(self):
         """Test the calculate_reward method with weights."""
@@ -100,25 +107,32 @@ class TestMultiComponentReward(unittest.TestCase):
         reward_function = MultiComponentReward(weights=weights)
         
         # Mock the component methods
-        with patch.object(reward_function, "_calculate_correctness_reward", return_value=0.8):
-            with patch.object(reward_function, "_calculate_completion_reward", return_value=0.6):
-                with patch.object(reward_function, "_calculate_reasoning_reward", return_value=0.7):
-                    with patch.object(reward_function, "_calculate_tool_use_reward", return_value=0.9):
-                        with patch.object(reward_function, "_calculate_kg_enrichment_reward", return_value=0.5):
-                            with patch.object(reward_function, "_calculate_coordination_reward", return_value=0.4):
-                                # Calculate reward
-                                reward = reward_function.calculate_reward({}, {}, {}, {})
-                                
-                                # Check that the reward is the weighted sum of the components
-                                expected_reward = (
-                                    0.8 * 2.0 +
-                                    0.6 * 0.5 +
-                                    0.7 * 1.5 +
-                                    0.9 * 0.8 +
-                                    0.5 * 1.2 +
-                                    0.4 * 0.7
-                                )
-                                self.assertEqual(reward, expected_reward)
+        mock_values = {
+            "_calculate_correctness_reward": 0.8,
+            "_calculate_completion_reward": 0.6,
+            "_calculate_reasoning_reward": 0.7,
+            "_calculate_tool_use_reward": 0.9,
+            "_calculate_kg_enrichment_reward": 0.5,
+            "_calculate_coordination_reward": 0.4
+        }
+        
+        with patch.multiple(
+            reward_function,
+            **{name: MagicMock(return_value=value) for name, value in mock_values.items()}
+        ):
+            # Calculate reward
+            reward = reward_function.calculate_reward({}, {}, {}, {})
+            
+            # Check that the reward is the weighted sum of the components
+            expected_reward = (
+                mock_values["_calculate_correctness_reward"] * weights["correctness"] +
+                mock_values["_calculate_completion_reward"] * weights["completion"] +
+                mock_values["_calculate_reasoning_reward"] * weights["reasoning"] +
+                mock_values["_calculate_tool_use_reward"] * weights["tool_use"] +
+                mock_values["_calculate_kg_enrichment_reward"] * weights["kg_enrichment"] +
+                mock_values["_calculate_coordination_reward"] * weights["coordination"]
+            )
+            self.assertEqual(reward, expected_reward)
     
     def test_calculate_correctness_reward_blast_radius(self):
         """Test the _calculate_correctness_reward method for blast radius prediction."""
