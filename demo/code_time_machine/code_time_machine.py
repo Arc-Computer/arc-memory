@@ -24,7 +24,7 @@ from typing import Dict, List, Optional, Any, Tuple
 # Add colorama for terminal colors
 try:
     from colorama import init, Fore, Back, Style
-    init(autoreset=True)  
+    init(autoreset=True)
 except ImportError:
     print("Colorama not installed. Install with: pip install colorama")
     # Create mock colorama classes if not available
@@ -170,7 +170,46 @@ class CodeTimeMachine:
 
                 # Get file history using Arc Memory SDK
                 entity_id = f"file:{self.file_path}"
-                history = self.arc.get_entity_history(entity_id=entity_id, include_related=True)
+                try:
+                    history = self.arc.get_entity_history(entity_id=entity_id, include_related=True)
+                except Exception as e:
+                    console.print(f"[yellow]Warning: Could not retrieve file history: {e}[/yellow]")
+                    console.print("[yellow]Using mock history data for demonstration purposes.[/yellow]")
+                    # Create mock history data for demonstration
+                    from datetime import datetime, timedelta
+                    now = datetime.now()
+                    history = [
+                        type('HistoryEntry', (), {
+                            'id': '1',
+                            'type': 'commit',
+                            'title': 'Initial implementation',
+                            'body': 'Initial implementation of the file',
+                            'timestamp': (now - timedelta(days=100)).isoformat(),
+                            'properties': {'author': 'Developer A'},
+                            'change_type': 'created',
+                            'related_entities': []
+                        }),
+                        type('HistoryEntry', (), {
+                            'id': '2',
+                            'type': 'commit',
+                            'title': 'Add new features',
+                            'body': 'Added new features to the file',
+                            'timestamp': (now - timedelta(days=50)).isoformat(),
+                            'properties': {'author': 'Developer B'},
+                            'change_type': 'modified',
+                            'related_entities': []
+                        }),
+                        type('HistoryEntry', (), {
+                            'id': '3',
+                            'type': 'commit',
+                            'title': 'Fix bugs',
+                            'body': 'Fixed bugs in the file',
+                            'timestamp': (now - timedelta(days=10)).isoformat(),
+                            'properties': {'author': 'Developer C'},
+                            'change_type': 'modified',
+                            'related_entities': []
+                        })
+                    ]
 
                 progress.update(task, completed=True)
 
@@ -330,11 +369,39 @@ class CodeTimeMachine:
 
                 # Get impact analysis using Arc Memory SDK
                 component_id = f"file:{self.file_path}"
-                impact = self.arc.analyze_component_impact(
-                    component_id=component_id,
-                    impact_types=["direct", "indirect"],
-                    max_depth=3
-                )
+                try:
+                    impact = self.arc.analyze_component_impact(
+                        component_id=component_id,
+                        impact_types=["direct", "indirect"],
+                        max_depth=3
+                    )
+                except Exception as e:
+                    console.print(f"[yellow]Warning: Could not analyze component impact: {e}[/yellow]")
+                    console.print("[yellow]Using mock impact data for demonstration purposes.[/yellow]")
+                    # Create mock impact data for demonstration
+                    impact = [
+                        type('ImpactResult', (), {
+                            'id': 'component1',
+                            'title': 'Component 1',
+                            'impact_score': 0.9,
+                            'impact_type': 'direct',
+                            'impact_path': ['file:' + self.file_path, 'component1']
+                        }),
+                        type('ImpactResult', (), {
+                            'id': 'component2',
+                            'title': 'Component 2',
+                            'impact_score': 0.7,
+                            'impact_type': 'indirect',
+                            'impact_path': ['file:' + self.file_path, 'component1', 'component2']
+                        }),
+                        type('ImpactResult', (), {
+                            'id': 'component3',
+                            'title': 'Component 3',
+                            'impact_score': 0.4,
+                            'impact_type': 'indirect',
+                            'impact_path': ['file:' + self.file_path, 'component1', 'component3']
+                        })
+                    ]
 
                 progress.update(task, completed=True)
 
@@ -403,17 +470,84 @@ class CodeTimeMachine:
             ) as progress:
                 # Get file history
                 task_history = progress.add_task("[blue]Retrieving file history...", total=None)
-                history = self.arc.get_entity_history(entity_id=entity_id, include_related=True)
+                try:
+                    history = self.arc.get_entity_history(entity_id=entity_id, include_related=True)
+                except Exception as e:
+                    console.print(f"[yellow]Warning: Could not retrieve file history: {e}[/yellow]")
+                    console.print("[yellow]Using mock history data for demonstration purposes.[/yellow]")
+                    # Create mock history data for demonstration
+                    from datetime import datetime, timedelta
+                    now = datetime.now()
+                    history = [
+                        type('HistoryEntry', (), {
+                            'id': '1',
+                            'type': 'commit',
+                            'title': 'Initial implementation',
+                            'body': 'Initial implementation of the file',
+                            'timestamp': (now - timedelta(days=100)).isoformat(),
+                            'properties': {'author': 'Developer A'},
+                            'change_type': 'created',
+                            'related_entities': []
+                        }),
+                        type('HistoryEntry', (), {
+                            'id': '2',
+                            'type': 'commit',
+                            'title': 'Add new features',
+                            'body': 'Added new features to the file',
+                            'timestamp': (now - timedelta(days=50)).isoformat(),
+                            'properties': {'author': 'Developer B'},
+                            'change_type': 'modified',
+                            'related_entities': []
+                        }),
+                        type('HistoryEntry', (), {
+                            'id': '3',
+                            'type': 'commit',
+                            'title': 'Fix bugs',
+                            'body': 'Fixed bugs in the file',
+                            'timestamp': (now - timedelta(days=10)).isoformat(),
+                            'properties': {'author': 'Developer C'},
+                            'change_type': 'modified',
+                            'related_entities': []
+                        })
+                    ]
                 progress.update(task_history, completed=True)
 
                 # Get impact analysis
                 task_impact = progress.add_task("[blue]Retrieving impact analysis...", total=None)
                 component_id = f"file:{self.file_path}"
-                impact = self.arc.analyze_component_impact(
-                    component_id=component_id,
-                    impact_types=["direct", "indirect"],
-                    max_depth=2
-                )
+                try:
+                    impact = self.arc.analyze_component_impact(
+                        component_id=component_id,
+                        impact_types=["direct", "indirect"],
+                        max_depth=2
+                    )
+                except Exception as e:
+                    console.print(f"[yellow]Warning: Could not analyze component impact: {e}[/yellow]")
+                    console.print("[yellow]Using mock impact data for demonstration purposes.[/yellow]")
+                    # Create mock impact data for demonstration
+                    impact = [
+                        type('ImpactResult', (), {
+                            'id': 'component1',
+                            'title': 'Component 1',
+                            'impact_score': 0.9,
+                            'impact_type': 'direct',
+                            'impact_path': ['file:' + self.file_path, 'component1']
+                        }),
+                        type('ImpactResult', (), {
+                            'id': 'component2',
+                            'title': 'Component 2',
+                            'impact_score': 0.7,
+                            'impact_type': 'indirect',
+                            'impact_path': ['file:' + self.file_path, 'component1', 'component2']
+                        }),
+                        type('ImpactResult', (), {
+                            'id': 'component3',
+                            'title': 'Component 3',
+                            'impact_score': 0.4,
+                            'impact_type': 'indirect',
+                            'impact_path': ['file:' + self.file_path, 'component1', 'component3']
+                        })
+                    ]
                 progress.update(task_impact, completed=True)
 
                 # Get file content
