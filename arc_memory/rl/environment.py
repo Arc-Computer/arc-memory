@@ -39,6 +39,11 @@ class ArcEnvironment:
         """Reset the environment to an initial state."""
         self.current_state = self._get_current_state()
         
+    def reset(self):
+        """Reset the environment to an initial state and return the state."""
+        self._reset()
+        return self.current_state
+        
     def _get_current_state(self) -> Dict[str, Any]:
         """
         Get the current state representation from the knowledge graph.
