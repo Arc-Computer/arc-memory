@@ -17,12 +17,19 @@ class NodeType(str, Enum):
     ISSUE = "issue"
     ADR = "adr"
 
-    # New types for code entities
+    # Repository identity
+    REPOSITORY = "repository"  # A Git repository
+
+    # Architecture components
+    SYSTEM = "system"  # A system in the architecture
+    SERVICE = "service"  # A service in the system
+    COMPONENT = "component"  # A component in the system
+    INTERFACE = "interface"  # An interface exposed by a service or component
+
+    # Code entities
     FUNCTION = "function"
     CLASS = "class"
     MODULE = "module"
-    COMPONENT = "component"
-    SERVICE = "service"
 
     # New types for documentation and concepts
     DOCUMENT = "document"
@@ -56,8 +63,13 @@ class EdgeRel(str, Enum):
     DECIDES = "DECIDES"    # ADR decides on a file/commit
     DEPENDS_ON = "DEPENDS_ON"  # File/component depends on another file/component
 
-    # New relationships for code structure
-    CONTAINS = "CONTAINS"      # Module/Class contains a function/method
+    # Architecture relationships
+    CONTAINS = "CONTAINS"      # System contains Service, Service contains Component
+    EXPOSES = "EXPOSES"        # Service/Component exposes Interface
+    CONSUMES = "CONSUMES"      # Service/Component consumes Interface
+    COMMUNICATES_WITH = "COMMUNICATES_WITH"  # Service communicates with Service
+
+    # Code structure relationships
     CALLS = "CALLS"            # Function calls another function
     IMPORTS = "IMPORTS"        # Module imports another module
     INHERITS_FROM = "INHERITS_FROM"  # Class inherits from another class
@@ -102,6 +114,7 @@ class Node(BaseModel):
     title: Optional[str] = None
     body: Optional[str] = None
     ts: Optional[datetime] = None
+    repo_id: Optional[str] = None  # Reference to repository
     extra: Dict[str, Any] = Field(default_factory=dict)
 
 
@@ -228,14 +241,23 @@ class ModuleNode(Node):
     embedding: Optional[List[float]] = None  # Code embedding vector
 
 
-class ComponentNode(Node):
-    """A component in the system architecture."""
+class RepositoryNode(Node):
+    """A repository in the knowledge graph."""
 
-    type: NodeType = NodeType.COMPONENT
-    name: str  # Component name
+    type: NodeType = NodeType.REPOSITORY
+    name: str  # Repository name (e.g., "arc-memory")
+    url: Optional[str] = None  # Repository URL (e.g., "https://github.com/Arc-Computer/arc-memory")
+    local_path: str  # Local path where repository was cloned
+    default_branch: str = "main"  # Default branch
+    metadata: Dict[str, Any] = Field(default_factory=dict)  # Additional metadata
+
+
+class SystemNode(Node):
+    """A system in the architecture."""
+
+    type: NodeType = NodeType.SYSTEM
+    name: str
     description: Optional[str] = None
-    files: List[str] = Field(default_factory=list)  # Files in this component
-    responsibilities: List[str] = Field(default_factory=list)  # Component responsibilities
 
 
 class ServiceNode(Node):
@@ -244,9 +266,30 @@ class ServiceNode(Node):
     type: NodeType = NodeType.SERVICE
     name: str  # Service name
     description: Optional[str] = None
-    components: List[str] = Field(default_factory=list)  # Components in this service
+    system_id: Optional[str] = None  # Reference to parent system
     apis: List[Dict[str, Any]] = Field(default_factory=list)  # API endpoints
     dependencies: List[str] = Field(default_factory=list)  # External dependencies
+
+
+class ComponentNode(Node):
+    """A component in the system architecture."""
+
+    type: NodeType = NodeType.COMPONENT
+    name: str  # Component name
+    description: Optional[str] = None
+    service_id: Optional[str] = None  # Reference to parent service
+    files: List[str] = Field(default_factory=list)  # Files in this component
+    responsibilities: List[str] = Field(default_factory=list)  # Component responsibilities
+
+
+class InterfaceNode(Node):
+    """An interface in the architecture."""
+
+    type: NodeType = NodeType.INTERFACE
+    name: str
+    description: Optional[str] = None
+    service_id: Optional[str] = None  # Reference to parent service
+    interface_type: str = "api"  # api, event, etc.
 
 
 class DocumentNode(Node):

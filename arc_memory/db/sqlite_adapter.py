@@ -181,6 +181,21 @@ class SQLiteAdapter:
             raise DatabaseError("Not connected to database")
 
         try:
+            # Create repositories table if it doesn't exist
+            self.conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS repositories (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    url TEXT,
+                    local_path TEXT NOT NULL,
+                    default_branch TEXT DEFAULT 'main',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    metadata TEXT
+                )
+                """
+            )
+
             # Create tables if they don't exist
             self.conn.execute(
                 """
@@ -190,6 +205,7 @@ class SQLiteAdapter:
                     title TEXT,
                     body TEXT,
                     timestamp TEXT,
+                    repo_id TEXT,
                     extra TEXT
                 )
                 """
@@ -199,6 +215,13 @@ class SQLiteAdapter:
             self.conn.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_nodes_timestamp ON nodes(timestamp)
+                """
+            )
+
+            # Create index on repo_id column
+            self.conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_nodes_repo_id ON nodes(repo_id)
                 """
             )
 
@@ -244,6 +267,14 @@ class SQLiteAdapter:
                     logger.info(f"Successfully ran database migrations for {self.db_path}")
                 else:
                     logger.warning(f"Failed to run database migrations for {self.db_path}")
+
+                # Run repository migration
+                from arc_memory.migrations.add_repo_id_column import migrate_database as migrate_repo_id
+                repo_migrate_success = migrate_repo_id(self.db_path)
+                if repo_migrate_success:
+                    logger.info(f"Successfully ran repository migration for {self.db_path}")
+                else:
+                    logger.warning(f"Failed to run repository migration for {self.db_path}")
             except Exception as migrate_error:
                 logger.warning(f"Error running database migrations: {migrate_error}")
                 # Don't fail initialization if migrations fail
@@ -273,6 +304,9 @@ class SQLiteAdapter:
             raise DatabaseError("Not connected to database")
 
         try:
+            # Begin transaction
+            self.conn.execute("BEGIN TRANSACTION")
+
             # Add nodes
             for node in nodes:
                 # Extract timestamp from node
@@ -282,8 +316,8 @@ class SQLiteAdapter:
 
                 self.conn.execute(
                     """
-                    INSERT OR REPLACE INTO nodes(id, type, title, body, timestamp, extra)
-                    VALUES(?, ?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO nodes(id, type, title, body, timestamp, repo_id, extra)
+                    VALUES(?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         node.id,
@@ -291,6 +325,7 @@ class SQLiteAdapter:
                         node.title,
                         node.body,
                         timestamp_str,
+                        node.repo_id,
                         json.dumps(node.extra, cls=DateTimeEncoder),
                     ),
                 )
@@ -309,6 +344,9 @@ class SQLiteAdapter:
                         json.dumps(edge.properties, cls=DateTimeEncoder),
                     ),
                 )
+
+            # Commit transaction
+            self.conn.execute("COMMIT")
 
             logger.info(f"Added {len(nodes)} nodes and {len(edges)} edges to database")
         except Exception as e:
