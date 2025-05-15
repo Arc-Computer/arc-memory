@@ -53,15 +53,18 @@ cd /path/to/your/repo
 arc build --github
 ```
 
-Check out the [example agents](./docs/examples/agents/) and [demo applications](./demo/) to see Arc Memory in action.
+Check out our [Code Time Machine demo](./demo/code_time_machine/) to explore file evolution, decision trails, and impact prediction, or browse other [example agents](./docs/examples/agents/) and [demo applications](./demo/).
 
 ## Core Features
 
 ### Knowledge Graph
 
 ```bash
-# Build with GitHub and Linear data
-arc build --github --linear
+# Build with GitHub data and LLM enhancement
+arc build --github --linear --llm-enhancement standard --llm-provider openai --llm-model gpt-4.1
+
+# Run the Code Time Machine demo
+./demo/code_time_machine/run_demo.sh path/to/file.py
 ```
 
 ### Decision Trails
@@ -84,7 +87,7 @@ arc export <commit-sha> export.json --compress
 ## SDK for Developers
 
 ```python
-from arc_memory import Arc
+from arc_memory.sdk import Arc
 
 # Initialize Arc with your repository path
 arc = Arc(repo_path="./")
@@ -94,7 +97,7 @@ result = arc.query("What were the major changes in the last release?")
 print(f"Answer: {result.answer}")
 
 # Find out why a specific piece of code exists
-decision_trail = arc.get_decision_trail("src/auth/login.py", 42)
+decision_trail = arc.get_decision_trail("src/core/auth.py", 42)
 ```
 
 ## Documentation
@@ -117,25 +120,26 @@ decision_trail = arc.get_decision_trail("src/auth/login.py", 42)
 Arc Memory provides a clean, Pythonic SDK that enables both developers and AI agents to programmatically access the knowledge graph:
 
 ```python
-from arc_memory import Arc
+from arc_memory.sdk import Arc
 
 # Initialize Arc with your repository path
 arc = Arc(repo_path="./")
 
-# Ask a question about your codebase
-result = arc.query("What were the major changes in the last release?")
-print(f"Answer: {result.answer}")
+# Get file history and evolution
+file_history = arc.get_file_history("arc_memory/sdk/core.py")
+for entry in file_history:
+    print(f"{entry.timestamp}: {entry.author} - {entry.change_type}")
 
-# Find out why a specific piece of code exists
-decision_trail = arc.get_decision_trail("src/core/auth.py", 42)
+# Find decision trails with rationales
+decision_trail = arc.get_decision_trail("arc_memory/sdk/core.py", 42)
 for entry in decision_trail:
     print(f"Decision: {entry.title}")
     print(f"Rationale: {entry.rationale}")
 
-# Analyze the potential impact of a change
-impact = arc.analyze_component_impact("file:src/api/endpoints.py")
+# Analyze potential impact of changes
+impact = arc.analyze_component_impact("file:arc_memory/sdk/core.py")
 for component in impact:
-    print(f"Affected: {component.title} (Impact score: {component.impact_score})")
+    print(f"Affected: {component.title} (Impact: {component.impact_score})")
 ```
 
 The SDK follows a framework-agnostic design with adapters for popular frameworks like LangChain and OpenAI, making it easy to integrate Arc Memory into your development workflows or AI applications.
