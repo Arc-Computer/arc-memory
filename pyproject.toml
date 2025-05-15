@@ -38,6 +38,7 @@ dependencies = [
     "typer>=0.9.0,<0.10.0",        # Command-line interface
     "rich>=13.0.0,<14.0.0",        # Rich text and formatting in terminal
     "tqdm>=4.65.0,<5.0.0",         # Progress bars
+    "matplotlib>=3.5.0,<4.0.0",    # Required for CLI plotting and RL visualization
 
     # Authentication and security
     "pyjwt>=2.6.0,<3.0.0",         # JWT token handling for GitHub auth
@@ -100,7 +101,11 @@ telemetry = [
     "posthog>=3.0.1,<4.0.0",  # Analytics and telemetry
 ]
 
-# Removed simulation dependencies - no longer used
+# Reinforcement Learning dependencies
+rl = [
+    "numpy>=1.23.0,<2.0.0",          # Numerical computations
+    "matplotlib>=3.5.0,<4.0.0",      # Plotting training metrics
+]
 
 # Framework adapter dependencies (all adapters)
 frameworks = [
