@@ -100,7 +100,11 @@ telemetry = [
     "posthog>=3.0.1,<4.0.0",  # Analytics and telemetry
 ]
 
-# Removed simulation dependencies - no longer used
+# Reinforcement Learning dependencies
+rl = [
+    "numpy>=1.23.0,<2.0.0",          # Numerical computations
+    "matplotlib>=3.5.0,<4.0.0",      # Plotting training metrics
+]
 
 # Framework adapter dependencies (all adapters)
 frameworks = [
