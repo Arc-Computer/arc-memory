@@ -380,7 +380,7 @@ class CodeTimeMachine:
                 component_id = f"file:{self.file_path}"
                 try:
                     # Import our custom impact analysis
-                    from custom_impact import analyze_component_impact
+                    from demo.code_time_machine.custom_impact import analyze_component_impact
 
                     # Use our custom implementation
                     impact = analyze_component_impact(
@@ -411,7 +411,7 @@ class CodeTimeMachine:
 
                         # Convert related entities to impact results
                         impact = []
-                        for i, entity in enumerate(related):
+                        for entity in related:
                             # Calculate impact score based on distance
                             distance = entity.distance if hasattr(entity, 'distance') else 1
                             impact_score = max(0.3, 0.9 - (distance * 0.3))
@@ -550,7 +550,7 @@ class CodeTimeMachine:
                 component_id = f"file:{self.file_path}"
                 try:
                     # Import our custom impact analysis
-                    from custom_impact import analyze_component_impact
+                    from demo.code_time_machine.custom_impact import analyze_component_impact
 
                     # Use our custom implementation
                     impact = analyze_component_impact(
@@ -581,7 +581,7 @@ class CodeTimeMachine:
 
                         # Convert related entities to impact results
                         impact = []
-                        for entity in enumerate(related):
+                        for entity in related:
                             # Calculate impact score based on distance
                             distance = entity.distance if hasattr(entity, 'distance') else 1
                             impact_score = max(0.3, 0.9 - (distance * 0.3))

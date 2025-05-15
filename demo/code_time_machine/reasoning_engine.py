@@ -207,10 +207,27 @@ class ReasoningEngine:
             return "No history available."
 
         # Sort history by timestamp (newest first)
+        from datetime import datetime
+
         def sort_key(entry):
             if not hasattr(entry, 'timestamp') or not entry.timestamp:
-                return "0000-00-00"  # Default value for sorting
-            return entry.timestamp
+                return datetime.min  # Default value for sorting
+
+            # Handle different timestamp formats
+            if isinstance(entry.timestamp, datetime):
+                return entry.timestamp
+            elif isinstance(entry.timestamp, str):
+                try:
+                    # Try to parse ISO format
+                    if 'Z' in entry.timestamp:
+                        return datetime.fromisoformat(entry.timestamp.replace('Z', '+00:00'))
+                    else:
+                        return datetime.fromisoformat(entry.timestamp)
+                except ValueError:
+                    # If parsing fails, return min datetime
+                    return datetime.min
+            else:
+                return datetime.min
 
         sorted_history = sorted(
             history,
