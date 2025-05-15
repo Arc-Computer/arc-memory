@@ -1,0 +1,27 @@
+{
+  "authentication": [
+    "Why was JWT chosen for authentication?",
+    "What security considerations led to the current auth implementation?",
+    "Who decided to implement OAuth and why?"
+  ],
+  "architecture": [
+    "Why was the service split into microservices?",
+    "What led to the adoption of the current database schema?",
+    "How has the API evolved over the last year?"
+  ],
+  "performance": [
+    "What optimizations were made to improve query performance?",
+    "Why was caching implemented in this component?",
+    "What impact would changing the caching strategy have?"
+  ],
+  "code_quality": [
+    "What refactorings have been done to improve code quality?",
+    "Why was this pattern chosen over alternatives?",
+    "What technical debt exists in this component?"
+  ],
+  "dependencies": [
+    "Why was this dependency added?",
+    "What would be the impact of upgrading this dependency?",
+    "Which components depend on this module?"
+  ]
+}
