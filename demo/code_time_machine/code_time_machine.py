@@ -376,41 +376,65 @@ class CodeTimeMachine:
             ) as progress:
                 task = progress.add_task("[blue]Analyzing potential impact...", total=None)
 
-                # Get impact analysis using Arc Memory SDK
+                # Get impact analysis using our custom implementation
                 component_id = f"file:{self.file_path}"
                 try:
-                    impact = self.arc.analyze_component_impact(
+                    # Import our custom impact analysis
+                    from custom_impact import analyze_component_impact
+
+                    # Use our custom implementation
+                    impact = analyze_component_impact(
+                        adapter=self.arc.adapter,
                         component_id=component_id,
-                        impact_types=["direct", "indirect"],
+                        impact_types=["direct", "indirect", "potential"],
                         max_depth=3
                     )
+
+                    if not impact:
+                        console.print(f"[yellow]No impact results found using custom analysis. Trying Arc SDK...[/yellow]")
+                        # Fall back to Arc SDK
+                        impact = self.arc.analyze_component_impact(
+                            component_id=component_id,
+                            impact_types=["direct", "indirect"],
+                            max_depth=3
+                        )
                 except Exception as e:
                     console.print(f"[yellow]Warning: Could not analyze component impact: {e}[/yellow]")
-                    console.print("[yellow]Using mock impact data for demonstration purposes.[/yellow]")
-                    # Create mock impact data for demonstration
-                    impact = [
-                        type('ImpactResult', (), {
-                            'id': 'component1',
-                            'title': 'Component 1',
-                            'impact_score': 0.9,
-                            'impact_type': 'direct',
-                            'impact_path': ['file:' + self.file_path, 'component1']
-                        }),
-                        type('ImpactResult', (), {
-                            'id': 'component2',
-                            'title': 'Component 2',
-                            'impact_score': 0.7,
-                            'impact_type': 'indirect',
-                            'impact_path': ['file:' + self.file_path, 'component1', 'component2']
-                        }),
-                        type('ImpactResult', (), {
-                            'id': 'component3',
-                            'title': 'Component 3',
-                            'impact_score': 0.4,
-                            'impact_type': 'indirect',
-                            'impact_path': ['file:' + self.file_path, 'component1', 'component3']
-                        })
-                    ]
+                    # Try to get related entities instead
+                    try:
+                        console.print(f"[yellow]Trying to get related entities instead...[/yellow]")
+                        related = self.arc.get_related_entities(
+                            entity_id=component_id,
+                            max_distance=2,
+                            max_results=10
+                        )
+
+                        # Convert related entities to impact results
+                        impact = []
+                        for i, entity in enumerate(related):
+                            # Calculate impact score based on distance
+                            distance = entity.distance if hasattr(entity, 'distance') else 1
+                            impact_score = max(0.3, 0.9 - (distance * 0.3))
+
+                            # Determine impact type
+                            if distance <= 1:
+                                impact_type = "direct"
+                            else:
+                                impact_type = "indirect"
+
+                            # Create impact result
+                            impact.append(
+                                type('ImpactResult', (), {
+                                    'id': entity.id,
+                                    'title': entity.title if hasattr(entity, 'title') else entity.id,
+                                    'impact_score': impact_score,
+                                    'impact_type': impact_type,
+                                    'impact_path': [component_id, entity.id]
+                                })
+                            )
+                    except Exception as e2:
+                        console.print(f"[red]Error getting related entities: {e2}[/red]")
+                        impact = []
 
                 progress.update(task, completed=True)
 
@@ -525,38 +549,62 @@ class CodeTimeMachine:
                 task_impact = progress.add_task("[blue]Retrieving impact analysis...", total=None)
                 component_id = f"file:{self.file_path}"
                 try:
-                    impact = self.arc.analyze_component_impact(
+                    # Import our custom impact analysis
+                    from custom_impact import analyze_component_impact
+
+                    # Use our custom implementation
+                    impact = analyze_component_impact(
+                        adapter=self.arc.adapter,
                         component_id=component_id,
-                        impact_types=["direct", "indirect"],
-                        max_depth=2
+                        impact_types=["direct", "indirect", "potential"],
+                        max_depth=3
                     )
+
+                    if not impact:
+                        console.print(f"[yellow]No impact results found using custom analysis. Trying Arc SDK...[/yellow]")
+                        # Fall back to Arc SDK
+                        impact = self.arc.analyze_component_impact(
+                            component_id=component_id,
+                            impact_types=["direct", "indirect"],
+                            max_depth=3
+                        )
                 except Exception as e:
                     console.print(f"[yellow]Warning: Could not analyze component impact: {e}[/yellow]")
-                    console.print("[yellow]Using mock impact data for demonstration purposes.[/yellow]")
-                    # Create mock impact data for demonstration
-                    impact = [
-                        type('ImpactResult', (), {
-                            'id': 'component1',
-                            'title': 'Component 1',
-                            'impact_score': 0.9,
-                            'impact_type': 'direct',
-                            'impact_path': ['file:' + self.file_path, 'component1']
-                        }),
-                        type('ImpactResult', (), {
-                            'id': 'component2',
-                            'title': 'Component 2',
-                            'impact_score': 0.7,
-                            'impact_type': 'indirect',
-                            'impact_path': ['file:' + self.file_path, 'component1', 'component2']
-                        }),
-                        type('ImpactResult', (), {
-                            'id': 'component3',
-                            'title': 'Component 3',
-                            'impact_score': 0.4,
-                            'impact_type': 'indirect',
-                            'impact_path': ['file:' + self.file_path, 'component1', 'component3']
-                        })
-                    ]
+                    # Try to get related entities instead
+                    try:
+                        console.print(f"[yellow]Trying to get related entities instead...[/yellow]")
+                        related = self.arc.get_related_entities(
+                            entity_id=component_id,
+                            max_distance=2,
+                            max_results=10
+                        )
+
+                        # Convert related entities to impact results
+                        impact = []
+                        for entity in enumerate(related):
+                            # Calculate impact score based on distance
+                            distance = entity.distance if hasattr(entity, 'distance') else 1
+                            impact_score = max(0.3, 0.9 - (distance * 0.3))
+
+                            # Determine impact type
+                            if distance <= 1:
+                                impact_type = "direct"
+                            else:
+                                impact_type = "indirect"
+
+                            # Create impact result
+                            impact.append(
+                                type('ImpactResult', (), {
+                                    'id': entity.id,
+                                    'title': entity.title if hasattr(entity, 'title') else entity.id,
+                                    'impact_score': impact_score,
+                                    'impact_type': impact_type,
+                                    'impact_path': [component_id, entity.id]
+                                })
+                            )
+                    except Exception as e2:
+                        console.print(f"[red]Error getting related entities: {e2}[/red]")
+                        impact = []
                 progress.update(task_impact, completed=True)
 
                 # Get file content
