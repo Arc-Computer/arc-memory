@@ -1,14 +1,11 @@
 """Tests for the impact module."""
 
 import unittest
-from datetime import datetime
 from unittest.mock import MagicMock, patch
 
 from arc_memory.sdk.impact import (
     analyze_component_impact,
     _analyze_direct_dependencies,
-    _analyze_indirect_dependencies,
-    _find_indirect_dependencies,
     _analyze_cochange_patterns,
     _calculate_relationship_strength,
     _evaluate_component_importance,
@@ -286,10 +283,13 @@ class TestImpact(unittest.TestCase):
         mock_adapter.get_edges_by_dst.return_value = [{"id": 1}, {"id": 2}]
         mock_adapter.get_edges_by_src.return_value = [{"id": 3}]
 
+        # Use fixed timestamps for deterministic tests
+        current_time = "2023-01-15T12:00:00"
+
         # Test with different node types
-        node_adr = {"id": "adr:1", "type": "adr", "timestamp": datetime.now().isoformat()}
-        node_file = {"id": "file:1", "type": "file", "timestamp": datetime.now().isoformat()}
-        node_issue = {"id": "issue:1", "type": "issue", "timestamp": datetime.now().isoformat()}
+        node_adr = {"id": "adr:1", "type": "adr", "timestamp": current_time}
+        node_file = {"id": "file:1", "type": "file", "timestamp": current_time}
+        node_issue = {"id": "issue:1", "type": "issue", "timestamp": current_time}
 
         # Check that node type affects importance
         self.assertGreater(
@@ -314,7 +314,7 @@ class TestImpact(unittest.TestCase):
 
         # Test with older timestamp
         old_node = {"id": "file:old", "type": "file", "timestamp": "2020-01-01T00:00:00"}
-        new_node = {"id": "file:new", "type": "file", "timestamp": datetime.now().isoformat()}
+        new_node = {"id": "file:new", "type": "file", "timestamp": current_time}
 
         # Check that older components might be more important
         self.assertGreater(
@@ -387,41 +387,52 @@ class TestImpact(unittest.TestCase):
         commit3 = {"id": "commit:3", "timestamp": "2023-01-03T00:00:00"}
 
         # Set up edges for file modifications
-        mock_adapter.get_edges_by_dst.side_effect = lambda id, rel_type=None: {
-            "file:target": [
-                {"src": "commit:1", "rel": "MODIFIES"},
-                {"src": "commit:2", "rel": "MODIFIES"}
-            ],
-            "file:cochange1": [
-                {"src": "commit:1", "rel": "MODIFIES"},
-                {"src": "commit:3", "rel": "MODIFIES"}
-            ],
-            "file:cochange2": [
-                {"src": "commit:1", "rel": "MODIFIES"},
-                {"src": "commit:2", "rel": "MODIFIES"}
-            ]
-        }.get(id, []) if rel_type == "MODIFIES" or rel_type is None else []
+        def _mock_get_edges_by_dst(node_id, rel_type=None):
+            edges = {
+                "file:target": [
+                    {"src": "commit:1", "rel": "MODIFIES"},
+                    {"src": "commit:2", "rel": "MODIFIES"}
+                ],
+                "file:cochange1": [
+                    {"src": "commit:1", "rel": "MODIFIES"},
+                    {"src": "commit:3", "rel": "MODIFIES"}
+                ],
+                "file:cochange2": [
+                    {"src": "commit:1", "rel": "MODIFIES"},
+                    {"src": "commit:2", "rel": "MODIFIES"}
+                ]
+            }
+            return edges.get(node_id, []) if rel_type == "MODIFIES" or rel_type is None else []
 
-        mock_adapter.get_edges_by_src.side_effect = lambda id, rel_type=None: {
-            "commit:1": [
-                {"dst": "file:target", "rel": "MODIFIES"},
-                {"dst": "file:cochange1", "rel": "MODIFIES"},
-                {"dst": "file:cochange2", "rel": "MODIFIES"}
-            ],
-            "commit:2": [
-                {"dst": "file:target", "rel": "MODIFIES"},
-                {"dst": "file:cochange2", "rel": "MODIFIES"}
-            ],
-            "commit:3": [
-                {"dst": "file:cochange1", "rel": "MODIFIES"}
-            ]
-        }.get(id, []) if rel_type == "MODIFIES" or rel_type is None else []
+        mock_adapter.get_edges_by_dst.side_effect = _mock_get_edges_by_dst
 
-        mock_adapter.get_node_by_id.side_effect = lambda id: {
+        def _mock_get_edges_by_src(node_id, rel_type=None):
+            edges = {
+                "commit:1": [
+                    {"dst": "file:target", "rel": "MODIFIES"},
+                    {"dst": "file:cochange1", "rel": "MODIFIES"},
+                    {"dst": "file:cochange2", "rel": "MODIFIES"}
+                ],
+                "commit:2": [
+                    {"dst": "file:target", "rel": "MODIFIES"},
+                    {"dst": "file:cochange2", "rel": "MODIFIES"}
+                ],
+                "commit:3": [
+                    {"dst": "file:cochange1", "rel": "MODIFIES"}
+                ]
+            }
+            return edges.get(node_id, []) if rel_type == "MODIFIES" or rel_type is None else []
+
+        mock_adapter.get_edges_by_src.side_effect = _mock_get_edges_by_src
+
+        mock_adapter.get_node_by_id.side_effect = lambda node_id: {
             "commit:1": commit1,
             "commit:2": commit2,
-            "commit:3": commit3
-        }.get(id)
+            "commit:3": commit3,
+            "file:target": {"id": "file:target", "type": "file", "title": "Target File"},
+            "file:cochange1": {"id": "file:cochange1", "type": "file", "title": "Co-change File 1"},
+            "file:cochange2": {"id": "file:cochange2", "type": "file", "title": "Co-change File 2"}
+        }.get(node_id)
 
         # Call the function
         patterns = _find_cochange_patterns(mock_adapter, "file:target")
@@ -432,14 +443,61 @@ class TestImpact(unittest.TestCase):
         self.assertEqual(patterns[0]["frequency"], 2)
         self.assertGreater(patterns[0]["consistency"], 0)
 
+    def test_analyze_cochange_patterns(self):
+        """Test the _analyze_cochange_patterns function."""
+        # Create a mock adapter
+        mock_adapter = MagicMock()
+
+        # Set up mock for _find_cochange_patterns
+        with patch("arc_memory.sdk.impact._find_cochange_patterns") as mock_find_patterns:
+            # Set up the mock to return some patterns
+            mock_find_patterns.return_value = [
+                {
+                    "component_id": "file:cochange",
+                    "frequency": 5,
+                    "recency": "2023-01-02T00:00:00",
+                    "consistency": 0.8
+                }
+            ]
+
+            # Set up the mock adapter to return nodes
+            mock_adapter.get_node_by_id.side_effect = lambda node_id: {
+                "file:cochange": {"id": "file:cochange", "type": "file", "title": "Co-change File"}
+            }.get(node_id)
+
+            # Call the function
+            results = _analyze_cochange_patterns(mock_adapter, "file:target")
+
+            # Check that _find_cochange_patterns was called with the right arguments
+            mock_find_patterns.assert_called_once_with(mock_adapter, "file:target")
+
+            # Check the result
+            self.assertEqual(len(results), 1)
+            self.assertIsInstance(results[0], ImpactResult)
+            self.assertEqual(results[0].id, "file:cochange")
+            self.assertEqual(results[0].type, "file")
+            self.assertEqual(results[0].title, "Co-change File")
+            self.assertEqual(results[0].impact_type, "potential")
+            self.assertGreater(results[0].impact_score, 0)
+            self.assertEqual(results[0].impact_path, ["file:target", "file:cochange"])
+
+            # Check that the properties contain the co-change metrics
+            self.assertIn("frequency", results[0].properties)
+            self.assertEqual(results[0].properties["frequency"], 5)
+            self.assertIn("consistency", results[0].properties)
+            self.assertEqual(results[0].properties["consistency"], 0.8)
+
     def test_calculate_cochange_score(self):
         """Test the _calculate_cochange_score function."""
+        # Use fixed timestamps for deterministic tests
+        recent_time = "2023-01-15T12:00:00"
+
         # Create test patterns
         patterns = [
             {
                 "component_id": "file:1",
                 "frequency": 5,
-                "recency": datetime.now().isoformat(),
+                "recency": recent_time,
                 "consistency": 0.8
             },
             {
@@ -466,7 +524,7 @@ class TestImpact(unittest.TestCase):
             {
                 "component_id": "file:1",
                 "frequency": 20,
-                "recency": datetime.now().isoformat(),
+                "recency": recent_time,
                 "consistency": 0.8
             }
         ]
