@@ -181,44 +181,37 @@ class CodeTimeMachine:
                 entity_id = f"file:{self.file_path}"
                 try:
                     history = self.arc.get_entity_history(entity_id=entity_id, include_related=True)
+                    if not history:
+                        console.print(f"[yellow]Warning: No history found for {entity_id}[/yellow]")
+                        # Try to get related entities instead
+                        console.print(f"[yellow]Trying to get related entities instead...[/yellow]")
+                        related = self.arc.get_related_entities(
+                            entity_id=entity_id,
+                            max_distance=1,
+                            max_results=10
+                        )
+
+                        if related:
+                            # Convert related entities to history entries
+                            from datetime import datetime
+                            history = []
+                            for entity in related:
+                                # Create a history entry from the related entity
+                                history.append(
+                                    type('HistoryEntry', (), {
+                                        'id': entity.id,
+                                        'type': entity.type if hasattr(entity, 'type') else "unknown",
+                                        'title': entity.title if hasattr(entity, 'title') else entity.id,
+                                        'body': entity.body if hasattr(entity, 'body') else "",
+                                        'timestamp': datetime.now().isoformat(),  # Current time as we don't know the actual time
+                                        'properties': {},
+                                        'change_type': "referenced",
+                                        'related_entities': []
+                                    })
+                                )
                 except Exception as e:
-                    console.print(f"[yellow]Warning: Could not retrieve file history: {e}[/yellow]")
-                    console.print("[yellow]Using mock history data for demonstration purposes.[/yellow]")
-                    # Create mock history data for demonstration
-                    from datetime import datetime, timedelta
-                    now = datetime.now()
-                    history = [
-                        type('HistoryEntry', (), {
-                            'id': '1',
-                            'type': 'commit',
-                            'title': 'Initial implementation',
-                            'body': 'Initial implementation of the file',
-                            'timestamp': (now - timedelta(days=100)).isoformat(),
-                            'properties': {'author': 'Developer A'},
-                            'change_type': 'created',
-                            'related_entities': []
-                        }),
-                        type('HistoryEntry', (), {
-                            'id': '2',
-                            'type': 'commit',
-                            'title': 'Add new features',
-                            'body': 'Added new features to the file',
-                            'timestamp': (now - timedelta(days=50)).isoformat(),
-                            'properties': {'author': 'Developer B'},
-                            'change_type': 'modified',
-                            'related_entities': []
-                        }),
-                        type('HistoryEntry', (), {
-                            'id': '3',
-                            'type': 'commit',
-                            'title': 'Fix bugs',
-                            'body': 'Fixed bugs in the file',
-                            'timestamp': (now - timedelta(days=10)).isoformat(),
-                            'properties': {'author': 'Developer C'},
-                            'change_type': 'modified',
-                            'related_entities': []
-                        })
-                    ]
+                    console.print(f"[red]Error retrieving file history: {e}[/red]")
+                    history = []
 
                 progress.update(task, completed=True)
 
@@ -505,44 +498,37 @@ class CodeTimeMachine:
                 task_history = progress.add_task("[blue]Retrieving file history...", total=None)
                 try:
                     history = self.arc.get_entity_history(entity_id=entity_id, include_related=True)
+                    if not history:
+                        console.print(f"[yellow]Warning: No history found for {entity_id}[/yellow]")
+                        # Try to get related entities instead
+                        console.print(f"[yellow]Trying to get related entities instead...[/yellow]")
+                        related = self.arc.get_related_entities(
+                            entity_id=entity_id,
+                            max_distance=1,
+                            max_results=10
+                        )
+
+                        if related:
+                            # Convert related entities to history entries
+                            from datetime import datetime
+                            history = []
+                            for entity in related:
+                                # Create a history entry from the related entity
+                                history.append(
+                                    type('HistoryEntry', (), {
+                                        'id': entity.id,
+                                        'type': entity.type if hasattr(entity, 'type') else "unknown",
+                                        'title': entity.title if hasattr(entity, 'title') else entity.id,
+                                        'body': entity.body if hasattr(entity, 'body') else "",
+                                        'timestamp': datetime.now().isoformat(),  # Current time as we don't know the actual time
+                                        'properties': {},
+                                        'change_type': "referenced",
+                                        'related_entities': []
+                                    })
+                                )
                 except Exception as e:
-                    console.print(f"[yellow]Warning: Could not retrieve file history: {e}[/yellow]")
-                    console.print("[yellow]Using mock history data for demonstration purposes.[/yellow]")
-                    # Create mock history data for demonstration
-                    from datetime import datetime, timedelta
-                    now = datetime.now()
-                    history = [
-                        type('HistoryEntry', (), {
-                            'id': '1',
-                            'type': 'commit',
-                            'title': 'Initial implementation',
-                            'body': 'Initial implementation of the file',
-                            'timestamp': (now - timedelta(days=100)).isoformat(),
-                            'properties': {'author': 'Developer A'},
-                            'change_type': 'created',
-                            'related_entities': []
-                        }),
-                        type('HistoryEntry', (), {
-                            'id': '2',
-                            'type': 'commit',
-                            'title': 'Add new features',
-                            'body': 'Added new features to the file',
-                            'timestamp': (now - timedelta(days=50)).isoformat(),
-                            'properties': {'author': 'Developer B'},
-                            'change_type': 'modified',
-                            'related_entities': []
-                        }),
-                        type('HistoryEntry', (), {
-                            'id': '3',
-                            'type': 'commit',
-                            'title': 'Fix bugs',
-                            'body': 'Fixed bugs in the file',
-                            'timestamp': (now - timedelta(days=10)).isoformat(),
-                            'properties': {'author': 'Developer C'},
-                            'change_type': 'modified',
-                            'related_entities': []
-                        })
-                    ]
+                    console.print(f"[red]Error retrieving file history: {e}[/red]")
+                    history = []
                 progress.update(task_history, completed=True)
 
                 # Get impact analysis

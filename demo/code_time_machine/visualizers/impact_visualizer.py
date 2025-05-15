@@ -56,50 +56,7 @@ def visualize_impact(impact_results: List[Any], file_path: str) -> None:
 
     if not impact_results:
         console.print("[yellow]No impact analysis available for this file.[/yellow]")
-
-        # Create mock impact data for demonstration
-        console.print("[yellow]Generating sample impact visualization for demonstration purposes.[/yellow]")
-
-        # Create mock impact results
-        impact_results = [
-            type('ImpactResult', (), {
-                'id': 'component1',
-                'title': 'Component 1',
-                'impact_score': 0.9,
-                'impact_type': 'direct',
-                'impact_path': ['file:' + file_path, 'component1']
-            }),
-            type('ImpactResult', (), {
-                'id': 'component2',
-                'title': 'Component 2',
-                'impact_score': 0.7,
-                'impact_type': 'indirect',
-                'impact_path': ['file:' + file_path, 'component1', 'component2']
-            }),
-            type('ImpactResult', (), {
-                'id': 'component3',
-                'title': 'Component 3',
-                'impact_score': 0.4,
-                'impact_type': 'indirect',
-                'impact_path': ['file:' + file_path, 'component1', 'component3']
-            }),
-            type('ImpactResult', (), {
-                'id': 'component4',
-                'title': 'Component 4',
-                'impact_score': 0.3,
-                'impact_type': 'potential',
-                'impact_path': ['file:' + file_path, 'component4']
-            }),
-            type('ImpactResult', (), {
-                'id': 'component5',
-                'title': 'Component 5',
-                'impact_score': 0.2,
-                'impact_type': 'potential',
-                'impact_path': ['file:' + file_path, 'component5']
-            })
-        ]
-
-        console.print("[yellow]Note: This is sample data and does not reflect actual dependencies.[/yellow]")
+        return
 
     # Create a table for the impact results
     table = Table(title=f"Impact Analysis for {file_path}")
