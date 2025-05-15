@@ -9,7 +9,7 @@ import json
 import os
 import re
 import subprocess
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
@@ -31,10 +31,10 @@ logger = get_logger(__name__)
 
 
 class DateTimeEncoder(json.JSONEncoder):
-    """Custom JSON encoder for datetime objects."""
+    """Custom JSON encoder for datetime and date objects."""
 
     def default(self, obj):
-        if isinstance(obj, datetime):
+        if isinstance(obj, (datetime, date)):
             return obj.isoformat()
         return super().default(obj)
 

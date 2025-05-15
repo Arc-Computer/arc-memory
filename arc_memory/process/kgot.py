@@ -5,6 +5,7 @@ externalizes reasoning processes into the knowledge graph itself.
 """
 
 import json
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -20,6 +21,15 @@ except ImportError:
     OPENAI_AVAILABLE = False
 
 logger = get_logger(__name__)
+
+
+class DateTimeEncoder(json.JSONEncoder):
+    """Custom JSON encoder for datetime and date objects."""
+
+    def default(self, obj):
+        if isinstance(obj, (datetime, date)):
+            return obj.isoformat()
+        return super().default(obj)
 
 
 class KGoTProcessor:
@@ -235,7 +245,7 @@ class KGoTProcessor:
         Type: {decision_point.type}
 
         Context:
-        {json.dumps(context, indent=2)}
+        {json.dumps(context, indent=2, cls=DateTimeEncoder)}
 
         Generate a reasoning structure with:
         1. The key question or problem being addressed
@@ -739,7 +749,7 @@ def enhance_with_reasoning_structures(
                 Type: {decision_point.type}
 
                 Context:
-                {json.dumps(context, indent=2)}
+                {json.dumps(context, indent=2, cls=DateTimeEncoder)}
 
                 Generate a reasoning structure with:
                 1. The key question or problem being addressed
