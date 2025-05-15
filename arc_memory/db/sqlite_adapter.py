@@ -264,9 +264,9 @@ class SQLiteAdapter:
                 from arc_memory.migrations.add_timestamp_column import migrate_database
                 migrate_success = migrate_database(self.db_path)
                 if migrate_success:
-                    logger.info(f"Successfully ran database migrations for {self.db_path}")
+                    logger.info(f"Successfully ran timestamp column migration for {self.db_path}")
                 else:
-                    logger.warning(f"Failed to run database migrations for {self.db_path}")
+                    logger.warning(f"Failed to run timestamp column migration for {self.db_path}")
 
                 # Run repository migration
                 from arc_memory.migrations.add_repo_id_column import migrate_database as migrate_repo_id
@@ -275,6 +275,14 @@ class SQLiteAdapter:
                     logger.info(f"Successfully ran repository migration for {self.db_path}")
                 else:
                     logger.warning(f"Failed to run repository migration for {self.db_path}")
+
+                # Run architecture schema migration
+                from arc_memory.migrations.add_architecture_schema import migrate_database as migrate_architecture
+                arch_migrate_success = migrate_architecture(self.db_path)
+                if arch_migrate_success:
+                    logger.info(f"Successfully ran architecture schema migration for {self.db_path}")
+                else:
+                    logger.warning(f"Failed to run architecture schema migration for {self.db_path}")
             except Exception as migrate_error:
                 logger.warning(f"Error running database migrations: {migrate_error}")
                 # Don't fail initialization if migrations fail
