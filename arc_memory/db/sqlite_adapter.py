@@ -5,7 +5,7 @@ This module provides a SQLite implementation of the DatabaseAdapter protocol.
 
 import json
 import sqlite3
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -17,10 +17,10 @@ logger = get_logger(__name__)
 
 
 class DateTimeEncoder(json.JSONEncoder):
-    """JSON encoder that handles datetime objects."""
+    """JSON encoder that handles datetime and date objects."""
 
     def default(self, obj):
-        if isinstance(obj, datetime):
+        if isinstance(obj, (datetime, date)):
             return obj.isoformat()
         return super().default(obj)
 
