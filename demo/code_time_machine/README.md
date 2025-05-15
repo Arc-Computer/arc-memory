@@ -4,15 +4,17 @@ The Code Time Machine demo showcases Arc Memory's unique temporal understanding 
 
 ## Overview
 
-The Code Time Machine demo follows this narrative flow:
+The Code Time Machine leverages Arc Memory's knowledge graph to provide insights that would be impossible to obtain from traditional code analysis tools. By combining Git history, GitHub issues/PRs, and code structure analysis, it creates a comprehensive view of your codebase's evolution and relationships.
+
+The demo follows this narrative flow:
 
 1. **Introduction**: Explains the concept of the Code Time Machine
 2. **Graph Building**: Builds or loads the knowledge graph
 3. **File Selection**: Selects a significant file to explore
-4. **Timeline Exploration**: Shows how the file evolved over time
-5. **Decision Archaeology**: Explores key decisions that shaped the file
-6. **Impact Prediction**: Demonstrates how changes would affect the system
-7. **Improvement Suggestions**: Generates potential improvements based on historical patterns
+4. **Timeline Exploration**: Shows how the file evolved over time using real historical data
+5. **Decision Archaeology**: Explores key decisions that shaped the file with context from PRs and issues
+6. **Impact Prediction**: Demonstrates how changes would affect the system using relationship analysis
+7. **Improvement Suggestions**: Generates potential improvements based on historical patterns and code context
 
 ## Prerequisites
 
@@ -22,27 +24,36 @@ Before running the demo, make sure you have:
 2. **OpenAI API key set**: `export OPENAI_API_KEY=your-api-key` (required for reasoning engine)
 3. **GitHub authentication**: `arc auth github`
 4. **Required Python packages**: `pip install colorama rich openai`
-5. **Knowledge graph built**: `arc build --github`
+5. **Knowledge graph built**: `arc build --llm-enhancement standard --llm-provider openai --llm-model gpt-4.1 --github`
 
 Note: The reasoning engine requires the OpenAI package and a valid API key. If you don't have an API key, the demo will still work but without the advanced reasoning capabilities.
 
 ## Usage
 
+The easiest way to run the demo is using the provided script:
+
+```bash
+# Run the demo on a specific file
+./demo/code_time_machine/run_demo.sh path/to/file.py
+
+# Run with reasoning enabled (requires OpenAI API key)
+./demo/code_time_machine/run_demo.sh path/to/file.py --reasoning
+```
+
+You can also run the module directly:
+
 ```bash
 # Basic usage (will prompt for file selection)
-python code_time_machine.py --repo /path/to/repo --interactive
+python -m demo.code_time_machine.main --repo /path/to/repo --interactive
 
 # Specify a file to explore
-python code_time_machine.py --repo /path/to/repo --file path/to/file.py
-
-# Run in non-interactive mode
-python code_time_machine.py --repo /path/to/repo --file path/to/file.py
+python -m demo.code_time_machine.main --repo /path/to/repo --file path/to/file.py
 
 # Enable reasoning engine with OpenAI's o4-mini model
-python code_time_machine.py --repo /path/to/repo --file path/to/file.py --reasoning
+python -m demo.code_time_machine.main --repo /path/to/repo --file path/to/file.py --reasoning
 
 # Disable reasoning engine
-python code_time_machine.py --repo /path/to/repo --file path/to/file.py --no-reasoning
+python -m demo.code_time_machine.main --repo /path/to/repo --file path/to/file.py --no-reasoning
 ```
 
 ### Reasoning Engine
@@ -63,7 +74,9 @@ export OPENAI_API_KEY=your-api-key
 
 The Code Time Machine demo consists of the following components:
 
-- **Main Demo Script**: `code_time_machine.py` - Orchestrates the entire experience
+- **Main Demo Script**: `main.py` - Orchestrates the entire experience
+- **Custom Impact Analysis**: `custom_impact.py` - Analyzes component relationships using real graph data
+- **Reasoning Engine**: `reasoning_engine.py` - Provides advanced analysis with LLM reasoning
 - **Timeline Visualizer**: `visualizers/timeline_visualizer.py` - Visualizes the timeline of a file's evolution
 - **Decision Visualizer**: `visualizers/decision_visualizer.py` - Visualizes the decision trails for a file
 - **Impact Visualizer**: `visualizers/impact_visualizer.py` - Visualizes the potential impact of changes to a file
@@ -117,8 +130,20 @@ The improvement suggestions feature generates suggestions for:
 
 ```bash
 # Run the demo on a significant file
-python code_time_machine.py --repo ./ --file arc_memory/sdk/core.py
+./demo/code_time_machine/run_demo.sh arc_memory/sdk/core.py
+
+# Or run the module directly
+python -m demo.code_time_machine.main --repo ./ --file arc_memory/sdk/core.py
 ```
+
+## Real Data Approach
+
+The Code Time Machine demo uses only real data from the Arc Memory knowledge graph, with no mock data or sample visualizations. This ensures that the demo accurately represents the value of Arc Memory's temporal understanding capabilities:
+
+1. **Timeline Exploration**: Uses real file history from Git commits and related entities
+2. **Decision Archaeology**: Extracts actual decision trails from PRs, issues, and commit messages
+3. **Impact Prediction**: Analyzes real component relationships in the knowledge graph
+4. **Improvement Suggestions**: Generates suggestions based on actual code patterns and history
 
 ## Extending the Demo
 
