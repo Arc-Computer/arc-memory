@@ -57,9 +57,18 @@ except ImportError:
     sys.exit(1)
 
 # Import visualizers
-from visualizers.timeline_visualizer import visualize_timeline
-from visualizers.decision_visualizer import visualize_decisions
-from visualizers.impact_visualizer import visualize_impact
+
+try:
+    # Try relative import first (when imported as a module)
+    from .visualizers.timeline_visualizer import visualize_timeline
+    from .visualizers.decision_visualizer import visualize_decisions
+    from .visualizers.impact_visualizer import visualize_impact
+except ImportError:
+    # Try direct import (when run as a script)
+    from visualizers.timeline_visualizer import visualize_timeline
+    from visualizers.decision_visualizer import visualize_decisions
+    from visualizers.impact_visualizer import visualize_impact
+
 
 # Import reasoning engine
 try:
