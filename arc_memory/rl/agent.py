@@ -74,16 +74,16 @@ class RandomAgent(BaseAgent):
     This is a baseline agent that can be used for comparison.
     """
     
-    def __init__(self, node_ids: List[str], action_types: List[str]):
+    def __init__(self, component_ids: List[str], action_types: List[str]):
         """
         Initialize the random agent.
         
         Args:
-            node_ids: List of node IDs in the knowledge graph
+            component_ids: List of component IDs in the knowledge graph
             action_types: List of action types the agent can take
         """
         super().__init__()
-        self.node_ids = node_ids
+        self.component_ids = component_ids
         self.action_types = action_types
         
     def act(self, state: Dict[str, Any]) -> Dict[str, Any]:
@@ -97,17 +97,17 @@ class RandomAgent(BaseAgent):
             A random action
         """
         action_type = random.choice(self.action_types)
-        node_id = random.choice(self.node_ids)
+        component_id = random.choice(self.component_ids)
         
         if action_type == "predict_blast_radius":
             # Random blast radius prediction
             # In a real system, this would be more sophisticated
             radius_size = random.randint(1, 5)
-            radius = random.sample(self.node_ids, min(radius_size, len(self.node_ids)))
+            radius = random.sample(self.component_ids, min(radius_size, len(self.component_ids)))
             
             return {
                 "type": action_type,
-                "node_id": node_id,
+                "component_id": component_id,
                 "radius": radius
             }
         
@@ -119,7 +119,7 @@ class RandomAgent(BaseAgent):
             
             return {
                 "type": action_type,
-                "node_id": node_id,
+                "component_id": component_id,
                 "vulnerability_type": vulnerability_type,
                 "confidence": confidence
             }
@@ -169,21 +169,21 @@ class QTableAgent(BaseAgent):
     and uses an epsilon-greedy policy to balance exploration and exploitation.
     """
     
-    def __init__(self, node_ids: List[str], action_types: List[str], 
+    def __init__(self, component_ids: List[str], action_types: List[str], 
                  learning_rate: float = 0.1, discount_factor: float = 0.99, 
                  epsilon: float = 0.1):
         """
         Initialize the Q-table agent.
         
         Args:
-            node_ids: List of node IDs in the knowledge graph
+            component_ids: List of component IDs in the knowledge graph
             action_types: List of action types the agent can take
             learning_rate: The learning rate
             discount_factor: The discount factor
             epsilon: The epsilon value for epsilon-greedy policy
         """
         super().__init__()
-        self.node_ids = node_ids
+        self.component_ids = component_ids
         self.action_types = action_types
         self.learning_rate = learning_rate
         self.discount_factor = discount_factor
@@ -202,30 +202,30 @@ class QTableAgent(BaseAgent):
         Create the action space.
         
         Returns:
-            A list of possible actions
+            List of possible actions
         """
-        action_space = []
+        actions = []
         
         # Add blast radius prediction actions
-        for node_id in self.node_ids:
-            action_space.append({
+        for component_id in self.component_ids:
+            actions.append({
                 "type": "predict_blast_radius",
-                "node_id": node_id,
-                # Actual radius will be determined during act()
+                "component_id": component_id,
+                "radius": []  # Will be filled during act()
             })
-        
+            
         # Add vulnerability prediction actions
         vulnerability_types = ["sql_injection", "xss", "buffer_overflow", "null_pointer"]
-        for node_id in self.node_ids:
+        for component_id in self.component_ids:
             for vulnerability_type in vulnerability_types:
-                action_space.append({
+                actions.append({
                     "type": "predict_vulnerability",
-                    "node_id": node_id,
+                    "component_id": component_id,
                     "vulnerability_type": vulnerability_type,
-                    # Confidence will be determined during act()
+                    "confidence": 0.5  # Will be updated during act()
                 })
-        
-        return action_space
+                
+        return actions
     
     def _state_to_key(self, state: Dict[str, Any]) -> str:
         """
@@ -254,14 +254,14 @@ class QTableAgent(BaseAgent):
         # In a real system, we would use a more sophisticated action representation
         # For this baseline, we'll use a simple string representation
         action_type = action["type"]
-        node_id = action["node_id"]
+        component_id = action["component_id"]
         
         if action_type == "predict_blast_radius":
-            return f"{action_type}:{node_id}"
+            return f"{action_type}:{component_id}"
         
         elif action_type == "predict_vulnerability":
             vulnerability_type = action["vulnerability_type"]
-            return f"{action_type}:{node_id}:{vulnerability_type}"
+            return f"{action_type}:{component_id}:{vulnerability_type}"
         
         else:
             return str(action)
@@ -323,11 +323,11 @@ class QTableAgent(BaseAgent):
             if action_template["type"] == "predict_blast_radius":
                 # Random blast radius prediction
                 radius_size = random.randint(1, 5)
-                radius = random.sample(self.node_ids, min(radius_size, len(self.node_ids)))
+                radius = random.sample(self.component_ids, min(radius_size, len(self.component_ids)))
                 
                 return {
                     "type": action_template["type"],
-                    "node_id": action_template["node_id"],
+                    "component_id": action_template["component_id"],
                     "radius": radius
                 }
             
@@ -337,7 +337,7 @@ class QTableAgent(BaseAgent):
                 
                 return {
                     "type": action_template["type"],
-                    "node_id": action_template["node_id"],
+                    "component_id": action_template["component_id"],
                     "vulnerability_type": action_template["vulnerability_type"],
                     "confidence": confidence
                 }
@@ -356,11 +356,11 @@ class QTableAgent(BaseAgent):
             if action_template["type"] == "predict_blast_radius":
                 # Random blast radius prediction
                 radius_size = random.randint(1, 5)
-                radius = random.sample(self.node_ids, min(radius_size, len(self.node_ids)))
+                radius = random.sample(self.component_ids, min(radius_size, len(self.component_ids)))
                 
                 return {
                     "type": action_template["type"],
-                    "node_id": action_template["node_id"],
+                    "component_id": action_template["component_id"],
                     "radius": radius
                 }
             
@@ -370,7 +370,7 @@ class QTableAgent(BaseAgent):
                 
                 return {
                     "type": action_template["type"],
-                    "node_id": action_template["node_id"],
+                    "component_id": action_template["component_id"],
                     "vulnerability_type": action_template["vulnerability_type"],
                     "confidence": confidence
                 }
@@ -383,17 +383,17 @@ class QTableAgent(BaseAgent):
         best_action_parts = best_action_key.split(":")
         
         action_type = best_action_parts[0]
-        node_id = best_action_parts[1]
+        component_id = best_action_parts[1]
         
         if action_type == "predict_blast_radius":
             # Use learned Q-values to determine the blast radius
             # In a real system, this would be more sophisticated
-            radius_size = max(1, int(self._get_q_value(state, {"type": action_type, "node_id": node_id}) * 10))
-            radius = random.sample(self.node_ids, min(radius_size, len(self.node_ids)))
+            radius_size = max(1, int(self._get_q_value(state, {"type": action_type, "component_id": component_id}) * 10))
+            radius = random.sample(self.component_ids, min(radius_size, len(self.component_ids)))
             
             return {
                 "type": action_type,
-                "node_id": node_id,
+                "component_id": component_id,
                 "radius": radius
             }
         
@@ -402,13 +402,13 @@ class QTableAgent(BaseAgent):
             # Use learned Q-values to determine the confidence
             confidence = max(0.1, min(0.9, self._get_q_value(state, {
                 "type": action_type, 
-                "node_id": node_id, 
+                "component_id": component_id, 
                 "vulnerability_type": vulnerability_type
             }) + 0.5))
             
             return {
                 "type": action_type,
-                "node_id": node_id,
+                "component_id": component_id,
                 "vulnerability_type": vulnerability_type,
                 "confidence": confidence
             }

@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from arc_memory.sdk.core import Arc
+from arc_memory.schema.models import ComponentNode
 from arc_memory.rl.environment import ArcEnvironment
 from arc_memory.rl.agent import RandomAgent, QTableAgent
 from arc_memory.rl.reward import MultiComponentReward
@@ -87,6 +88,30 @@ def plot_training_metrics(metrics: Dict[str, Any], save_dir: str):
     plt.close()
 
 
+def create_test_components(num_components: int = 5) -> List[ComponentNode]:
+    """
+    Create test components for RL training when no real components are available.
+    
+    Args:
+        num_components: Number of test components to create
+        
+    Returns:
+        List of ComponentNode objects
+    """
+    return [
+        ComponentNode(
+            id=f"test_component_{i}",
+            title=f"Test Component {i}",
+            name=f"Test Component {i}",
+            description=f"A test component for RL training {i}",
+            service_id=None,
+            files=[],
+            responsibilities=[f"test_{i}"]
+        )
+        for i in range(num_components)
+    ]
+
+
 def initialize_pipeline(sdk: Arc, agent_type: str = "qtable") -> Tuple[ArcEnvironment, Any, MultiComponentReward]:
     """
     Initialize the RL pipeline.
@@ -104,16 +129,27 @@ def initialize_pipeline(sdk: Arc, agent_type: str = "qtable") -> Tuple[ArcEnviro
     # Create the reward function
     reward_function = MultiComponentReward()
     
-    # Get all node IDs (this is a simplified approach)
-    node_ids = [node.id for node in sdk.get_nodes_by_type(None)]
+    # Get all components as potential action targets
+    components = sdk.get_architecture_components()
+    
+    # If no components found, create test components
+    if not components:
+        logger.info("No components found. Creating test components...")
+        test_components = create_test_components()
+        for comp in test_components:
+            sdk.add_nodes_and_edges([comp], [])
+        components = test_components
+    
+    component_ids = [comp.id if hasattr(comp, 'id') else comp["id"] for comp in components]
+    logger.info(f"Using {len(component_ids)} components for actions")
     
     # Create the agent
     action_types = ["predict_blast_radius", "predict_vulnerability"]
     
     if agent_type == "random":
-        agent = RandomAgent(node_ids, action_types)
+        agent = RandomAgent(component_ids, action_types)
     elif agent_type == "qtable":
-        agent = QTableAgent(node_ids, action_types)
+        agent = QTableAgent(component_ids, action_types)
     else:
         raise ValueError(f"Unknown agent type: {agent_type}")
     
@@ -135,6 +171,23 @@ def train_pipeline(sdk: Arc, num_episodes: int = 100, agent_type: str = "qtable"
     Returns:
         Training metrics
     """
+    # Build the knowledge graph if empty
+    components = sdk.get_architecture_components()
+    if not components:
+        logger.info("Building knowledge graph...")
+        try:
+            sdk.build(include_github=True, include_architecture=True, use_llm=False)
+            components = sdk.get_architecture_components()
+        except Exception as e:
+            logger.warning(f"Failed to build knowledge graph with error: {e}")
+            logger.info("Continuing with basic repository structure...")
+            
+        if not components:
+            # Create test components
+            test_components = create_test_components(num_components=1)
+            sdk.add_nodes_and_edges(test_components, [])
+            components = test_components
+    
     # Initialize the pipeline
     env, agent, reward_function = initialize_pipeline(sdk, agent_type)
     
@@ -286,11 +339,12 @@ def main():
     parser.add_argument("--num_training_epochs", type=int, default=10,
                       help="Number of epochs to train for in offline mode")
     parser.add_argument("--num_steps", type=int, default=10, help="Number of steps to run for in demo mode")
+    parser.add_argument("--repo_path", default=".", help="Path to the repository to analyze")
     
     args = parser.parse_args()
     
-    # Initialize the SDK
-    sdk = Arc()
+    # Initialize the SDK with the repository path
+    sdk = Arc(args.repo_path)
     
     if args.mode == "train":
         train_pipeline(sdk, num_episodes=args.num_episodes, agent_type=args.agent_type,
