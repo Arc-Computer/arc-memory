@@ -44,7 +44,7 @@ else
 fi
 
 # Run the Code Time Machine demo
-python demo/code_time_machine/code_time_machine.py --repo "$REPO_PATH" --file "$FILE_PATH" $REASONING_FLAG
+python -m demo.code_time_machine.code_time_machine --repo "$REPO_PATH" --file "$FILE_PATH" $REASONING_FLAG
 
 # Check if the demo was successful
 if [ $? -eq 0 ]; then
