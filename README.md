@@ -15,78 +15,59 @@
 
 *Arc is the memory layer for engineering teams — it records **why** every change was made, predicts the blast-radius of new code before you merge, and feeds that context to agents so they can handle long-range refactors safely.*
 
-## What The Arc SDK Does
+## What Arc Memory Does
 
-1. **Record the why.**
-   Arc's Temporal Knowledge Graph ingests commits, PRs, issues, and ADRs to preserve architectural intent and decision history—entirely on your machine.
+Arc Memory provides a complete solution for preserving and leveraging engineering knowledge:
 
-2. **Model the system.**
-   From that history Arc derives a **causal graph** of services, data flows, and constraints—a lightweight world-model that stays in sync with the codebase.
+1. **Records the why behind code changes**
+   Ingests commits, PRs, issues, and ADRs to preserve architectural intent and decision history.
 
-3. **Capture causal relationships.**
-   Arc tracks decision → implication → code-change chains, enabling multi-hop reasoning to show why decisions were made and their predicted impact.
+2. **Models your system as a temporal knowledge graph**
+   Creates a causal graph of code entities, services, and their relationships that evolves with your codebase.
 
-4. **Enhance PR reviews.**
-   Arc's GitHub Actions integration surfaces decision trails and blast-radius hints directly in PR comments, giving reviewers instant context before they hit "Approve."
+3. **Enables powerful temporal reasoning**
+   Tracks decision → implication → code-change chains to show why decisions were made and predict their impact.
 
-## How Arc Memory Differs
-
-Arc Memory takes a fundamentally different approach from traditional code analysis tools:
-
-### Temporal Understanding
-Unlike static code analysis tools, Arc captures why code evolved the way it did, preserving institutional knowledge even as teams change. The bi-temporal knowledge graph tracks not just what changed, but the reasoning and decisions behind those changes across time.
-
-### Predictive Insights
-Arc predicts the blast radius of code modifications before you merge, reducing incidents and regressions. By analyzing the causal relationships between components, Arc can identify which parts of your system might be affected by a change, helping you make more informed decisions.
-
-### Agent-Ready Architecture
-Arc's knowledge graph powers intelligent agents that can review code with historical context, navigate incidents with causal understanding, and implement self-healing improvements. The framework-agnostic design treats agent interactions as function calls for maximum composability, allowing integration with any agent framework.
+4. **Enhances developer workflows**
+   Surfaces decision trails and blast-radius predictions in PR reviews and provides context to AI agents.
 
 ## Quick Start
 
 ```bash
-# Install Arc Memory
-pip install arc-memory[github]
+# Install Arc Memory with all dependencies
+pip install arc-memory[all]
 
-# Build a knowledge graph from your repository
+# Authenticate with GitHub
+arc auth github
+
+# Build a knowledge graph with LLM enhancement
 cd /path/to/your/repo
-arc build --github
+arc build --github --linear --llm-enhancement standard --llm-provider openai --llm-model gpt-4.1
 ```
 
 Check out our [Code Time Machine demo](./demo/code_time_machine/) to explore file evolution, decision trails, and impact prediction, or browse other [example agents](./docs/examples/agents/) and [demo applications](./demo/).
 
 ## Core Features
 
-### Knowledge Graph
+### Powerful CLI Tools
 
 ```bash
-# Build with GitHub data and LLM enhancement
-arc build --github --linear --llm-enhancement standard --llm-provider openai --llm-model gpt-4.1
+# Explore decision trails for specific code
+arc why file path/to/file.py 42
+
+# Ask natural language questions about your codebase
+arc why query "What decision led to using SQLite instead of PostgreSQL?"
 
 # Run the Code Time Machine demo
 ./demo/code_time_machine/run_demo.sh path/to/file.py
-```
 
-### Decision Trails
-
-```bash
-# Show decision trail for a specific file and line
-arc why file path/to/file.py 42
-
-# Ask natural language questions
-arc why query "What decision led to using SQLite instead of PostgreSQL?"
-```
-
-### GitHub Actions Integration
-
-```bash
-# Export knowledge graph for GitHub Actions
+# Export knowledge graph for CI/CD integration
 arc export <commit-sha> export.json --compress
 ```
 
-## SDK for Developers
+## SDK for Developers and Agents
 
-The Arc SDK provides a comprehensive API for accessing and analyzing your codebase's knowledge graph:
+Arc Memory provides a clean, Pythonic SDK for accessing and analyzing your codebase's knowledge graph:
 
 ```python
 from arc_memory.sdk import Arc
@@ -98,8 +79,21 @@ arc = Arc(repo_path="./")
 result = arc.query("What were the major changes in the last release?")
 print(f"Answer: {result.answer}")
 
-# Find out why a specific piece of code exists
-decision_trail = arc.get_decision_trail("src/core/auth.py", 42)
+# Get file history and evolution
+file_history = arc.get_file_history("arc_memory/sdk/core.py")
+for entry in file_history:
+    print(f"{entry.timestamp}: {entry.author} - {entry.change_type}")
+
+# Find decision trails with rationales
+decision_trail = arc.get_decision_trail("arc_memory/sdk/core.py", 42)
+for entry in decision_trail:
+    print(f"Decision: {entry.title}")
+    print(f"Rationale: {entry.rationale}")
+
+# Analyze potential impact of changes
+impact = arc.analyze_component_impact("file:arc_memory/sdk/core.py")
+for component in impact:
+    print(f"Affected: {component.title} (Impact: {component.impact_score})")
 ```
 
 ## Documentation
@@ -130,39 +124,10 @@ Arc Memory is built around a bi-temporal knowledge graph that captures:
 
 This architecture enables powerful temporal reasoning and impact prediction capabilities that traditional code analysis tools cannot provide.
 
-## SDK for Developers and Agents
-
-Arc Memory provides a clean, Pythonic SDK with these key capabilities:
-
-```python
-from arc_memory.sdk import Arc
-
-# Initialize Arc with your repository path
-arc = Arc(repo_path="./")
-
-# Get file history and evolution
-file_history = arc.get_file_history("arc_memory/sdk/core.py")
-for entry in file_history:
-    print(f"{entry.timestamp}: {entry.author} - {entry.change_type}")
-
-# Find decision trails with rationales
-decision_trail = arc.get_decision_trail("arc_memory/sdk/core.py", 42)
-for entry in decision_trail:
-    print(f"Decision: {entry.title}")
-    print(f"Rationale: {entry.rationale}")
-
-# Analyze potential impact of changes
-impact = arc.analyze_component_impact("file:arc_memory/sdk/core.py")
-for component in impact:
-    print(f"Affected: {component.title} (Impact: {component.impact_score})")
-```
-
 The SDK follows a framework-agnostic design with adapters for popular frameworks like LangChain and OpenAI, making it easy to integrate Arc Memory into your development workflows or AI applications.
 
-## Privacy
+## Privacy and License
 
 Telemetry is disabled by default. Arc Memory respects your privacy and will only collect anonymous usage data if you explicitly opt in.
 
-## License
-
-MIT
+Licensed under MIT.
