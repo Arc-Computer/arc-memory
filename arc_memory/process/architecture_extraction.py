@@ -158,8 +158,14 @@ def detect_interfaces(
     for interface_type, patterns in interface_patterns.items():
         for pattern in patterns:
             for file_path in component_dir.glob(f"**/{pattern}"):
-                # Create interface node
-                interface_id = f"interface:{component_dir.name}/{file_path.stem}"
+                # Create a more unique interface ID by including the relative path from component
+                rel_path = file_path.relative_to(component_dir)
+                path_part = str(rel_path.parent).replace('/', '_').replace('\\', '_')
+                if path_part and path_part != '.':
+                    interface_id = f"interface:{component_dir.name}/{path_part}_{file_path.stem}"
+                else:
+                    interface_id = f"interface:{component_dir.name}/{file_path.stem}"
+
                 interface_node = InterfaceNode(
                     id=interface_id,
                     title=f"{file_path.stem} interface",

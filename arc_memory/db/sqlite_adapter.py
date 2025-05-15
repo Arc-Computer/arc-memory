@@ -360,6 +360,14 @@ class SQLiteAdapter:
         except Exception as e:
             error_msg = f"Failed to add nodes and edges: {e}"
             logger.error(error_msg)
+
+            # Explicitly roll back the transaction to ensure database consistency
+            try:
+                self.conn.execute("ROLLBACK")
+                logger.info("Transaction rolled back successfully")
+            except Exception as rollback_error:
+                logger.error(f"Failed to roll back transaction: {rollback_error}")
+
             raise GraphBuildError(
                 error_msg,
                 details={
