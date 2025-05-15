@@ -152,8 +152,23 @@ def _get_entity_references(adapter: DatabaseAdapter, entity_id: str) -> List[Dic
             references.append(reference)
 
     # Sort references by timestamp (newest first)
+    def sort_key(r):
+        timestamp = r.get("timestamp")
+        if not timestamp:
+            return ""  # Default value for None or empty timestamps
+
+        # If it's a string, try to parse it as a datetime
+        if isinstance(timestamp, str):
+            try:
+                return timestamp
+            except Exception:
+                return ""  # Default value if parsing fails
+
+        # If it's already a datetime or something else, return as is
+        return timestamp
+
     references.sort(
-        key=lambda r: r.get("timestamp", ""),
+        key=sort_key,
         reverse=True
     )
 
