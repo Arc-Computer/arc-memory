@@ -12,11 +12,23 @@ Arc Memory uses a graph-based data model, where nodes represent entities (commit
 
 ```python
 class NodeType(str, Enum):
+    # Core types
     COMMIT = "commit"
     FILE = "file"
     PR = "pr"
     ISSUE = "issue"
     ADR = "adr"
+
+    # Repository identity
+    REPOSITORY = "repository"
+
+    # Architecture components
+    SYSTEM = "system"
+    SERVICE = "service"
+    COMPONENT = "component"
+    INTERFACE = "interface"
+
+    # Other types...
 ```
 
 This enum defines the types of nodes in the knowledge graph:
@@ -26,6 +38,11 @@ This enum defines the types of nodes in the knowledge graph:
 - `PR`: A GitHub Pull Request
 - `ISSUE`: A GitHub Issue
 - `ADR`: An Architectural Decision Record
+- `REPOSITORY`: A Git repository
+- `SYSTEM`: A system in the architecture
+- `SERVICE`: A service in the system
+- `COMPONENT`: A component in the system
+- `INTERFACE`: An interface exposed by a service or component
 
 ### `Node` Base Class
 
@@ -36,6 +53,7 @@ class Node(BaseModel):
     title: Optional[str] = None
     body: Optional[str] = None
     ts: Optional[datetime] = None
+    repo_id: Optional[str] = None  # Reference to repository
     extra: Dict[str, Any] = Field(default_factory=dict)
 ```
 
@@ -46,6 +64,7 @@ This is the base class for all nodes in the knowledge graph:
 - `title`: The title or name of the node
 - `body`: The body or content of the node
 - `ts`: The timestamp of the node
+- `repo_id`: Reference to the repository this node belongs to
 - `extra`: Additional metadata for the node
 
 ### Specialized Node Classes
@@ -140,16 +159,118 @@ Represents an Architectural Decision Record:
 - `decision_makers`: The people who made the decision
 - `path`: The path to the ADR file
 
+#### `RepositoryNode`
+
+```python
+class RepositoryNode(Node):
+    type: NodeType = NodeType.REPOSITORY
+    name: str  # Repository name (e.g., "arc-memory")
+    url: Optional[str] = None  # Repository URL
+    local_path: str  # Local path where repository was cloned
+    default_branch: str = "main"  # Default branch
+    metadata: Dict[str, Any] = Field(default_factory=dict)  # Additional metadata
+```
+
+Represents a Git repository:
+
+- `name`: The name of the repository
+- `url`: The URL of the repository (e.g., "https://github.com/Arc-Computer/arc-memory")
+- `local_path`: The local path where the repository was cloned
+- `default_branch`: The default branch of the repository
+- `metadata`: Additional metadata about the repository
+
+#### `SystemNode`
+
+```python
+class SystemNode(Node):
+    type: NodeType = NodeType.SYSTEM
+    name: str
+    description: Optional[str] = None
+```
+
+Represents a system in the architecture:
+
+- `name`: The name of the system
+- `description`: A description of the system
+
+#### `ServiceNode`
+
+```python
+class ServiceNode(Node):
+    type: NodeType = NodeType.SERVICE
+    name: str  # Service name
+    description: Optional[str] = None
+    system_id: Optional[str] = None  # Reference to parent system
+    apis: List[Dict[str, Any]] = Field(default_factory=list)  # API endpoints
+    dependencies: List[str] = Field(default_factory=list)  # External dependencies
+```
+
+Represents a service in the system architecture:
+
+- `name`: The name of the service
+- `description`: A description of the service
+- `system_id`: Reference to the parent system
+- `apis`: List of API endpoints provided by the service
+- `dependencies`: List of external dependencies
+
+#### `ComponentNode`
+
+```python
+class ComponentNode(Node):
+    type: NodeType = NodeType.COMPONENT
+    name: str  # Component name
+    description: Optional[str] = None
+    service_id: Optional[str] = None  # Reference to parent service
+    files: List[str] = Field(default_factory=list)  # Files in this component
+    responsibilities: List[str] = Field(default_factory=list)  # Component responsibilities
+```
+
+Represents a component in the system architecture:
+
+- `name`: The name of the component
+- `description`: A description of the component
+- `service_id`: Reference to the parent service
+- `files`: List of files in this component
+- `responsibilities`: List of component responsibilities
+
+#### `InterfaceNode`
+
+```python
+class InterfaceNode(Node):
+    type: NodeType = NodeType.INTERFACE
+    name: str
+    description: Optional[str] = None
+    service_id: Optional[str] = None  # Reference to parent service
+    interface_type: str = "api"  # api, event, etc.
+```
+
+Represents an interface in the architecture:
+
+- `name`: The name of the interface
+- `description`: A description of the interface
+- `service_id`: Reference to the parent service
+- `interface_type`: The type of interface (api, event, etc.)
+
 ## Edge Types
 
 ### `EdgeRel` Enum
 
 ```python
 class EdgeRel(str, Enum):
+    # Core relationships
     MODIFIES = "MODIFIES"  # Commit modifies a file
     MERGES = "MERGES"      # PR merges a commit
     MENTIONS = "MENTIONS"  # PR/Issue mentions another entity
     DECIDES = "DECIDES"    # ADR decides on a file/commit
+    DEPENDS_ON = "DEPENDS_ON"  # File/component depends on another file/component
+
+    # Architecture relationships
+    CONTAINS = "CONTAINS"      # System contains Service, Service contains Component
+    EXPOSES = "EXPOSES"        # Service/Component exposes Interface
+    CONSUMES = "CONSUMES"      # Service/Component consumes Interface
+    COMMUNICATES_WITH = "COMMUNICATES_WITH"  # Service communicates with Service
+
+    # Other relationships...
 ```
 
 This enum defines the types of relationships between nodes:
@@ -158,6 +279,11 @@ This enum defines the types of relationships between nodes:
 - `MERGES`: A PR merges a commit
 - `MENTIONS`: A PR or issue mentions another entity
 - `DECIDES`: An ADR makes a decision about a file or commit
+- `DEPENDS_ON`: A file or component depends on another file or component
+- `CONTAINS`: A system contains a service, or a service contains a component
+- `EXPOSES`: A service or component exposes an interface
+- `CONSUMES`: A service or component consumes an interface
+- `COMMUNICATES_WITH`: A service communicates with another service
 
 ### `Edge` Class
 

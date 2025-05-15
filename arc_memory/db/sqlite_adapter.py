@@ -181,6 +181,21 @@ class SQLiteAdapter:
             raise DatabaseError("Not connected to database")
 
         try:
+            # Create repositories table if it doesn't exist
+            self.conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS repositories (
+                    id TEXT PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    url TEXT,
+                    local_path TEXT NOT NULL,
+                    default_branch TEXT DEFAULT 'main',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    metadata TEXT
+                )
+                """
+            )
+
             # Create tables if they don't exist
             self.conn.execute(
                 """
@@ -190,6 +205,7 @@ class SQLiteAdapter:
                     title TEXT,
                     body TEXT,
                     timestamp TEXT,
+                    repo_id TEXT,
                     extra TEXT
                 )
                 """
@@ -199,6 +215,13 @@ class SQLiteAdapter:
             self.conn.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_nodes_timestamp ON nodes(timestamp)
+                """
+            )
+
+            # Create index on repo_id column
+            self.conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_nodes_repo_id ON nodes(repo_id)
                 """
             )
 
@@ -241,9 +264,25 @@ class SQLiteAdapter:
                 from arc_memory.migrations.add_timestamp_column import migrate_database
                 migrate_success = migrate_database(self.db_path)
                 if migrate_success:
-                    logger.info(f"Successfully ran database migrations for {self.db_path}")
+                    logger.info(f"Successfully ran timestamp column migration for {self.db_path}")
                 else:
-                    logger.warning(f"Failed to run database migrations for {self.db_path}")
+                    logger.warning(f"Failed to run timestamp column migration for {self.db_path}")
+
+                # Run repository migration
+                from arc_memory.migrations.add_repo_id_column import migrate_database as migrate_repo_id
+                repo_migrate_success = migrate_repo_id(self.db_path)
+                if repo_migrate_success:
+                    logger.info(f"Successfully ran repository migration for {self.db_path}")
+                else:
+                    logger.warning(f"Failed to run repository migration for {self.db_path}")
+
+                # Run architecture schema migration
+                from arc_memory.migrations.add_architecture_schema import migrate_database as migrate_architecture
+                arch_migrate_success = migrate_architecture(self.db_path)
+                if arch_migrate_success:
+                    logger.info(f"Successfully ran architecture schema migration for {self.db_path}")
+                else:
+                    logger.warning(f"Failed to run architecture schema migration for {self.db_path}")
             except Exception as migrate_error:
                 logger.warning(f"Error running database migrations: {migrate_error}")
                 # Don't fail initialization if migrations fail
@@ -272,7 +311,27 @@ class SQLiteAdapter:
         if not self.is_connected():
             raise DatabaseError("Not connected to database")
 
+        # Check if we're already in a transaction
+        in_transaction = False
         try:
+            # Check if we're already in a transaction by checking the connection's in_transaction property
+            # This is more reliable than PRAGMA transaction_status which is not available in all SQLite versions
+            in_transaction = self.conn.in_transaction
+        except Exception:
+            # If the check fails, try an alternative method
+            try:
+                cursor = self.conn.execute("PRAGMA transaction_status")
+                status = cursor.fetchone()[0]
+                in_transaction = status != 0  # 0 means not in a transaction
+            except Exception:
+                # If all checks fail, assume we're not in a transaction
+                in_transaction = False
+
+        try:
+            # Begin transaction if not already in one
+            if not in_transaction:
+                self.conn.execute("BEGIN TRANSACTION")
+
             # Add nodes
             for node in nodes:
                 # Extract timestamp from node
@@ -282,8 +341,8 @@ class SQLiteAdapter:
 
                 self.conn.execute(
                     """
-                    INSERT OR REPLACE INTO nodes(id, type, title, body, timestamp, extra)
-                    VALUES(?, ?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO nodes(id, type, title, body, timestamp, repo_id, extra)
+                    VALUES(?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         node.id,
@@ -291,6 +350,7 @@ class SQLiteAdapter:
                         node.title,
                         node.body,
                         timestamp_str,
+                        node.repo_id,
                         json.dumps(node.extra, cls=DateTimeEncoder),
                     ),
                 )
@@ -310,10 +370,23 @@ class SQLiteAdapter:
                     ),
                 )
 
+            # Commit transaction if we started it
+            if not in_transaction:
+                self.conn.execute("COMMIT")
+
             logger.info(f"Added {len(nodes)} nodes and {len(edges)} edges to database")
         except Exception as e:
             error_msg = f"Failed to add nodes and edges: {e}"
             logger.error(error_msg)
+
+            # Explicitly roll back the transaction if we started it
+            if not in_transaction:
+                try:
+                    self.conn.execute("ROLLBACK")
+                    logger.info("Transaction rolled back successfully")
+                except Exception as rollback_error:
+                    logger.error(f"Failed to roll back transaction: {rollback_error}")
+
             raise GraphBuildError(
                 error_msg,
                 details={

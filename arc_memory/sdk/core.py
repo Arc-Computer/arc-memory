@@ -74,6 +74,9 @@ class Arc:
             # Initialize the database schema
             self.adapter.init_db()
 
+            # Set current repository context
+            self.current_repo_id = None
+
             # Discover and register framework adapters
             discover_adapters()
 
@@ -83,6 +86,117 @@ class Arc:
         except Exception as e:
             # Convert other exceptions to SDK errors
             raise SDKError(f"Failed to initialize Arc Memory SDK: {e}") from e
+
+    def ensure_repository(self, name: Optional[str] = None) -> str:
+        """Ensure a repository entry exists for the current repo_path.
+
+        This method checks if a repository entry exists for the current repo_path,
+        and creates one if it doesn't. It returns the repository ID.
+
+        Args:
+            name: Optional name for the repository. If None, uses the repo_path name.
+
+        Returns:
+            The repository ID.
+
+        Raises:
+            QueryError: If ensuring the repository fails.
+        """
+        try:
+            # Check if repository already exists
+            repo = self.get_current_repository()
+            if repo:
+                self.current_repo_id = repo["id"]
+                return repo["id"]
+
+            # Generate repository name from path if not provided
+            if not name:
+                name = self.repo_path.name
+
+            # Generate repository ID (use path hash for deterministic IDs)
+            import hashlib
+            repo_id = f"repository:{hashlib.md5(str(self.repo_path.absolute()).encode()).hexdigest()}"
+
+            # Get repository URL from git config if available
+            url = None
+            try:
+                import subprocess
+                result = subprocess.run(
+                    ["git", "-C", str(self.repo_path), "config", "--get", "remote.origin.url"],
+                    capture_output=True, text=True, check=False
+                )
+                if result.returncode == 0:
+                    url = result.stdout.strip()
+            except Exception:
+                pass
+
+            # Get default branch
+            default_branch = "main"
+            try:
+                result = subprocess.run(
+                    ["git", "-C", str(self.repo_path), "symbolic-ref", "--short", "HEAD"],
+                    capture_output=True, text=True, check=False
+                )
+                if result.returncode == 0:
+                    default_branch = result.stdout.strip()
+            except Exception:
+                pass
+
+            # Create repository node
+            from arc_memory.schema.models import RepositoryNode
+            repo_node = RepositoryNode(
+                id=repo_id,
+                title=name,
+                name=name,
+                url=url,
+                local_path=str(self.repo_path.absolute()),
+                default_branch=default_branch
+            )
+
+            # Add repository to database
+            self.add_nodes_and_edges([repo_node], [])
+
+            # Set current repository ID
+            self.current_repo_id = repo_id
+
+            return repo_id
+        except Exception as e:
+            raise QueryError(f"Failed to ensure repository: {e}") from e
+
+    def get_current_repository(self) -> Optional[Dict[str, Any]]:
+        """Get the current repository based on repo_path.
+
+        Returns:
+            The repository as a dictionary, or None if it doesn't exist.
+
+        Raises:
+            QueryError: If getting the repository fails.
+        """
+        try:
+            # Execute query to find repository by local_path
+            query = """
+            SELECT * FROM repositories WHERE local_path = ?
+            """
+            params = (str(self.repo_path.absolute()),)
+
+            # Execute query
+            cursor = self.adapter.conn.execute(query, params)
+            row = cursor.fetchone()
+
+            if row is None:
+                return None
+
+            # Convert row to dictionary
+            repo = dict(row)
+
+            # Parse metadata if it exists
+            if repo.get("metadata"):
+                import json
+                repo["metadata"] = json.loads(repo["metadata"])
+
+            return repo
+        except Exception as e:
+            raise QueryError(f"Failed to get current repository: {e}") from e
 
     def get_node_by_id(self, node_id: str) -> Optional[Dict[str, Any]]:
         """Get a node by its ID.
@@ -205,6 +319,7 @@ class Arc:
         repo_path=None,
         include_github=True,
         include_linear=False,
+        include_architecture=True,
         use_llm=True,
         llm_provider="openai",
         llm_model="gpt-4.1",
@@ -221,6 +336,7 @@ class Arc:
             repo_path: Path to the Git repository. If None, uses the repo_path from initialization.
             include_github: Whether to include GitHub data in the graph.
             include_linear: Whether to include Linear data in the graph.
+            include_architecture: Whether to extract architecture components. Default is True.
             use_llm: Whether to use an LLM to enhance the graph. Default is True.
             llm_provider: The LLM provider to use. Default is "openai".
             llm_model: The LLM model to use. Default is "gpt-4.1".
@@ -246,6 +362,7 @@ class Arc:
                 repo_path=repo_path,
                 include_github=include_github,
                 include_linear=include_linear,
+                include_architecture=include_architecture,
                 use_llm=use_llm,
                 llm_provider=llm_provider,
                 llm_model=llm_model,
@@ -439,6 +556,74 @@ class Arc:
             cache=cache,
             callback=callback
         )
+
+    # Architecture API methods
+
+    def get_architecture_components(
+        self,
+        component_type: Optional[str] = None,
+        parent_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """Get architecture components from the knowledge graph.
+
+        Args:
+            component_type: Filter by component type (system, service, component, interface)
+            parent_id: Filter by parent component ID
+
+        Returns:
+            List of architecture components
+
+        Raises:
+            QueryError: If getting architecture components fails.
+        """
+        try:
+            # Ensure repository exists
+            repo_id = self.ensure_repository()
+
+            # Build query based on parameters
+            query = "SELECT * FROM nodes WHERE "
+            params = []
+            conditions = []
+
+            # Filter by repository
+            conditions.append("repo_id = ?")
+            params.append(repo_id)
+
+            # Filter by component type
+            if component_type:
+                conditions.append("type = ?")
+                params.append(component_type)
+            else:
+                conditions.append("type IN ('system', 'service', 'component', 'interface')")
+
+            # Combine conditions
+            query += " AND ".join(conditions)
+
+            # Execute query
+            cursor = self.adapter.conn.execute(query, tuple(params))
+            components = [dict(row) for row in cursor.fetchall()]
+
+            # Filter by parent if needed
+            if parent_id:
+                # Get all edges where parent_id is the source
+                cursor = self.adapter.conn.execute(
+                    "SELECT * FROM edges WHERE src = ? AND rel = 'CONTAINS'",
+                    (parent_id,)
+                )
+                # Get IDs of children
+                child_ids = [row["dst"] for row in cursor.fetchall()]
+                # Filter components by child IDs
+                components = [c for c in components if c["id"] in child_ids]
+
+            # Parse extra field
+            for component in components:
+                if component.get("extra"):
+                    import json
+                    component["extra"] = json.loads(component["extra"])
+
+            return components
+        except Exception as e:
+            raise QueryError(f"Failed to get architecture components: {e}") from e
 
     # Component Impact API methods
 

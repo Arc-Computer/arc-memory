@@ -39,6 +39,9 @@ try:
 except ImportError:
     OPENAI_AVAILABLE = False
 
+# Import architecture extraction
+from arc_memory.process.architecture_extraction import extract_architecture
+
 logger = get_logger(__name__)
 
 
@@ -421,6 +424,7 @@ def refresh_knowledge_graph(
     db_path: Optional[str] = None,
     include_github: bool = False,
     include_linear: bool = False,
+    include_architecture: bool = True,
     use_llm: bool = True,
     llm_provider: str = "openai",
     llm_model: Optional[str] = "gpt-4.1",
@@ -727,6 +731,30 @@ Generate structured JSON following the requested schema for each enhancement tas
 
         if verbose:
             print(f"✅ [{idx}/{len(ingestors)}] {ingestor_name}: {len(nodes)} nodes, {len(edges)} edges ({ingestor_time:.1f}s)")
+
+    # Extract architecture components if enabled
+    if include_architecture:
+        if verbose:
+            print("Extracting architecture components...")
+
+        arch_start = time.time()
+        try:
+            # Create a repository ID if we're using architecture
+            import hashlib
+            repo_id = f"repository:{hashlib.md5(str(repo_path.absolute()).encode()).hexdigest()}"
+
+            # Extract architecture components
+            arch_nodes, arch_edges = extract_architecture(all_nodes, all_edges, repo_path, repo_id)
+
+            # Add architecture nodes and edges to the graph
+            all_nodes.extend(arch_nodes)
+            all_edges.extend(arch_edges)
+
+            if verbose:
+                print(f"✅ Architecture extraction complete: {len(arch_nodes)} nodes, {len(arch_edges)} edges ({time.time() - arch_start:.1f}s)")
+        except Exception as e:
+            if verbose:
+                print(f"❌ Architecture extraction failed: {e}")
 
     # Apply LLM enhancements if enabled
     if use_llm and llm_client is not None:

@@ -156,6 +156,74 @@ class Arc:
             and the path of dependencies from the target component.
         """
 
+    def ensure_repository(self, name: Optional[str] = None) -> str:
+        """
+        Ensure a repository entry exists for the current repo_path.
+
+        This method checks if a repository entry exists for the current repo_path,
+        and creates one if it doesn't. It returns the repository ID.
+
+        Args:
+            name: Optional name for the repository. If None, uses the repo_path name.
+
+        Returns:
+            The repository ID.
+        """
+
+    def get_current_repository(self) -> Optional[Dict[str, Any]]:
+        """
+        Get the current repository based on repo_path.
+
+        Returns:
+            The repository as a dictionary, or None if it doesn't exist.
+        """
+
+    def build(
+        self,
+        repo_path=None,
+        include_github=True,
+        include_linear=False,
+        include_architecture=True,
+        use_llm=True,
+        llm_provider="openai",
+        llm_model="gpt-4.1",
+        llm_enhancement_level="standard",
+        verbose=False,
+    ):
+        """
+        Build or refresh the knowledge graph.
+
+        Args:
+            repo_path: Path to the repository. If None, uses the repo_path from initialization.
+            include_github: Whether to include GitHub data in the graph.
+            include_linear: Whether to include Linear data in the graph.
+            include_architecture: Whether to extract architecture components.
+            use_llm: Whether to use an LLM to enhance the graph.
+            llm_provider: The LLM provider to use.
+            llm_model: The LLM model to use.
+            llm_enhancement_level: The level of LLM enhancement to apply.
+            verbose: Whether to print verbose output during the build process.
+
+        Returns:
+            A dictionary containing information about the build process.
+        """
+
+    def get_architecture_components(
+        self,
+        component_type: Optional[str] = None,
+        parent_id: Optional[str] = None
+    ) -> List[Dict[str, Any]]:
+        """
+        Get architecture components from the knowledge graph.
+
+        Args:
+            component_type: Filter by component type (system, service, component, interface)
+            parent_id: Filter by parent component ID
+
+        Returns:
+            List of architecture components
+        """
+
     def get_entity_history(
         self,
         entity_id: str,
