@@ -373,7 +373,16 @@ class CodeTimeMachine:
                 component_id = f"file:{self.file_path}"
                 try:
                     # Import our custom impact analysis
-                    from demo.code_time_machine.custom_impact import analyze_component_impact
+                    try:
+                        # Try relative import first (when imported as a module)
+                        from .custom_impact import analyze_component_impact
+                    except ImportError:
+                        # Try absolute import (when run as a module)
+                        try:
+                            from demo.code_time_machine.custom_impact import analyze_component_impact
+                        except ImportError:
+                            # Try direct import (when run as a script)
+                            from custom_impact import analyze_component_impact
 
                     # Use our custom implementation
                     impact = analyze_component_impact(
@@ -536,7 +545,16 @@ class CodeTimeMachine:
                 component_id = f"file:{self.file_path}"
                 try:
                     # Import our custom impact analysis
-                    from demo.code_time_machine.custom_impact import analyze_component_impact
+                    try:
+                        # Try relative import first (when imported as a module)
+                        from .custom_impact import analyze_component_impact
+                    except ImportError:
+                        # Try absolute import (when run as a module)
+                        try:
+                            from demo.code_time_machine.custom_impact import analyze_component_impact
+                        except ImportError:
+                            # Try direct import (when run as a script)
+                            from custom_impact import analyze_component_impact
 
                     # Use our custom implementation
                     impact = analyze_component_impact(
