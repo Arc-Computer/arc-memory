@@ -51,41 +51,31 @@ class ArcEnvironment:
         Returns:
             A dictionary containing the current state representation
         """
-        # This is a simplified state representation
-        # In a more complex implementation, we would include more features
+        # Get repository ID
+        repo_id = self.sdk.ensure_repository()
         
-        # Get all code-related nodes
-        code_nodes = self.sdk.get_nodes_by_type(NodeType.FILE)
-        code_nodes.extend(self.sdk.get_nodes_by_type(NodeType.FUNCTION))
-        code_nodes.extend(self.sdk.get_nodes_by_type(NodeType.CLASS))
+        # Get basic metrics
+        total_nodes = self.sdk.get_node_count()
+        total_edges = self.sdk.get_edge_count()
         
-        # Count node types
-        node_type_counts = {}
-        for node in code_nodes:
-            node_type = node.node_type
-            if node_type in node_type_counts:
-                node_type_counts[node_type] += 1
+        # Get architecture components for different types
+        components = self.sdk.get_architecture_components()
+        
+        # Count component types
+        component_type_counts = {}
+        for component in components:
+            comp_type = component.get("type", "unknown")
+            if comp_type in component_type_counts:
+                component_type_counts[comp_type] += 1
             else:
-                node_type_counts[node_type] = 1
+                component_type_counts[comp_type] = 1
         
-        # Get edges to represent dependencies
-        edges = self.sdk.get_edges_for_nodes([node.id for node in code_nodes])
-        
-        # Count edge types
-        edge_type_counts = {}
-        for edge in edges:
-            edge_type = edge.edge_type
-            if edge_type in edge_type_counts:
-                edge_type_counts[edge_type] += 1
-            else:
-                edge_type_counts[edge_type] = 1
-        
-        # Create a simple state representation
+        # Create state representation
         state = {
-            "node_counts": node_type_counts,
-            "edge_counts": edge_type_counts,
-            "total_nodes": len(code_nodes),
-            "total_edges": len(edges),
+            "repo_id": repo_id,
+            "total_nodes": total_nodes,
+            "total_edges": total_edges,
+            "component_counts": component_type_counts,
         }
         
         return state
@@ -144,30 +134,37 @@ class ArcEnvironment:
             The reward for the action
         """
         # Extract prediction details
-        node_id = action.get("node_id")
+        component_id = action.get("component_id")
         predicted_radius = action.get("radius", [])
         
-        # In a real implementation, we would compare with actual outcomes
-        # For this baseline, we'll use a simple heuristic
-        
-        # Get actual connected nodes (simplified "ground truth")
-        connected_nodes = self._get_connected_nodes(node_id)
-        
-        # Calculate reward based on prediction accuracy
-        # This is a simplified reward calculation
-        correct_predictions = set(predicted_radius).intersection(connected_nodes)
-        
-        # Calculate precision with improved readability
-        precision = 0
-        if predicted_radius:
-            precision = len(correct_predictions) / len(predicted_radius)
+        try:
+            # Get actual impact analysis
+            impact_results = self.sdk.analyze_component_impact(
+                component_id=component_id,
+                max_depth=3
+            )
             
-        recall = len(correct_predictions) / len(connected_nodes) if connected_nodes else 0
-        
-        # F1 score as reward
-        if precision + recall > 0:
-            reward = 2 * precision * recall / (precision + recall)
-        else:
+            # Extract actual impacted components
+            actual_radius = [result.component_id for result in impact_results]
+            
+            # Calculate reward based on prediction accuracy
+            correct_predictions = set(predicted_radius).intersection(actual_radius)
+            
+            # Calculate precision with improved readability
+            precision = 0
+            if predicted_radius:
+                precision = len(correct_predictions) / len(predicted_radius)
+                
+            recall = len(correct_predictions) / len(actual_radius) if actual_radius else 0
+            
+            # F1 score as reward
+            if precision + recall > 0:
+                reward = 2 * precision * recall / (precision + recall)
+            else:
+                reward = 0.0
+                
+        except Exception as e:
+            logger.warning(f"Error analyzing component impact: {e}")
             reward = 0.0
             
         return reward
@@ -183,60 +180,32 @@ class ArcEnvironment:
             The reward for the action
         """
         # Extract prediction details
-        node_id = action.get("node_id")
+        component_id = action.get("component_id")
         vulnerability_type = action.get("vulnerability_type")
         confidence = action.get("confidence", 0.5)
         
-        # In a real implementation, we would compare with actual outcomes
-        # For this baseline, we'll use a simple heuristic
-        
-        # Simulate ground truth (in a real system, this would come from actual data)
-        is_vulnerable = self._simulate_vulnerability(node_id, vulnerability_type)
-        
-        # Calculate reward based on prediction accuracy
-        if is_vulnerable:
-            # True positive
-            reward = confidence
-        else:
-            # False positive
-            reward = -confidence
+        try:
+            # Get component details
+            details = self.sdk.get_entity_details(component_id)
+            
+            # Check for security-related properties or relationships
+            has_security_concerns = any(
+                "security" in str(prop).lower() or 
+                "vulnerability" in str(prop).lower() or 
+                "risk" in str(prop).lower()
+                for prop in details.properties.values()
+            )
+            
+            # Calculate reward based on prediction
+            if has_security_concerns:
+                # True positive
+                reward = confidence
+            else:
+                # False positive
+                reward = -confidence
+                
+        except Exception as e:
+            logger.warning(f"Error getting entity details: {e}")
+            reward = 0.0
             
         return reward
-    
-    def _get_connected_nodes(self, node_id: str) -> List[str]:
-        """
-        Get the nodes connected to the given node.
-        
-        Args:
-            node_id: The ID of the node
-            
-        Returns:
-            A list of connected node IDs
-        """
-        # Get edges for the node
-        edges = self.sdk.get_edges_for_node(node_id)
-        
-        # Extract connected nodes
-        connected_nodes = []
-        for edge in edges:
-            if edge.source_id == node_id:
-                connected_nodes.append(edge.target_id)
-            else:
-                connected_nodes.append(edge.source_id)
-                
-        return connected_nodes
-    
-    def _simulate_vulnerability(self, node_id: str, vulnerability_type: str) -> bool:
-        """
-        Simulate whether a node has a specific vulnerability.
-        
-        Args:
-            node_id: The ID of the node
-            vulnerability_type: The type of vulnerability
-            
-        Returns:
-            True if the node is vulnerable, False otherwise
-        """
-        # In a real system, this would be based on actual data
-        # For this baseline, we'll use a random value with a low probability
-        return np.random.random() < 0.1  # 10% chance of vulnerability 
