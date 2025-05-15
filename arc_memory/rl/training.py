@@ -302,6 +302,9 @@ class ExperienceBuffer:
         Returns:
             A batch of experiences
         """
+        if len(self.buffer) == 0:
+            return []
+            
         batch_size = min(batch_size, len(self.buffer))
         indices = np.random.choice(len(self.buffer), batch_size, replace=False)
         
