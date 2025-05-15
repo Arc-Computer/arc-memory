@@ -11,7 +11,7 @@ from typing import Dict, List, Any, Optional, Tuple
 import numpy as np
 
 from arc_memory.schema.models import Node, Edge, NodeType
-from arc_memory.sdk.core import ArcSDK
+from arc_memory.sdk.core import Arc
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +24,7 @@ class ArcEnvironment:
     and receive rewards.
     """
     
-    def __init__(self, sdk: ArcSDK):
+    def __init__(self, sdk: Arc):
         """
         Initialize the environment.
         

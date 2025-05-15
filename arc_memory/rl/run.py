@@ -14,7 +14,7 @@ from typing import Dict, List, Any, Optional, Tuple
 import matplotlib.pyplot as plt
 import numpy as np
 
-from arc_memory.sdk.core import ArcSDK
+from arc_memory.sdk.core import Arc
 from arc_memory.rl.environment import ArcEnvironment
 from arc_memory.rl.agent import RandomAgent, QTableAgent
 from arc_memory.rl.reward import MultiComponentReward
@@ -87,7 +87,7 @@ def plot_training_metrics(metrics: Dict[str, Any], save_dir: str):
     plt.close()
 
 
-def initialize_pipeline(sdk: ArcSDK, agent_type: str = "qtable") -> Tuple[ArcEnvironment, Any, MultiComponentReward]:
+def initialize_pipeline(sdk: Arc, agent_type: str = "qtable") -> Tuple[ArcEnvironment, Any, MultiComponentReward]:
     """
     Initialize the RL pipeline.
     
@@ -120,7 +120,7 @@ def initialize_pipeline(sdk: ArcSDK, agent_type: str = "qtable") -> Tuple[ArcEnv
     return env, agent, reward_function
 
 
-def train_pipeline(sdk: ArcSDK, num_episodes: int = 100, agent_type: str = "qtable",
+def train_pipeline(sdk: Arc, num_episodes: int = 100, agent_type: str = "qtable",
                   save_dir: str = "models", plot_dir: str = "plots") -> Dict[str, Any]:
     """
     Train the RL pipeline.
@@ -150,7 +150,7 @@ def train_pipeline(sdk: ArcSDK, num_episodes: int = 100, agent_type: str = "qtab
     return metrics
 
 
-def evaluate_pipeline(sdk: ArcSDK, agent_path: str, agent_type: str = "qtable",
+def evaluate_pipeline(sdk: Arc, agent_path: str, agent_type: str = "qtable",
                     num_episodes: int = 10) -> Dict[str, Any]:
     """
     Evaluate the RL pipeline.
@@ -179,7 +179,7 @@ def evaluate_pipeline(sdk: ArcSDK, agent_path: str, agent_type: str = "qtable",
     return metrics
 
 
-def collect_and_train_offline(sdk: ArcSDK, num_collection_episodes: int = 10,
+def collect_and_train_offline(sdk: Arc, num_collection_episodes: int = 10,
                              num_training_epochs: int = 10, agent_type: str = "qtable",
                              save_dir: str = "models", buffer_path: Optional[str] = None) -> None:
     """
@@ -221,10 +221,10 @@ def collect_and_train_offline(sdk: ArcSDK, num_collection_episodes: int = 10,
     logger.info(f"Saved agent to {save_dir}")
 
 
-def demo_pipeline(sdk: ArcSDK, agent_path: str, agent_type: str = "qtable",
+def demo_pipeline(sdk: Arc, agent_path: str, agent_type: str = "qtable",
                  num_steps: int = 10) -> None:
     """
-    Demonstrate the RL pipeline.
+    Run a demo of the RL pipeline.
     
     Args:
         sdk: Arc SDK instance
@@ -239,35 +239,34 @@ def demo_pipeline(sdk: ArcSDK, agent_path: str, agent_type: str = "qtable",
     agent.load(agent_path)
     
     # Run the demo
-    state = env.observe()
+    state = env.reset()
     total_reward = 0
     
     for step in range(num_steps):
-        # Choose an action
+        # Get action from agent
         action = agent.act(state)
         
-        # Take a step in the environment
-        next_state, env_reward, done, info = env.step(action)
+        # Take step in environment
+        next_state, reward, done, info = env.step(action)
         
-        # Update info with action count
-        info["action_count"] = step + 1
-        
-        # Calculate reward
-        reward = reward_function.calculate_reward(state, action, next_state, info)
-        
-        # Print step information
-        logger.info(f"Step {step + 1}/{num_steps}")
-        logger.info(f"Action: {action}")
-        logger.info(f"Reward: {reward:.2f}")
-        
-        # Update state and reward
-        state = next_state
+        # Update total reward
         total_reward += reward
         
+        # Print step information
+        print(f"\nStep {step + 1}:")
+        print(f"Action: {action}")
+        print(f"Reward: {reward}")
+        print(f"Total Reward: {total_reward}")
+        
         if done:
+            print("\nEpisode finished early")
             break
-    
-    logger.info(f"Demo completed with total reward: {total_reward:.2f}")
+        
+        # Update state
+        state = next_state
+        
+        # Small delay for readability
+        time.sleep(1)
 
 
 def main():
@@ -291,7 +290,7 @@ def main():
     args = parser.parse_args()
     
     # Initialize the SDK
-    sdk = ArcSDK()
+    sdk = Arc()
     
     if args.mode == "train":
         train_pipeline(sdk, num_episodes=args.num_episodes, agent_type=args.agent_type,

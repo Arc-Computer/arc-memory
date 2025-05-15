@@ -11,7 +11,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
-from arc_memory.sdk.core import ArcSDK
+from arc_memory.sdk.core import Arc
 from arc_memory.rl.run import (
     train_pipeline,
     evaluate_pipeline,
@@ -68,7 +68,7 @@ def run(
     """
     try:
         # Initialize the SDK
-        sdk = ArcSDK()
+        sdk = Arc("./")  # Initialize with current directory
         
         # Create the save directories if they don't exist
         os.makedirs(save_dir, exist_ok=True)
@@ -226,7 +226,7 @@ def test():
     
     try:
         # Initialize the SDK
-        sdk = ArcSDK()
+        sdk = Arc("./")
         
         # Create a temporary directory for test outputs
         test_dir = Path("test_rl")
