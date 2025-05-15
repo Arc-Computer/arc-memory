@@ -15,6 +15,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from arc_memory.sdk.core import Arc
+from arc_memory.schema.models import ComponentNode
 from arc_memory.rl.environment import ArcEnvironment
 from arc_memory.rl.agent import RandomAgent, QTableAgent
 from arc_memory.rl.reward import MultiComponentReward
@@ -87,6 +88,30 @@ def plot_training_metrics(metrics: Dict[str, Any], save_dir: str):
     plt.close()
 
 
+def create_test_components(num_components: int = 5) -> List[ComponentNode]:
+    """
+    Create test components for RL training when no real components are available.
+    
+    Args:
+        num_components: Number of test components to create
+        
+    Returns:
+        List of ComponentNode objects
+    """
+    return [
+        ComponentNode(
+            id=f"test_component_{i}",
+            title=f"Test Component {i}",
+            name=f"Test Component {i}",
+            description=f"A test component for RL training {i}",
+            service_id=None,
+            files=[],
+            responsibilities=[f"test_{i}"]
+        )
+        for i in range(num_components)
+    ]
+
+
 def initialize_pipeline(sdk: Arc, agent_type: str = "qtable") -> Tuple[ArcEnvironment, Any, MultiComponentReward]:
     """
     Initialize the RL pipeline.
@@ -110,19 +135,7 @@ def initialize_pipeline(sdk: Arc, agent_type: str = "qtable") -> Tuple[ArcEnviro
     # If no components found, create test components
     if not components:
         logger.info("No components found. Creating test components...")
-        from arc_memory.schema.models import ComponentNode
-        test_components = [
-            ComponentNode(
-                id=f"test_component_{i}",
-                title=f"Test Component {i}",
-                name=f"Test Component {i}",
-                description=f"A test component for RL training {i}",
-                service_id=None,
-                files=[],
-                responsibilities=[f"test_{i}"]
-            )
-            for i in range(5)
-        ]
+        test_components = create_test_components()
         for comp in test_components:
             sdk.add_nodes_and_edges([comp], [])
         components = test_components
@@ -170,19 +183,10 @@ def train_pipeline(sdk: Arc, num_episodes: int = 100, agent_type: str = "qtable"
             logger.info("Continuing with basic repository structure...")
             
         if not components:
-            # Create a basic component for testing
-            from arc_memory.schema.models import ComponentNode
-            component = ComponentNode(
-                id="test_component",
-                title="Test Component",
-                name="Test Component",
-                description="A test component for RL training",
-                service_id=None,
-                files=[],
-                responsibilities=["test"]
-            )
-            sdk.add_nodes_and_edges([component], [])
-            components = [{"id": "test_component", "type": "component"}]
+            # Create test components
+            test_components = create_test_components(num_components=1)
+            sdk.add_nodes_and_edges(test_components, [])
+            components = test_components
     
     # Initialize the pipeline
     env, agent, reward_function = initialize_pipeline(sdk, agent_type)
