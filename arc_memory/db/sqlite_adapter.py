@@ -311,9 +311,26 @@ class SQLiteAdapter:
         if not self.is_connected():
             raise DatabaseError("Not connected to database")
 
+        # Check if we're already in a transaction
+        in_transaction = False
         try:
-            # Begin transaction
-            self.conn.execute("BEGIN TRANSACTION")
+            # Check if we're already in a transaction by checking the connection's in_transaction property
+            # This is more reliable than PRAGMA transaction_status which is not available in all SQLite versions
+            in_transaction = self.conn.in_transaction
+        except Exception:
+            # If the check fails, try an alternative method
+            try:
+                cursor = self.conn.execute("PRAGMA transaction_status")
+                status = cursor.fetchone()[0]
+                in_transaction = status != 0  # 0 means not in a transaction
+            except Exception:
+                # If all checks fail, assume we're not in a transaction
+                in_transaction = False
+
+        try:
+            # Begin transaction if not already in one
+            if not in_transaction:
+                self.conn.execute("BEGIN TRANSACTION")
 
             # Add nodes
             for node in nodes:
@@ -353,20 +370,22 @@ class SQLiteAdapter:
                     ),
                 )
 
-            # Commit transaction
-            self.conn.execute("COMMIT")
+            # Commit transaction if we started it
+            if not in_transaction:
+                self.conn.execute("COMMIT")
 
             logger.info(f"Added {len(nodes)} nodes and {len(edges)} edges to database")
         except Exception as e:
             error_msg = f"Failed to add nodes and edges: {e}"
             logger.error(error_msg)
 
-            # Explicitly roll back the transaction to ensure database consistency
-            try:
-                self.conn.execute("ROLLBACK")
-                logger.info("Transaction rolled back successfully")
-            except Exception as rollback_error:
-                logger.error(f"Failed to roll back transaction: {rollback_error}")
+            # Explicitly roll back the transaction if we started it
+            if not in_transaction:
+                try:
+                    self.conn.execute("ROLLBACK")
+                    logger.info("Transaction rolled back successfully")
+                except Exception as rollback_error:
+                    logger.error(f"Failed to roll back transaction: {rollback_error}")
 
             raise GraphBuildError(
                 error_msg,

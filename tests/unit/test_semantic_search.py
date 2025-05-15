@@ -225,7 +225,7 @@ class TestProcessQuery(unittest.TestCase):
         result = process_query("dummy/path", "Who implemented the authentication feature?")
 
         # Verify results
-        self.assertEqual(result["error"], "Ollama is not available. Please install it from https://ollama.com/download")
+        self.assertEqual(result["error"], "No LLM provider available")
 
     @patch("arc_memory.semantic_search._process_query_intent")
     def test_process_query_intent_failure(self, mock_intent, mock_ensure_ollama, mock_get_conn):

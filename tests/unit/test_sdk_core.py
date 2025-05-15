@@ -18,16 +18,20 @@ class TestArcCore(unittest.TestCase):
         # Create a temporary directory for test databases
         self.temp_dir = tempfile.TemporaryDirectory()
         self.db_path = Path(self.temp_dir.name) / "test.db"
-        
+
+        # Create the database file to avoid existence check errors
+        with open(self.db_path, 'w') as f:
+            f.write('')
+
         # Create a mock adapter
         self.mock_adapter = MagicMock()
         self.mock_adapter.get_name.return_value = "mock"
         self.mock_adapter.is_connected.return_value = True
-        
+
         # Patch the get_adapter function to return our mock adapter
-        self.get_adapter_patcher = patch("arc_memory.sdk.core.get_adapter", return_value=self.mock_adapter)
+        self.get_adapter_patcher = patch("arc_memory.sdk.core.get_db_adapter", return_value=self.mock_adapter)
         self.mock_get_adapter = self.get_adapter_patcher.start()
-        
+
         # Patch the get_db_path function to return our test path
         self.get_db_path_patcher = patch("arc_memory.sdk.core.get_db_path", return_value=self.db_path)
         self.mock_get_db_path = self.get_db_path_patcher.start()
@@ -44,7 +48,7 @@ class TestArcCore(unittest.TestCase):
         self.assertIsNotNone(arc)
         self.assertEqual(arc.repo_path, Path("./"))
         self.assertIsNotNone(arc.adapter)
-        
+
         # Verify that the adapter was connected
         self.mock_adapter.connect.assert_called_once()
         self.mock_adapter.init_db.assert_called_once()
@@ -53,7 +57,7 @@ class TestArcCore(unittest.TestCase):
         """Test that Arc can be initialized with a specific adapter type."""
         arc = Arc(repo_path="./", adapter_type="sqlite")
         self.assertIsNotNone(arc)
-        
+
         # Verify that get_adapter was called with the correct adapter type
         self.mock_get_adapter.assert_called_with("sqlite")
 
@@ -62,7 +66,7 @@ class TestArcCore(unittest.TestCase):
         connection_params = {"db_path": str(self.db_path)}
         arc = Arc(repo_path="./", connection_params=connection_params)
         self.assertIsNotNone(arc)
-        
+
         # Verify that the adapter was connected with the correct parameters
         self.mock_adapter.connect.assert_called_with(connection_params)
 
@@ -71,14 +75,14 @@ class TestArcCore(unittest.TestCase):
         # Set up the mock adapter to return a node
         node = {"id": "test", "type": "commit", "title": "Test Node"}
         self.mock_adapter.get_node_by_id.return_value = node
-        
+
         # Create an Arc instance and call get_node_by_id
         arc = Arc(repo_path="./")
         result = arc.get_node_by_id("test")
-        
+
         # Verify that the adapter's get_node_by_id method was called
         self.mock_adapter.get_node_by_id.assert_called_with("test")
-        
+
         # Verify that the result is correct
         self.assertEqual(result, node)
 
@@ -92,11 +96,11 @@ class TestArcCore(unittest.TestCase):
         edges = [
             Edge(src="node1", dst="node2", rel=EdgeRel.MODIFIES),
         ]
-        
+
         # Create an Arc instance and call add_nodes_and_edges
         arc = Arc(repo_path="./")
         arc.add_nodes_and_edges(nodes, edges)
-        
+
         # Verify that the adapter's add_nodes_and_edges method was called
         self.mock_adapter.add_nodes_and_edges.assert_called_with(nodes, edges)
 
@@ -104,14 +108,14 @@ class TestArcCore(unittest.TestCase):
         """Test getting the node count."""
         # Set up the mock adapter to return a count
         self.mock_adapter.get_node_count.return_value = 42
-        
+
         # Create an Arc instance and call get_node_count
         arc = Arc(repo_path="./")
         count = arc.get_node_count()
-        
+
         # Verify that the adapter's get_node_count method was called
         self.mock_adapter.get_node_count.assert_called_once()
-        
+
         # Verify that the result is correct
         self.assertEqual(count, 42)
 
@@ -119,14 +123,14 @@ class TestArcCore(unittest.TestCase):
         """Test getting the edge count."""
         # Set up the mock adapter to return a count
         self.mock_adapter.get_edge_count.return_value = 24
-        
+
         # Create an Arc instance and call get_edge_count
         arc = Arc(repo_path="./")
         count = arc.get_edge_count()
-        
+
         # Verify that the adapter's get_edge_count method was called
         self.mock_adapter.get_edge_count.assert_called_once()
-        
+
         # Verify that the result is correct
         self.assertEqual(count, 24)
 
@@ -135,7 +139,7 @@ class TestArcCore(unittest.TestCase):
         # Create an Arc instance using a context manager
         with Arc(repo_path="./") as arc:
             self.assertIsNotNone(arc)
-        
+
         # Verify that the adapter's disconnect method was called
         self.mock_adapter.disconnect.assert_called_once()
 
@@ -143,10 +147,10 @@ class TestArcCore(unittest.TestCase):
         """Test error handling."""
         # Set up the mock adapter to raise an exception
         self.mock_adapter.get_node_by_id.side_effect = Exception("Test error")
-        
+
         # Create an Arc instance and call get_node_by_id
         arc = Arc(repo_path="./")
-        
+
         # Verify that the exception is converted to a QueryError
         with self.assertRaises(QueryError):
             arc.get_node_by_id("test")
