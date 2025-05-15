@@ -6,6 +6,6 @@ a "time machine" experience that allows developers to explore how code evolved o
 understand the reasoning behind key decisions, and visualize the potential impact of changes.
 """
 
-from .code_time_machine import CodeTimeMachine
+from .main import CodeTimeMachine
 
 __all__ = ['CodeTimeMachine']
