@@ -56,6 +56,75 @@ arc.set_active_repositories([repo1_id, repo2_id])
 arc repo active repository:1234abcd repository:5678efgh
 ```
 
+### Updating Repositories
+
+You can update repository information using the SDK or CLI:
+
+```python
+# Using the SDK
+# Update repository path (generates a new ID)
+new_repo_id = arc.update_repository(repo_id, new_path="/new/path/to/repo")
+
+# Update repository name
+arc.update_repository(repo_id, new_name="New Repository Name")
+
+# Update multiple properties
+arc.update_repository(
+    repo_id,
+    new_name="New Name",
+    new_url="https://github.com/new/url",
+    new_default_branch="develop"
+)
+```
+
+```bash
+# Using the CLI
+# Update repository path
+arc repo update repository:1234abcd --path /new/path/to/repo
+
+# Update repository name
+arc repo update repository:1234abcd --name "New Repository Name"
+
+# Update multiple properties
+arc repo update repository:1234abcd --name "New Name" --url "https://github.com/new/url" --default-branch develop
+```
+
+When updating a repository path:
+- A new repository ID will be generated based on the new path
+- All nodes will be updated to use the new repository ID
+- The old repository record will be removed
+- Active repositories will be updated to use the new ID
+
+### Removing Repositories
+
+You can remove repositories from the knowledge graph using the SDK or CLI:
+
+```python
+# Using the SDK
+# Option 1: Remove repository but keep its nodes
+arc.remove_repository(repo_id)
+
+# Option 2: Remove repository and delete all its nodes
+arc.remove_repository(repo_id, delete_nodes=True)
+```
+
+```bash
+# Using the CLI
+# Option 1: Remove repository but keep its nodes
+arc repo remove repository:1234abcd
+
+# Option 2: Remove repository and delete all its nodes
+arc repo remove repository:1234abcd --delete-nodes
+
+# Option 3: Remove without confirmation
+arc repo remove repository:1234abcd --force
+```
+
+When removing a repository:
+- You can choose to delete all nodes from that repository or keep them
+- If you keep the nodes, they will no longer be associated with any repository
+- Cross-repository edges will be preserved unless you delete the nodes
+
 ## Querying Across Repositories
 
 ### Basic Queries
@@ -218,6 +287,8 @@ components = arc.get_nodes_by_type(
 | `build_repository()` | Build a specific repository | `repo_id`: Repository ID<br>`include_github`: Include GitHub data (optional)<br>`include_linear`: Include Linear data (optional) | Build result |
 | `set_active_repositories()` | Set active repositories for queries | `repo_ids`: List of repository IDs | None |
 | `get_active_repositories()` | Get the active repositories | None | List of repository dictionaries |
+| `update_repository()` | Update repository information | `repo_id`: Repository ID<br>`new_path`: New local path (optional)<br>`new_name`: New repository name (optional)<br>`new_url`: New repository URL (optional)<br>`new_default_branch`: New default branch (optional) | Repository ID (may be new if path changed) |
+| `remove_repository()` | Remove a repository from the knowledge graph | `repo_id`: Repository ID<br>`delete_nodes`: Whether to delete all nodes from this repository (optional) | Boolean indicating success |
 
 ### CLI Commands
 
@@ -227,3 +298,5 @@ components = arc.get_nodes_by_type(
 | `arc repo list` | List all repositories in the knowledge graph | `--json`: Output as JSON (optional) |
 | `arc repo build` | Build a specific repository | `--github`: Include GitHub data (optional)<br>`--linear`: Include Linear data (optional) |
 | `arc repo active` | Set active repositories for queries | None |
+| `arc repo update` | Update repository information | `--path`: New local path<br>`--name`: New repository name<br>`--url`: New repository URL<br>`--default-branch`: New default branch |
+| `arc repo remove` | Remove a repository from the knowledge graph | `--delete-nodes`: Delete all nodes from this repository<br>`--force`: Force removal without confirmation |

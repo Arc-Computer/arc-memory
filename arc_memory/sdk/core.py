@@ -390,6 +390,220 @@ class Arc:
         except Exception as e:
             raise QueryError(f"Failed to set active repositories: {e}") from e
 
+    def update_repository(
+        self,
+        repo_id: str,
+        new_path: Optional[str] = None,
+        new_name: Optional[str] = None,
+        new_url: Optional[str] = None,
+        new_default_branch: Optional[str] = None
+    ) -> str:
+        """Update repository information.
+
+        Args:
+            repo_id: The ID of the repository to update.
+            new_path: New local path for the repository.
+            new_name: New name for the repository.
+            new_url: New URL for the repository.
+            new_default_branch: New default branch for the repository.
+
+        Returns:
+            The repository ID (which may be new if path changed).
+
+        Raises:
+            QueryError: If the repository doesn't exist or cannot be updated.
+        """
+        if not self.adapter.is_connected():
+            raise DatabaseError("Not connected to database")
+
+        # Check if repository exists
+        repos = self.list_repositories()
+        repo = next((r for r in repos if r["id"] == repo_id), None)
+
+        if not repo:
+            raise QueryError(f"Repository with ID '{repo_id}' does not exist")
+
+        try:
+            # Start a transaction
+            self.adapter.conn.execute("BEGIN TRANSACTION")
+
+            # If path is changing, we need to generate a new ID
+            new_repo_id = repo_id
+            if new_path:
+                path = Path(new_path)
+                if not path.exists():
+                    raise QueryError(f"Path does not exist: {new_path}")
+
+                # Generate new repository ID
+                new_repo_id = self._get_repo_id_from_path(path)
+
+                # Check if a repository with this path already exists
+                if new_repo_id != repo_id and any(r["id"] == new_repo_id for r in repos):
+                    raise QueryError(f"A repository with this path already exists: {new_path}")
+
+                # Update nodes to use new repo_id
+                self.adapter.conn.execute(
+                    "UPDATE nodes SET repo_id = ? WHERE repo_id = ?",
+                    (new_repo_id, repo_id)
+                )
+
+                # Update active repositories list
+                if repo_id in self.active_repos:
+                    self.active_repos.remove(repo_id)
+                    self.active_repos.append(new_repo_id)
+
+                # If this is the current repository, update current_repo_id
+                if self.current_repo_id == repo_id:
+                    self.current_repo_id = new_repo_id
+
+            # Update repository information
+            update_fields = []
+            params = []
+
+            if new_path:
+                update_fields.append("local_path = ?")
+                params.append(str(Path(new_path).absolute()))
+
+            if new_name:
+                update_fields.append("name = ?")
+                params.append(new_name)
+
+            if new_url:
+                update_fields.append("url = ?")
+                params.append(new_url)
+
+            if new_default_branch:
+                update_fields.append("default_branch = ?")
+                params.append(new_default_branch)
+
+            if update_fields:
+                # Add repo_id to params
+                params.append(repo_id)
+
+                # Update repository
+                self.adapter.conn.execute(
+                    f"UPDATE repositories SET {', '.join(update_fields)} WHERE id = ?",
+                    tuple(params)
+                )
+
+            # If ID changed, we need to insert a new record and delete the old one
+            if new_repo_id != repo_id:
+                # Get updated repository info
+                cursor = self.adapter.conn.execute(
+                    "SELECT name, url, local_path, default_branch, created_at, metadata FROM repositories WHERE id = ?",
+                    (repo_id,)
+                )
+                row = cursor.fetchone()
+
+                if row:
+                    # Insert new repository record
+                    self.adapter.conn.execute(
+                        """
+                        INSERT INTO repositories(id, name, url, local_path, default_branch, created_at, metadata)
+                        VALUES(?, ?, ?, ?, ?, ?, ?)
+                        """,
+                        (new_repo_id, row[0], row[1], row[2], row[3], row[4], row[5])
+                    )
+
+                    # Delete old repository record
+                    self.adapter.conn.execute(
+                        "DELETE FROM repositories WHERE id = ?",
+                        (repo_id,)
+                    )
+
+            # Commit transaction
+            self.adapter.conn.commit()
+            return new_repo_id
+
+        except Exception as e:
+            # Rollback transaction
+            self.adapter.conn.rollback()
+            raise QueryError(
+                f"Failed to update repository: {e}",
+                details={
+                    "repo_id": repo_id,
+                    "error": str(e)
+                }
+            )
+
+    def remove_repository(self, repo_id: str, delete_nodes: bool = False) -> bool:
+        """Remove a repository from the knowledge graph.
+
+        Args:
+            repo_id: The ID of the repository to remove.
+            delete_nodes: Whether to delete all nodes from this repository.
+                If False, nodes will remain but won't be associated with any repository.
+
+        Returns:
+            True if the repository was removed, False otherwise.
+
+        Raises:
+            QueryError: If the repository doesn't exist or cannot be removed.
+        """
+        if not self.adapter.is_connected():
+            raise DatabaseError("Not connected to database")
+
+        # Check if repository exists
+        repos = self.list_repositories()
+        repo_exists = any(repo["id"] == repo_id for repo in repos)
+
+        if not repo_exists:
+            raise QueryError(f"Repository with ID '{repo_id}' does not exist")
+
+        try:
+            # Start a transaction
+            self.adapter.conn.execute("BEGIN TRANSACTION")
+
+            # Remove from active repositories
+            if repo_id in self.active_repos:
+                self.active_repos.remove(repo_id)
+
+            # Remove from repositories table
+            self.adapter.conn.execute(
+                "DELETE FROM repositories WHERE id = ?",
+                (repo_id,)
+            )
+
+            if delete_nodes:
+                # Delete all nodes from this repository
+                self.adapter.conn.execute(
+                    "DELETE FROM nodes WHERE repo_id = ?",
+                    (repo_id,)
+                )
+
+                # Find and delete orphaned edges
+                # This is a bit complex as we need to find edges where either src or dst
+                # was in the deleted repository and has been deleted
+                self.adapter.conn.execute("""
+                    DELETE FROM edges
+                    WHERE src IN (
+                        SELECT id FROM nodes WHERE repo_id = ?
+                    ) OR dst IN (
+                        SELECT id FROM nodes WHERE repo_id = ?
+                    )
+                """, (repo_id, repo_id))
+            else:
+                # Update nodes to remove repo_id
+                self.adapter.conn.execute(
+                    "UPDATE nodes SET repo_id = NULL WHERE repo_id = ?",
+                    (repo_id,)
+                )
+
+            # Commit transaction
+            self.adapter.conn.commit()
+            return True
+
+        except Exception as e:
+            # Rollback transaction
+            self.adapter.conn.rollback()
+            raise QueryError(
+                f"Failed to remove repository: {e}",
+                details={
+                    "repo_id": repo_id,
+                    "error": str(e)
+                }
+            )
+
     def get_active_repositories(self) -> List[Dict[str, Any]]:
         """Get the active repositories.
 

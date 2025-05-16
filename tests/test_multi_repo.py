@@ -300,6 +300,160 @@ class TestMultiRepositorySupport(unittest.TestCase):
         # Verify the special repo was added
         self.assertEqual(len(repos), 2)
 
+    def test_remove_repository(self):
+        """Test removing a repository."""
+        # Clear any existing repositories from previous tests
+        self.arc.adapter.conn.execute("DELETE FROM repositories")
+        self.arc.adapter.conn.commit()
+        self.arc.active_repos = []
+
+        # Add test repositories
+        repo1_id = self.arc.ensure_repository(name="Repo 1")
+        repo2_id = self.arc.add_repository(self.repo2_path, name="Repo 2")
+
+        # Add test nodes for each repository
+        node1 = Node(
+            id="test:node1",
+            type=NodeType.DOCUMENT,
+            title="Test Node 1",
+            body="This is a test node for repository 1",
+            repo_id=repo1_id
+        )
+
+        node2 = Node(
+            id="test:node2",
+            type=NodeType.DOCUMENT,
+            title="Test Node 2",
+            body="This is a test node for repository 2",
+            repo_id=repo2_id
+        )
+
+        # Add nodes to the graph
+        self.arc.add_nodes_and_edges([node1, node2], [])
+
+        # Verify both repositories exist
+        repos = self.arc.list_repositories()
+        self.assertEqual(len(repos), 2)
+
+        # Set both repositories as active
+        self.arc.set_active_repositories([repo1_id, repo2_id])
+        active_repos = self.arc.get_active_repositories()
+        self.assertEqual(len(active_repos), 2)
+
+        # Test removing a repository without deleting nodes
+        result = self.arc.remove_repository(repo1_id, delete_nodes=False)
+        self.assertTrue(result)
+
+        # Verify repository was removed
+        repos = self.arc.list_repositories()
+        self.assertEqual(len(repos), 1)
+        self.assertEqual(repos[0]["id"], repo2_id)
+
+        # Verify nodes still exist but repo_id is NULL
+        cursor = self.arc.adapter.conn.execute(
+            "SELECT * FROM nodes WHERE id = ?",
+            ("test:node1",)
+        )
+        node = cursor.fetchone()
+        self.assertIsNotNone(node)
+        self.assertIsNone(node["repo_id"])
+
+        # Verify active repositories were updated
+        active_repos = self.arc.get_active_repositories()
+        self.assertEqual(len(active_repos), 1)
+        self.assertEqual(active_repos[0]["id"], repo2_id)
+
+        # Test removing a repository with deleting nodes
+        result = self.arc.remove_repository(repo2_id, delete_nodes=True)
+        self.assertTrue(result)
+
+        # Verify repository was removed
+        repos = self.arc.list_repositories()
+        self.assertEqual(len(repos), 0)
+
+        # Verify nodes were deleted
+        cursor = self.arc.adapter.conn.execute(
+            "SELECT * FROM nodes WHERE id = ?",
+            ("test:node2",)
+        )
+        node = cursor.fetchone()
+        self.assertIsNone(node)
+
+        # Verify active repositories were updated
+        active_repos = self.arc.get_active_repositories()
+        self.assertEqual(len(active_repos), 1)  # Should have one repository (the current one)
+
+    def test_update_repository(self):
+        """Test updating a repository."""
+        # Clear any existing repositories from previous tests
+        self.arc.adapter.conn.execute("DELETE FROM repositories")
+        self.arc.adapter.conn.commit()
+        self.arc.active_repos = []
+
+        # Add test repository
+        repo_id = self.arc.ensure_repository(name="Original Name")
+
+        # Add test node
+        node = Node(
+            id="test:node1",
+            type=NodeType.DOCUMENT,
+            title="Test Node",
+            body="This is a test node",
+            repo_id=repo_id
+        )
+
+        # Add node to the graph
+        self.arc.add_nodes_and_edges([node], [])
+
+        # Test updating repository name
+        new_repo_id = self.arc.update_repository(
+            repo_id,
+            new_name="Updated Name"
+        )
+
+        # Verify ID didn't change
+        self.assertEqual(new_repo_id, repo_id)
+
+        # Verify name was updated
+        repos = self.arc.list_repositories()
+        self.assertEqual(len(repos), 1)
+        self.assertEqual(repos[0]["name"], "Updated Name")
+
+        # Test updating repository path
+        # Create a new temporary directory
+        new_path = Path(self.temp_dir.name) / "new_repo_path"
+        new_path.mkdir(exist_ok=True)
+
+        # Update repository path
+        new_repo_id = self.arc.update_repository(
+            repo_id,
+            new_path=str(new_path)
+        )
+
+        # Verify ID changed
+        self.assertNotEqual(new_repo_id, repo_id)
+
+        # Verify repository was updated
+        repos = self.arc.list_repositories()
+        self.assertEqual(len(repos), 1)
+        self.assertEqual(repos[0]["id"], new_repo_id)
+        self.assertEqual(repos[0]["name"], "Updated Name")
+        self.assertEqual(repos[0]["local_path"], str(new_path.absolute()))
+
+        # Verify node's repo_id was updated
+        cursor = self.arc.adapter.conn.execute(
+            "SELECT * FROM nodes WHERE id = ?",
+            ("test:node1",)
+        )
+        node = cursor.fetchone()
+        self.assertIsNotNone(node)
+        self.assertEqual(node["repo_id"], new_repo_id)
+
+        # Verify active repositories were updated
+        active_repos = self.arc.get_active_repositories()
+        self.assertEqual(len(active_repos), 1)
+        self.assertEqual(active_repos[0]["id"], new_repo_id)
+
 
 if __name__ == "__main__":
     unittest.main()
