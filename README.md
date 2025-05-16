@@ -13,7 +13,31 @@
   <a href="https://docs.arc.computer"><img src="https://img.shields.io/badge/docs-mintlify-teal" alt="Documentation"/></a>
 </p>
 
-*Arc is the memory layer for engineering teams — it records **why** every change was made, predicts the blast-radius of new code before you merge, and feeds that context to agents so they can handle long-range refactors safely.*
+*Arc Memory preserves the **why** behind code changes, predicts impact before you merge, and provides the context developers and AI agents need to work with complex codebases safely and efficiently.*
+
+## Why Arc Memory Exists
+
+Every engineering team faces these challenges:
+
+1. **Lost Context**: "Why was this code written this way?" becomes impossible to answer when the original developers leave
+2. **Risky Changes**: Even small changes can have unexpected ripple effects across repositories
+3. **Knowledge Silos**: Critical information gets scattered across Git, PRs, issues, and documentation
+4. **Slow Onboarding**: New team members spend weeks piecing together how systems work and why decisions were made
+
+Arc Memory solves these problems by creating a unified memory layer that captures, preserves, and makes accessible the complete context behind your code.
+
+## What Makes Arc Memory Different
+
+Arc Memory goes beyond traditional tools by:
+
+1. **Preserving Complete Context**
+   Connects code changes to the decisions, discussions, and requirements that drove them, creating a complete picture that survives team turnover.
+
+2. **Working Across Repository Boundaries**
+   Builds a unified view across your entire system, revealing dependencies and relationships that would otherwise remain hidden.
+
+3. **Enabling Time-Travel Understanding**
+   Reconstructs what was known at any point in time, helping you understand why decisions made sense with the information available then.
 
 ## What Arc Memory Does
 
@@ -22,11 +46,11 @@ Arc Memory provides a complete solution for preserving and leveraging engineerin
 1. **Records the why behind code changes**
    Ingests commits, PRs, issues, and ADRs to preserve architectural intent and decision history.
 
-2. **Models your system as a temporal knowledge graph**
-   Creates a causal graph of code entities, services, and their relationships that evolves with your codebase.
+2. **Models your system as a bi-temporal knowledge graph**
+   Creates a causal graph of code entities, services, and their relationships that evolves with your codebase, tracking both valid time and transaction time.
 
 3. **Enables powerful temporal reasoning**
-   Tracks decision → implication → code-change chains to show why decisions were made and predict their impact.
+   - Answers questions like "What did we know about X at time Y?" and "How has our understanding of Z evolved over time?"
 
 4. **Analyzes across multiple repositories**
    Builds a unified knowledge graph across multiple repositories to understand cross-repository dependencies and relationships.
@@ -105,16 +129,20 @@ Following the [Diataxis](https://diataxis.fr/) framework:
 
 - **Tutorials**: [Getting Started Guide](./docs/getting_started.md) - Step-by-step introduction
 - **How-to Guides**: [Code Time Machine Demo](./demo/code_time_machine/) - Task-oriented examples
-- **Explanation**: [Architecture Overview](./docs/architecture.md) - Concepts and design
+- **Explanation**:
+  - [Architecture Overview](./docs/architecture.md) - System design and components
+  - [Temporal Understanding](./docs/temporal_understanding.md) - Bi-temporal model explained
+  - [Framework Integration](./docs/framework_integration.md) - Using with agent frameworks
 - **Reference**: [SDK API](./docs/sdk/README.md), [CLI Commands](./docs/cli/README.md), and [Multi-Repository Support](./docs/multi_repository.md)
 
 ## Why It Matters
 
-- **Faster onboarding** for new team members
-- **Reduced knowledge loss** when developers leave
-- **More efficient code reviews** with contextual insights
-- **Safer refactoring** with impact prediction
-- **Better agent coordination** through shared memory
+- **Preserve decision context** that Git history alone can't capture
+- **Understand code evolution** with complete temporal context
+- **Predict change impact** across repository boundaries
+- **Accelerate onboarding** by revealing the "why" behind code
+- **Enable safer refactoring** with comprehensive impact analysis
+- **Power intelligent agents** with deep contextual understanding
 
 ## Architecture
 
@@ -124,6 +152,7 @@ Arc Memory is built around a bi-temporal knowledge graph that captures:
 - **Version History**: Commits, PRs, issues, and their temporal connections
 - **Decision Context**: ADRs, discussions, and rationales behind changes
 - **Causal Relationships**: How changes in one component affect others
+- **Temporal Dimensions**: Both when things happened and when they were recorded
 - **Multi-Repository Support**: Analyze and query across multiple repositories
 
 This architecture enables powerful temporal reasoning and impact prediction capabilities that traditional code analysis tools cannot provide.
