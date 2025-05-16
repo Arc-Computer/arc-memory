@@ -45,7 +45,7 @@ arc auth github
 
 # Build a knowledge graph with LLM enhancement
 cd /path/to/your/repo
-arc build --github --linear --llm-enhancement standard --llm-provider openai --llm-model o4-mini
+arc build --github --llm-enhancement standard --llm-provider openai --llm-model o4-mini
 ```
 
 Check out our [Code Time Machine demo](./demo/code_time_machine/) to explore file evolution, decision trails, and impact prediction, or browse other [example agents](./docs/examples/agents/) and [demo applications](./demo/).
