@@ -38,16 +38,19 @@ class KGoTProcessor:
     def __init__(
         self,
         ollama_client: Optional[OllamaClient] = None,
-        system_prompt: Optional[str] = None
+        system_prompt: Optional[str] = None,
+        llm_model: Optional[str] = None
     ):
         """Initialize the KGoT processor.
 
         Args:
             ollama_client: Optional Ollama client for LLM processing.
             system_prompt: Optional system prompt for the LLM.
+            llm_model: Optional model name to use with Ollama.
         """
         self.ollama_client = ollama_client or OllamaClient()
         self.system_prompt = system_prompt
+        self.llm_model = llm_model
 
     def process(
         self, nodes: List[Node], edges: List[Edge], repo_path: Optional[Path] = None
@@ -317,8 +320,9 @@ class KGoTProcessor:
 
         try:
             # Generate response from LLM
+            model_to_use = self.llm_model or "qwen3:4b"
             response = self.ollama_client.generate(
-                model="qwen3:4b",
+                model=model_to_use,
                 prompt=prompt,
                 system=self.system_prompt,
                 options={"temperature": 0.3},
@@ -684,7 +688,8 @@ def enhance_with_reasoning_structures(
     openai_client: Optional[Any] = None,
     llm_provider: str = "ollama",
     enhancement_level: str = "standard",
-    system_prompt: Optional[str] = None
+    system_prompt: Optional[str] = None,
+    llm_model: Optional[str] = None
 ) -> Tuple[List[Node], List[Edge]]:
     """Enhance the knowledge graph with reasoning structures.
 
@@ -697,6 +702,7 @@ def enhance_with_reasoning_structures(
         llm_provider: The LLM provider to use ("ollama" or "openai").
         enhancement_level: Level of enhancement to apply ("fast", "standard", or "deep").
         system_prompt: Optional system prompt for the LLM.
+        llm_model: Optional model name to use with the LLM provider.
 
     Returns:
         Enhanced nodes and edges.
@@ -731,9 +737,10 @@ def enhance_with_reasoning_structures(
     if llm_provider == "openai" and OPENAI_AVAILABLE and openai_client is not None:
         # Create a custom KGoTProcessor that uses OpenAI
         class OpenAIKGoTProcessor(KGoTProcessor):
-            def __init__(self, openai_client, system_prompt=None):
+            def __init__(self, openai_client, system_prompt=None, llm_model=None):
                 self.openai_client = openai_client
                 self.system_prompt = system_prompt
+                self.llm_model = llm_model
 
             def _generate_reasoning_structure(
                 self, decision_point: Node, nodes: List[Node], edges: List[Edge]
@@ -821,8 +828,9 @@ def enhance_with_reasoning_structures(
 
                 try:
                     # Generate response from OpenAI
+                    model_to_use = self.llm_model or "gpt-4.1"
                     response = self.openai_client.generate(
-                        model="gpt-4.1",
+                        model=model_to_use,
                         prompt=prompt,
                         system=self.system_prompt,
                         options={"temperature": 0.3},
@@ -1032,11 +1040,11 @@ def enhance_with_reasoning_structures(
                     return [], []
 
         # Use the OpenAI processor
-        processor = OpenAIKGoTProcessor(openai_client=openai_client, system_prompt=system_prompt)
+        processor = OpenAIKGoTProcessor(openai_client=openai_client, system_prompt=system_prompt, llm_model=llm_model)
         logger.info("Using OpenAI for reasoning structure generation")
     else:
         # Use the default Ollama processor
-        processor = KGoTProcessor(ollama_client=ollama_client, system_prompt=system_prompt)
+        processor = KGoTProcessor(ollama_client=ollama_client, system_prompt=system_prompt, llm_model=llm_model)
         logger.info("Using Ollama for reasoning structure generation")
 
     # For fast enhancement level, limit the scope of analysis

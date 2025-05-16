@@ -36,6 +36,7 @@ def enhance_with_semantic_analysis(
     ollama_client: Optional[OllamaClient] = None,
     openai_client: Optional[Any] = None,
     llm_provider: str = "ollama",
+    llm_model: Optional[str] = None,
 ) -> Tuple[List[Node], List[Edge]]:
     """Enhance nodes and edges with semantic analysis.
 
@@ -47,6 +48,7 @@ def enhance_with_semantic_analysis(
         ollama_client: Optional Ollama client for LLM processing.
         openai_client: Optional OpenAI client for LLM processing.
         llm_provider: The LLM provider to use ("ollama" or "openai").
+        llm_model: Optional model name to use with the LLM provider.
 
     Returns:
         Enhanced nodes and edges.
@@ -202,6 +204,7 @@ def extract_key_concepts(
     nodes: List[Node],
     edges: List[Edge],
     ollama_client: OllamaClient,
+    llm_model: Optional[str] = None,
 ) -> Tuple[List[Node], List[Edge]]:
     """Extract key concepts from node content using Ollama.
 
@@ -209,6 +212,7 @@ def extract_key_concepts(
         nodes: List of nodes to analyze.
         edges: List of edges between nodes.
         ollama_client: Ollama client for LLM processing.
+        llm_model: Optional model name to use with Ollama.
 
     Returns:
         New concept nodes and edges.
@@ -261,8 +265,9 @@ def extract_key_concepts(
 
     try:
         # Generate response from LLM
+        model_to_use = llm_model or "qwen3:4b"
         response = ollama_client.generate(
-            model="qwen3:4b",
+            model=model_to_use,
             prompt=prompt,
             options={"temperature": 0.2}
         )
@@ -287,6 +292,7 @@ def extract_key_concepts_openai(
     nodes: List[Node],
     edges: List[Edge],
     openai_client: Any,
+    llm_model: Optional[str] = None,
 ) -> Tuple[List[Node], List[Edge]]:
     """Extract key concepts from node content using OpenAI.
 
@@ -294,6 +300,7 @@ def extract_key_concepts_openai(
         nodes: List of nodes to analyze.
         edges: List of edges between nodes.
         openai_client: OpenAI client for LLM processing.
+        llm_model: Optional model name to use with OpenAI.
 
     Returns:
         New concept nodes and edges.
@@ -346,8 +353,9 @@ def extract_key_concepts_openai(
 
     try:
         # Generate response from OpenAI
+        model_to_use = llm_model or "gpt-4.1"
         response = openai_client.generate(
-            model="gpt-4.1",
+            model=model_to_use,
             prompt=prompt,
             options={"temperature": 0.2}
         )
@@ -418,6 +426,7 @@ def infer_semantic_relationships(
     nodes: List[Node],
     edges: List[Edge],
     ollama_client: OllamaClient,
+    llm_model: Optional[str] = None,
 ) -> List[Edge]:
     """Infer semantic relationships between nodes.
 
@@ -425,6 +434,7 @@ def infer_semantic_relationships(
         nodes: List of nodes to analyze.
         edges: Existing edges between nodes.
         ollama_client: Ollama client for LLM processing.
+        llm_model: Optional model name to use with Ollama.
 
     Returns:
         New inferred edges.
@@ -444,6 +454,7 @@ def detect_architecture(
     edges: List[Edge],
     repo_path: Optional[Path],
     ollama_client: OllamaClient,
+    llm_model: Optional[str] = None,
 ) -> Tuple[List[Node], List[Edge]]:
     """Detect architectural patterns in the codebase.
 
@@ -452,6 +463,7 @@ def detect_architecture(
         edges: Existing edges between nodes.
         repo_path: Path to the repository.
         ollama_client: Ollama client for LLM processing.
+        llm_model: Optional model name to use with Ollama.
 
     Returns:
         New architecture nodes and edges.
