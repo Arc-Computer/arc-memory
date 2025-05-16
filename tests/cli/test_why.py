@@ -251,6 +251,9 @@ class TestWhyCommand(unittest.TestCase):
         )
         mock_query_knowledge_graph.return_value = query_result
 
+        # Make sure the mock accepts the repo_ids parameter that was added for multi-repo support
+        mock_query_knowledge_graph.side_effect = None
+
         # We won't check the exact structure since it might change
         # We'll just check that the essential fields are present
 
@@ -309,6 +312,9 @@ class TestWhyCommand(unittest.TestCase):
         )
         mock_query_knowledge_graph.return_value = query_result
 
+        # Make sure the mock accepts the repo_ids parameter that was added for multi-repo support
+        mock_query_knowledge_graph.side_effect = None
+
         # Run command
         result = runner.invoke(app, ["why", "query", "Who implemented the authentication feature?", "--format", "markdown"])
 
@@ -345,6 +351,9 @@ class TestWhyCommand(unittest.TestCase):
             execution_time=0.5
         )
         mock_query_knowledge_graph.return_value = query_result
+
+        # Make sure the mock accepts the repo_ids parameter that was added for multi-repo support
+        mock_query_knowledge_graph.side_effect = None
 
         # Run command
         result = runner.invoke(app, ["why", "query", "Who implemented the non-existent feature?"])
@@ -389,6 +398,9 @@ class TestWhyCommand(unittest.TestCase):
             execution_time=0.5
         )
         mock_query_knowledge_graph.return_value = query_result
+
+        # Make sure the mock accepts the repo_ids parameter that was added for multi-repo support
+        mock_query_knowledge_graph.side_effect = None
 
         # Run command
         result = runner.invoke(app, ["why", "query", "Why was the database schema changed?", "--depth", "deep"])
