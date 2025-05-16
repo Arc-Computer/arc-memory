@@ -51,7 +51,7 @@ class OpenAIClient:
 
     def generate(
         self,
-        model: str = "gpt-4.1",
+        model: str = None,
         prompt: str = "",
         system: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
@@ -60,8 +60,8 @@ class OpenAIClient:
         """Generate text using the specified model.
 
         Args:
-            model: The model to use (defaults to gpt-4.1, the latest flagship model).
-                  Available models: gpt-4.1
+            model: The model to use. If None, uses OPENAI_MODEL env var or defaults to gpt-4.1.
+                  Available models: gpt-4.1, o4-mini
             prompt: The prompt to send to the model.
             system: The system message to use.
             options: Additional options to pass to the model.
@@ -72,6 +72,9 @@ class OpenAIClient:
         Returns:
             The generated text.
         """
+        # Use model from environment variable if set, otherwise use default
+        if model is None:
+            model = os.environ.get("OPENAI_MODEL", "gpt-4.1")
         # Set default options if not provided
         if options is None:
             options = {}
@@ -103,13 +106,20 @@ Always base your responses on the specific information provided, and avoid makin
         presence_penalty = options.get("presence_penalty", None)
         response_format = options.get("response_format", None)
 
+        # Use model from environment variable if set, otherwise use the provided model
+        if model is None:
+            model = os.environ.get("OPENAI_MODEL", "gpt-4.1")
+
         # Set up parameters for the API call
         params = {
             "model": model,
             "messages": messages,
-            "temperature": temperature,
             "timeout": timeout
         }
+
+        # o4-mini does not support temperature parameter (only default value of 1.0)
+        if not model == "o4-mini":
+            params["temperature"] = temperature
 
         # Add optional parameters only if they are provided
         if max_tokens is not None:
@@ -141,7 +151,7 @@ Always base your responses on the specific information provided, and avoid makin
 
     def generate_with_streaming(
         self,
-        model: str = "gpt-4.1",
+        model: str = None,
         prompt: str = "",
         system: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
@@ -193,14 +203,21 @@ Always base your responses on the specific information provided, and avoid makin
         presence_penalty = options.get("presence_penalty", None)
         response_format = options.get("response_format", None)
 
+        # Use model from environment variable if set, otherwise use the provided model
+        if model is None:
+            model = os.environ.get("OPENAI_MODEL", "gpt-4.1")
+
         # Set up parameters for the API call
         params = {
             "model": model,
             "messages": messages,
-            "temperature": temperature,
             "timeout": timeout,
             "stream": True
         }
+
+        # Only add temperature if not using o4-mini (which only supports default temperature)
+        if not model.startswith("o4-mini"):
+            params["temperature"] = temperature
 
         # Add optional parameters only if they are provided
         if max_tokens is not None:
@@ -238,7 +255,7 @@ Always base your responses on the specific information provided, and avoid makin
 
     def generate_with_thinking(
         self,
-        model: str = "gpt-4.1",
+        model: str = None,
         prompt: str = "",
         system: Optional[str] = None,
         options: Optional[Dict[str, Any]] = None,
@@ -315,10 +332,18 @@ def ensure_openai_available(api_key: Optional[str] = None) -> bool:
     # Test the API with a simple query
     try:
         client = OpenAIClient(api_key=api_key)
+        # Use model from environment variable if set, otherwise use default
+        model = os.environ.get("OPENAI_MODEL", "gpt-4.1")
+
+        # Set options based on model
+        options = {}
+        if model != "o4-mini":
+            options["temperature"] = 0.0
+
         response = client.generate(
-            model="gpt-4.1",
+            model=model,
             prompt="Respond with a single word: Working",
-            options={"temperature": 0.0}
+            options=options
         )
         if "working" in response.lower():
             logger.info("OpenAI API is working correctly.")

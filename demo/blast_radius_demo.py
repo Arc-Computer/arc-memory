@@ -441,8 +441,12 @@ def main():
         console.print("[yellow]Or create a .env file with: OPENAI_API_KEY=your-api-key[/yellow]")
         console.print("")
     else:
-        console.print("[green]OpenAI API key detected. Using OpenAI for optimal results.[/green]")
+        console.print("[green]OpenAI API key detected. Using OpenAI o4-mini model for optimal results.[/green]")
         console.print("")
+
+        # Set the OPENAI_MODEL environment variable to use o4-mini
+        os.environ["OPENAI_MODEL"] = "o4-mini"
+        console.print("[yellow]Using o4-mini model - this model does not support temperature parameter.[/yellow]")
 
     parser = argparse.ArgumentParser(description="Blast Radius Demo")
     parser.add_argument("--file", default="arc_memory/sdk/core.py",

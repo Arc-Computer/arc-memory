@@ -350,8 +350,12 @@ def main():
             console.print("[red]Exiting demo.[/red]")
             sys.exit(1)
     else:
-        console.print("[green]OpenAI API key detected. Using OpenAI for optimal results.[/green]")
+        console.print("[green]OpenAI API key detected. Using OpenAI o4-mini model for optimal results.[/green]")
         console.print("")
+
+        # Set the OPENAI_MODEL environment variable to use o4-mini
+        os.environ["OPENAI_MODEL"] = "o4-mini"
+        console.print("[yellow]Using o4-mini model.[/yellow]")
 
     parser = argparse.ArgumentParser(description="Knowledge Graph Query Demo")
     parser.add_argument("--query",
