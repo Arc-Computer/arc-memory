@@ -1,5 +1,7 @@
 """Migration script to add enhanced schema fields to the database.
 
+This migration is part of the enhanced schema PR.
+
 This migration adds the following fields to the nodes table:
 - created_at: When the node was first created
 - updated_at: When the node was last updated
@@ -44,13 +46,13 @@ def migrate_database(db_path: str) -> bool:
         # Check if migration is needed
         cursor.execute("PRAGMA table_info(nodes)")
         columns = {row["name"] for row in cursor.fetchall()}
-        
+
         # Check if all new columns already exist
         new_columns = {
             "created_at", "updated_at", "valid_from", "valid_until",
             "metadata", "embedding", "url"
         }
-        
+
         if new_columns.issubset(columns):
             logger.info(f"Enhanced schema migration already applied to {db_path}")
             conn.close()
@@ -76,7 +78,7 @@ def migrate_database(db_path: str) -> bool:
         index_columns = {
             "created_at", "updated_at", "valid_from", "valid_until", "url"
         }
-        
+
         for column in index_columns:
             if column in new_columns:
                 try:
@@ -136,7 +138,7 @@ def migrate_database(db_path: str) -> bool:
         # Commit transaction
         conn.execute("COMMIT")
         conn.close()
-        
+
         logger.info(f"Successfully applied enhanced schema migration to {db_path}")
         return True
     except Exception as e:
@@ -151,20 +153,20 @@ def migrate_database(db_path: str) -> bool:
 
 if __name__ == "__main__":
     import sys
-    
+
     if len(sys.argv) != 2:
         print(f"Usage: {sys.argv[0]} <db_path>")
         sys.exit(1)
-    
+
     # Configure logging
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     )
-    
+
     db_path = sys.argv[1]
     success = migrate_database(db_path)
-    
+
     if success:
         print(f"Successfully applied enhanced schema migration to {db_path}")
         sys.exit(0)

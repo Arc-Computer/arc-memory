@@ -117,6 +117,8 @@ def _extract_json_from_llm_response(response: str) -> Dict[str, Any]:
 
     This function handles various ways LLMs might format JSON in their responses,
     including with markdown code blocks, irregular whitespace, and other common issues.
+    It implements a multi-stage approach to handle complex nested structures and
+    common formatting issues with LLM-generated JSON.
 
     Args:
         response: The raw text response from an LLM.
@@ -171,6 +173,11 @@ def _extract_json_from_llm_response(response: str) -> Dict[str, Any]:
     end_idx = max(extracted_text.rfind('}'), extracted_text.rfind(']'))
     if end_idx != -1:
         extracted_text = extracted_text[:end_idx+1]
+
+    # Remove any comments (both // and /* */ style)
+    # This is especially important for o4-mini model responses
+    extracted_text = re.sub(r'//.*?$', '', extracted_text, flags=re.MULTILINE)
+    extracted_text = re.sub(r'/\*.*?\*/', '', extracted_text, flags=re.DOTALL)
 
     # Attempt to parse the extracted JSON
     try:
@@ -281,18 +288,72 @@ def _extract_json_from_llm_response(response: str) -> Dict[str, Any]:
                             fixed_text = '\n'.join(lines)
                             logger.debug("Inserted comma at position 199 in line 1")
 
+                # Fix for nested objects with missing commas
+                fixed_text = re.sub(r'(\})\s+(")', r'\1,\2', fixed_text)
+
+                # Fix for nested arrays with missing commas
+                fixed_text = re.sub(r'(\])\s+(")', r'\1,\2', fixed_text)
+
+                # Fix for string values followed by a key without a comma
+                fixed_text = re.sub(r'("[^"]*?")\s+("[^"]*?":\s*)', r'\1,\2', fixed_text)
+
                 # Try to parse with the more aggressively fixed text
-                parsed_json = json.loads(fixed_text)
-                logger.info("Successfully parsed JSON after applying aggressive fixes")
-                return parsed_json
-            except json.JSONDecodeError:
-                # If still failing, try a more lenient approach with json5
                 try:
-                    import json5
-                    parsed_json = json5.loads(fixed_text)
-                    logger.info("Successfully parsed JSON using json5")
+                    parsed_json = json.loads(fixed_text)
+                    logger.info("Successfully parsed JSON after applying aggressive fixes")
                     return parsed_json
-                except (ImportError, Exception) as e3:
+                except json.JSONDecodeError as nested_error:
+                    # If we still have issues, try a more targeted approach based on the error
+                    if "Expecting ',' delimiter" in str(nested_error):
+                        # Extract the position of the error
+                        error_match = re.search(r'line (\d+) column (\d+)', str(nested_error))
+                        if error_match:
+                            err_line = int(error_match.group(1))
+                            err_col = int(error_match.group(2))
+
+                            # Split into lines and insert comma at the exact position
+                            lines = fixed_text.split('\n')
+                            if 0 < err_line <= len(lines):
+                                line = lines[err_line-1]
+                                if 0 < err_col <= len(line):
+                                    # Insert comma at the exact position
+                                    fixed_line = line[:err_col-1] + ',' + line[err_col-1:]
+                                    lines[err_line-1] = fixed_line
+                                    fixed_text = '\n'.join(lines)
+                                    logger.debug(f"Inserted comma at exact error position: line {err_line}, column {err_col}")
+
+                    # Try one more time with the fixed text
+                    try:
+                        parsed_json = json.loads(fixed_text)
+                        logger.info("Successfully parsed JSON after targeted fixes")
+                        return parsed_json
+                    except json.JSONDecodeError:
+                        # If still failing, try json5 as a last resort
+                        pass
+            except Exception as fix_error:
+                logger.debug(f"Error during aggressive fixes: {fix_error}")
+                # Continue to json5 fallback
+
+            # If still failing, try a more lenient approach with json5
+            try:
+                import json5
+                parsed_json = json5.loads(fixed_text)
+                logger.info("Successfully parsed JSON using json5")
+                return parsed_json
+            except (ImportError, Exception) as e3:
+                # If json5 is not available or fails, try one last approach
+                try:
+                    # Try to create a minimal valid JSON structure
+                    if fixed_text.strip().startswith('{'):
+                        # It's an object
+                        minimal_json = "{}"
+                    else:
+                        # It's an array or something else
+                        minimal_json = "[]"
+
+                    logger.warning(f"All JSON parsing attempts failed. Returning minimal structure: {minimal_json}")
+                    return json.loads(minimal_json)
+                except Exception:
                     # If all parsing attempts fail, log the error and raise ValueError
                     logger.error(f"Failed to parse JSON from LLM response: {e}")
                     logger.debug(f"Original text: {extracted_text[:100]}...")
