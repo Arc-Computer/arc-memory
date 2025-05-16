@@ -15,7 +15,7 @@ arc auth github
 
 # Build your knowledge graph
 cd /path/to/your/repo
-arc build --github
+arc build --github --llm-enhancement standard --llm-provider openai --llm-model o4-mini
 
 # Ask a question about your codebase
 arc why query "Why was this feature implemented?"
@@ -163,6 +163,9 @@ arc repo build repository:1234abcd
 
 # Set active repositories for queries
 arc repo active repository:1234abcd repository:5678efgh
+
+# Run a query across repositories
+arc why query "How do the authentication components interact across services?"
 ```
 
 ## Step 4: Run Basic Queries (5 minutes)
@@ -333,6 +336,15 @@ python arc_openai.py
 | **Empty or low-quality responses** | Try building with `--llm-enhancement` for richer analysis or use OpenAI models. |
 | **"Entity not found"** | Check entity ID format. For files, use `file:path/to/file.py`. |
 
+### Multi-Repository Issues
+
+| Issue | Solution |
+|-------|----------|
+| **"Repository with ID X does not exist"** | Verify the repository ID with `arc repo list`. Make sure you've added the repository with `arc repo add`. |
+| **"No results found across repositories"** | Check that you've set active repositories with `arc repo active` or specified repo_ids in your query. |
+| **"Repository already exists"** | If you're trying to add the same repository twice, use `arc repo list` to see existing repositories. |
+| **"Cross-repository relationships not showing"** | Ensure you've built all repositories and are querying with all relevant repository IDs. |
+
 ## Congratulations!
 
 You've successfully:
@@ -345,6 +357,7 @@ You've successfully:
 ## Next Steps
 
 - [Getting Started Guide](./getting_started.md) - More detailed setup and usage instructions
+- [Multi-Repository Support](./multi_repository.md) - Working with multiple repositories
 - [SDK Documentation](./sdk/README.md) - Learn more about the SDK
 - [CLI Reference](./cli/README.md) - Explore all CLI commands
 - [Examples](./examples/README.md) - See more advanced examples

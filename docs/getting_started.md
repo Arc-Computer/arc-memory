@@ -152,6 +152,41 @@ This will:
 
 Arc Memory supports analyzing multiple repositories within a single knowledge graph. This is particularly useful for microservice architectures, monorepos with multiple components, or any scenario where you need to understand cross-repository dependencies.
 
+#### How Multi-Repository Support Works
+
+Arc Memory's multi-repository support is built on these key concepts:
+
+1. **Repository Identity**
+   Each repository is assigned a unique ID based on its absolute path. This ID is used to tag all nodes from that repository in the knowledge graph.
+
+2. **Unified Knowledge Graph**
+   All repositories share a single knowledge graph database, with nodes tagged by their source repository. This enables cross-repository queries and analysis.
+
+3. **Repository Context**
+   Every node maintains its repository context, allowing for repository-aware filtering and visualization.
+
+4. **Cross-Repository Relationships**
+   Edges can connect nodes from different repositories, enabling analysis of dependencies and relationships that span repository boundaries.
+
+#### Multi-Repository Architecture
+
+```bash
+┌─────────────────┐     ┌─────────────────┐     ┌─────────────────┐
+│  Repositories   │     │ Knowledge Graph │     │    Queries      │
+├─────────────────┤     ├─────────────────┤     ├─────────────────┤
+│                 │     │                 │     │                 │
+│  Repository 1   ├────►│                 │     │  Single-Repo    │
+│  (repo_id: A)   │     │                 │     │  Queries        │
+│                 │     │                 │     │                 │
+│  Repository 2   ├────►│  Unified Graph  ├────►│  Cross-Repo     │
+│  (repo_id: B)   │     │  with Tagged    │     │  Queries        │
+│                 │     │  Nodes          │     │                 │
+│  Repository 3   ├────►│                 │     │  Filtered       │
+│  (repo_id: C)   │     │                 │     │  Queries        │
+│                 │     │                 │     │                 │
+└─────────────────┘     └─────────────────┘     └─────────────────┘
+```
+
 #### Adding Repositories
 
 You can add multiple repositories to your knowledge graph using the CLI:
@@ -210,6 +245,27 @@ This enables powerful cross-repository analysis, such as:
 - Tracing decision trails across repository boundaries
 - Analyzing architectural dependencies between microservices
 - Identifying potential integration issues before they occur
+
+#### Multi-Repository Reference
+
+##### CLI Commands
+
+| Command | Description | Example |
+|---------|-------------|---------|
+| `arc repo add` | Add a repository to the knowledge graph | `arc repo add /path/to/repo --name "My Repo"` |
+| `arc repo list` | List all repositories in the knowledge graph | `arc repo list` |
+| `arc repo build` | Build a specific repository | `arc repo build repository:1234abcd` |
+| `arc repo active` | Set active repositories for queries | `arc repo active repository:1234abcd repository:5678efgh` |
+
+##### SDK Methods
+
+| Method | Description | Example |
+|--------|-------------|---------|
+| `add_repository()` | Add a repository to the knowledge graph | `repo_id = arc.add_repository("/path/to/repo", name="My Repo")` |
+| `list_repositories()` | List all repositories in the knowledge graph | `repos = arc.list_repositories()` |
+| `build_repository()` | Build a specific repository | `arc.build_repository(repo_id)` |
+| `set_active_repositories()` | Set active repositories for queries | `arc.set_active_repositories([repo1_id, repo2_id])` |
+| `get_active_repositories()` | Get the active repositories | `active_repos = arc.get_active_repositories()` |
 
 ### Building Options
 
@@ -783,6 +839,7 @@ jobs:
 
 ## Next Steps
 
+- [Multi-Repository Support](./multi_repository.md) - Comprehensive guide to working with multiple repositories
 - [SDK Examples](./examples/README.md) - More detailed examples of using the SDK
 - [Framework Adapters](./sdk/adapters.md) - Integrating with agent frameworks
 - [CLI Reference](./cli/README.md) - Using the Arc Memory CLI

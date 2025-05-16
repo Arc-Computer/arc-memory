@@ -28,7 +28,10 @@ Arc Memory provides a complete solution for preserving and leveraging engineerin
 3. **Enables powerful temporal reasoning**
    Tracks decision → implication → code-change chains to show why decisions were made and predict their impact.
 
-4. **Enhances developer workflows**
+4. **Analyzes across multiple repositories**
+   Builds a unified knowledge graph across multiple repositories to understand cross-repository dependencies and relationships.
+
+5. **Enhances developer workflows**
    Surfaces decision trails and blast-radius predictions in PR reviews and provides context to AI agents.
 
 ## Quick Start
@@ -42,7 +45,7 @@ arc auth github
 
 # Build a knowledge graph with LLM enhancement
 cd /path/to/your/repo
-arc build --github --linear --llm-enhancement standard --llm-provider openai --llm-model gpt-4.1
+arc build --github --linear --llm-enhancement standard --llm-provider openai --llm-model o4-mini
 ```
 
 Check out our [Code Time Machine demo](./demo/code_time_machine/) to explore file evolution, decision trails, and impact prediction, or browse other [example agents](./docs/examples/agents/) and [demo applications](./demo/).
@@ -103,7 +106,7 @@ Following the [Diataxis](https://diataxis.fr/) framework:
 - **Tutorials**: [Getting Started Guide](./docs/getting_started.md) - Step-by-step introduction
 - **How-to Guides**: [Code Time Machine Demo](./demo/code_time_machine/) - Task-oriented examples
 - **Explanation**: [Architecture Overview](./docs/architecture.md) - Concepts and design
-- **Reference**: [SDK API](./docs/sdk/README.md) and [CLI Commands](./docs/cli/README.md)
+- **Reference**: [SDK API](./docs/sdk/README.md), [CLI Commands](./docs/cli/README.md), and [Multi-Repository Support](./docs/multi_repository.md)
 
 ## Why It Matters
 
