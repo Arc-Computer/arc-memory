@@ -50,7 +50,7 @@ Arc Memory provides a complete solution for preserving and leveraging engineerin
    Creates a causal graph of code entities, services, and their relationships that evolves with your codebase, tracking both valid time and transaction time.
 
 3. **Enables powerful temporal reasoning**
-   Answers questions like "What did we know about X at time Y?" and "How has our understanding of Z evolved over time?"
+   - Answers questions like "What did we know about X at time Y?" and "How has our understanding of Z evolved over time?"
 
 4. **Analyzes across multiple repositories**
    Builds a unified knowledge graph across multiple repositories to understand cross-repository dependencies and relationships.
