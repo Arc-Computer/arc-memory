@@ -5,6 +5,18 @@ All notable changes to the Arc Memory SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.1] - 2025-05-22
+
+### Added
+- Repository deletion and path change functionality
+- CLI commands for repository removal and updates
+- SDK methods for updating and removing repositories
+- Improved path handling with case-insensitive normalization for cross-platform compatibility
+
+### Fixed
+- Fixed CLI tests for multi-repository support
+- Updated repository node ID when path changes to maintain consistency
+
 ## [0.7.0] - 2025-05-20
 
 ### Added
