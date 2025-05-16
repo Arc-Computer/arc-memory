@@ -1,4 +1,4 @@
-# Arc Memory: Bi-Temporal Knowledge Graph for Code
+# Arc Memory: The Memory Layer for Engineering Teams
 
 <p align="center">
   <img src="public/Arc SDK Header.png" alt="Arc Logo"/>
@@ -13,20 +13,31 @@
   <a href="https://docs.arc.computer"><img src="https://img.shields.io/badge/docs-mintlify-teal" alt="Documentation"/></a>
 </p>
 
-*Arc Memory is a bi-temporal knowledge graph for code that captures the **why** behind every change, predicts impact before you merge, and enables temporal reasoning across repository boundaries.*
+*Arc Memory preserves the **why** behind code changes, predicts impact before you merge, and provides the context developers and AI agents need to work with complex codebases safely and efficiently.*
 
-## Key Differentiators
+## Why Arc Memory Exists
 
-Arc Memory stands apart through three core capabilities:
+Every engineering team faces these challenges:
 
-1. **Bi-Temporal Understanding**
-   Tracks both when changes happened (valid time) and when they were recorded (transaction time), enabling "time travel" queries that reconstruct what was known at any point in time.
+1. **Lost Context**: "Why was this code written this way?" becomes impossible to answer when the original developers leave
+2. **Risky Changes**: Even small changes can have unexpected ripple effects across repositories
+3. **Knowledge Silos**: Critical information gets scattered across Git, PRs, issues, and documentation
+4. **Slow Onboarding**: New team members spend weeks piecing together how systems work and why decisions were made
 
-2. **Multi-Repository Intelligence**
-   Builds a unified knowledge graph across repositories, revealing cross-repository dependencies and relationships that traditional tools miss.
+Arc Memory solves these problems by creating a unified memory layer that captures, preserves, and makes accessible the complete context behind your code.
 
-3. **Causal Reasoning**
-   Captures decision → implementation → impact chains, allowing you to trace why code exists and predict how changes will propagate through your system.
+## What Makes Arc Memory Different
+
+Arc Memory goes beyond traditional tools by:
+
+1. **Preserving Complete Context**
+   Connects code changes to the decisions, discussions, and requirements that drove them, creating a complete picture that survives team turnover.
+
+2. **Working Across Repository Boundaries**
+   Builds a unified view across your entire system, revealing dependencies and relationships that would otherwise remain hidden.
+
+3. **Enabling Time-Travel Understanding**
+   Reconstructs what was known at any point in time, helping you understand why decisions made sense with the information available then.
 
 ## What Arc Memory Does
 
