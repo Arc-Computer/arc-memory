@@ -5,7 +5,48 @@ All notable changes to the Arc Memory SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.5.0] - 2025-11-15
+## [0.7.1] - 2025-05-22
+
+### Added
+- Repository deletion and path change functionality
+- CLI commands for repository removal and updates
+- SDK methods for updating and removing repositories
+- Improved path handling with case-insensitive normalization for cross-platform compatibility
+
+### Fixed
+- Fixed CLI tests for multi-repository support
+- Updated repository node ID when path changes to maintain consistency
+
+## [0.7.0] - 2025-05-20
+
+### Added
+- Multi-repository support for managing multiple code repositories in a single knowledge graph
+- New repository management commands in CLI: `arc repo add`, `arc repo list`, `arc repo build`, `arc repo active`, `arc repo update`, `arc repo remove`
+- SDK methods for repository management: `add_repository()`, `list_repositories()`, `build_repository()`, `set_active_repositories()`, `get_active_repositories()`, `update_repository()`, `remove_repository()`
+- Cross-repository querying capabilities
+- Repository-specific node identification and filtering
+- Comprehensive documentation for multi-repository support in docs/multi_repository.md
+
+### Changed
+- Database schema updated to support multiple repositories
+- Node IDs now include repository context
+- Query methods enhanced to support repository filtering
+- Improved path handling with case-insensitive normalization for cross-platform compatibility
+
+## [0.6.0] - 2025-05-18
+
+### Added
+- Support for Neo4j as an alternative database backend
+- Plugin architecture for database adapters
+- Enhanced query capabilities with GraphRAG support
+- Improved documentation for database adapters
+
+### Changed
+- Refactored database layer to support multiple database backends
+- Updated SDK to use adapter pattern for database operations
+- Enhanced error handling for database operations
+
+## [0.5.0] - 2025-05-15
 
 ### Added
 - Automatic database migration when initializing the database

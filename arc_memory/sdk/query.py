@@ -26,7 +26,8 @@ def query_knowledge_graph(
     max_hops: int = 3,
     include_causal: bool = True,
     callback: Optional[ProgressCallback] = None,
-    timeout: int = 60
+    timeout: int = 60,
+    repo_ids: Optional[List[str]] = None
 ) -> QueryResult:
     """Query the knowledge graph using natural language.
 
@@ -42,6 +43,7 @@ def query_knowledge_graph(
         include_causal: Whether to prioritize causal relationships.
         callback: Optional callback for progress reporting.
         timeout: Maximum time in seconds to wait for Ollama response.
+        repo_ids: Optional list of repository IDs to filter by.
 
     Returns:
         A QueryResult containing the answer and supporting evidence.
@@ -81,7 +83,8 @@ def query_knowledge_graph(
             query=question,
             max_results=max_results,
             max_hops=max_hops,
-            timeout=timeout
+            timeout=timeout,
+            repo_ids=repo_ids
         )
 
         # Report progress

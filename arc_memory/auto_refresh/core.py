@@ -430,6 +430,7 @@ def refresh_knowledge_graph(
     llm_model: Optional[str] = "gpt-4.1",
     llm_enhancement_level: str = "standard",
     verbose: bool = False,
+    repo_id: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Refresh the knowledge graph with the latest data.
 
@@ -447,6 +448,7 @@ def refresh_knowledge_graph(
         llm_model: The LLM model to use. If None, uses the default model for the provider.
         llm_enhancement_level: The level of LLM enhancement to apply ("none", "fast", "standard", "deep").
         verbose: Whether to print verbose output.
+        repo_id: Optional repository ID to associate with nodes. If None, generates one from the repo_path.
 
     Returns:
         A dictionary with the results of the refresh operation.
@@ -739,9 +741,10 @@ Generate structured JSON following the requested schema for each enhancement tas
 
         arch_start = time.time()
         try:
-            # Create a repository ID if we're using architecture
-            import hashlib
-            repo_id = f"repository:{hashlib.md5(str(repo_path.absolute()).encode()).hexdigest()}"
+            # Create a repository ID if not provided
+            if repo_id is None:
+                import hashlib
+                repo_id = f"repository:{hashlib.md5(str(repo_path.absolute()).encode()).hexdigest()}"
 
             # Extract architecture components
             arch_nodes, arch_edges = extract_architecture(all_nodes, all_edges, repo_path, repo_id)

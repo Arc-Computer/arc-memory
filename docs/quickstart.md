@@ -15,7 +15,7 @@ arc auth github
 
 # Build your knowledge graph
 cd /path/to/your/repo
-arc build --github
+arc build --github --llm-enhancement standard --llm-provider openai --llm-model o4-mini
 
 # Ask a question about your codebase
 arc why query "Why was this feature implemented?"
@@ -122,6 +122,51 @@ arc build --github --linear --llm-enhancement standard
 ```
 
 You'll see progress indicators as Arc analyzes your repository and builds the knowledge graph.
+
+### Multi-Repository Support
+
+Arc Memory supports analyzing multiple repositories within a single knowledge graph:
+
+```python
+from arc_memory.sdk import Arc
+
+# Initialize with your primary repository
+arc = Arc(repo_path="./main-repo")
+
+# Add additional repositories
+repo2_id = arc.add_repository("./service-repo", name="Service Repository")
+repo3_id = arc.add_repository("./frontend-repo", name="Frontend Repository")
+
+# List all repositories in the knowledge graph
+repos = arc.list_repositories()
+for repo in repos:
+    print(f"{repo['name']} ({repo['id']})")
+
+# Set active repositories for queries
+arc.set_active_repositories([repo2_id, repo3_id])
+
+# Query across specific repositories
+result = arc.query("How do the frontend and service components interact?")
+```
+
+You can also manage repositories using the CLI:
+
+```bash
+# Add a repository to the knowledge graph
+arc repo add /path/to/another/repo --name "Another Repository"
+
+# List all repositories in the knowledge graph
+arc repo list
+
+# Build a specific repository
+arc repo build repository:1234abcd
+
+# Set active repositories for queries
+arc repo active repository:1234abcd repository:5678efgh
+
+# Run a query across repositories
+arc why query "How do the authentication components interact across services?"
+```
 
 ## Step 4: Run Basic Queries (5 minutes)
 
@@ -291,6 +336,15 @@ python arc_openai.py
 | **Empty or low-quality responses** | Try building with `--llm-enhancement` for richer analysis or use OpenAI models. |
 | **"Entity not found"** | Check entity ID format. For files, use `file:path/to/file.py`. |
 
+### Multi-Repository Issues
+
+| Issue | Solution |
+|-------|----------|
+| **"Repository with ID X does not exist"** | Verify the repository ID with `arc repo list`. Make sure you've added the repository with `arc repo add`. |
+| **"No results found across repositories"** | Check that you've set active repositories with `arc repo active` or specified repo_ids in your query. |
+| **"Repository already exists"** | If you're trying to add the same repository twice, use `arc repo list` to see existing repositories. |
+| **"Cross-repository relationships not showing"** | Ensure you've built all repositories and are querying with all relevant repository IDs. |
+
 ## Congratulations!
 
 You've successfully:
@@ -303,6 +357,7 @@ You've successfully:
 ## Next Steps
 
 - [Getting Started Guide](./getting_started.md) - More detailed setup and usage instructions
+- [Multi-Repository Support](./multi_repository.md) - Working with multiple repositories
 - [SDK Documentation](./sdk/README.md) - Learn more about the SDK
 - [CLI Reference](./cli/README.md) - Explore all CLI commands
 - [Examples](./examples/README.md) - See more advanced examples

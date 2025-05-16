@@ -981,6 +981,70 @@ class SQLiteAdapter:
                 }
             )
 
+    def get_nodes_by_type(
+        self,
+        node_type: NodeType,
+        repo_ids: Optional[List[str]] = None
+    ) -> List[Dict[str, Any]]:
+        """Get nodes by type, optionally filtered by repository IDs.
+
+        Args:
+            node_type: The type of nodes to get.
+            repo_ids: Optional list of repository IDs to filter by.
+
+        Returns:
+            A list of nodes as dictionaries.
+
+        Raises:
+            GraphQueryError: If getting the nodes fails.
+        """
+        if not self.is_connected():
+            raise DatabaseError("Not connected to database")
+
+        try:
+            if repo_ids:
+                # Filter by repository IDs
+                placeholders = ", ".join(["?"] * len(repo_ids))
+                query = f"""
+                SELECT id, type, title, body, timestamp, repo_id, extra
+                FROM nodes
+                WHERE type = ? AND repo_id IN ({placeholders})
+                """
+                params = [node_type.value] + repo_ids
+            else:
+                # No repository filter
+                query = """
+                SELECT id, type, title, body, timestamp, repo_id, extra
+                FROM nodes
+                WHERE type = ?
+                """
+                params = [node_type.value]
+
+            cursor = self.conn.execute(query, tuple(params))
+            nodes = []
+            for row in cursor:
+                nodes.append({
+                    "id": row[0],
+                    "type": row[1],
+                    "title": row[2],
+                    "body": row[3],
+                    "timestamp": row[4],
+                    "repo_id": row[5],
+                    "extra": json.loads(row[6]) if row[6] else {},
+                })
+            return nodes
+        except Exception as e:
+            error_msg = f"Failed to get nodes by type: {e}"
+            logger.error(error_msg)
+            raise GraphQueryError(
+                f"Failed to get nodes of type '{node_type.value}': {e}",
+                details={
+                    "node_type": node_type.value,
+                    "repo_ids": repo_ids,
+                    "error": str(e),
+                }
+            )
+
     def execute_query(self, query: str, params: Optional[Tuple[Any, ...]] = None) -> List[Tuple]:
         """Execute a raw SQL query on the database.
 

@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "arc-memory"
-version = "0.7.0"
+version = "0.7.1"
 description = "Arc Memory - Local bi-temporal knowledge graph for code repositories"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -154,7 +154,7 @@ packages = ["arc_memory"]
 allow-direct-references = true
 
 [tool.hatch.build.targets.wheel.shared-data]
-"LICENSE" = "arc_memory-0.7.0.dist-info/licenses/LICENSE"
+"LICENSE" = "arc_memory-0.7.1.dist-info/licenses/LICENSE"
 
 [tool.black]
 line-length = 88
