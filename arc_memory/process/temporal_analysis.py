@@ -32,6 +32,7 @@ def enhance_with_temporal_analysis(
     ollama_client: Optional[OllamaClient] = None,
     openai_client: Optional[Any] = None,
     llm_provider: str = "ollama",
+    llm_model: Optional[str] = None,
 ) -> Tuple[List[Node], List[Edge]]:
     """Enhance nodes and edges with temporal analysis.
 
@@ -43,6 +44,7 @@ def enhance_with_temporal_analysis(
         ollama_client: Optional Ollama client for LLM processing.
         openai_client: Optional OpenAI client for LLM processing.
         llm_provider: The LLM provider to use ("ollama" or "openai").
+        llm_model: Optional model name to use with the LLM provider.
 
     Returns:
         Enhanced nodes and edges.
@@ -265,7 +267,7 @@ def enhance_with_temporal_analysis(
         if llm_provider == "openai" and openai_client is not None:
             try:
                 llm_nodes, llm_edges = enhance_with_llm_temporal_analysis_openai(
-                    nodes, edges, commit_nodes, openai_client
+                    nodes, edges, commit_nodes, openai_client, llm_model
                 )
                 workflow_nodes.extend(llm_nodes)
                 workflow_edges.extend(llm_edges)
@@ -275,7 +277,7 @@ def enhance_with_temporal_analysis(
         elif ollama_client is not None:
             try:
                 llm_nodes, llm_edges = enhance_with_llm_temporal_analysis(
-                    nodes, edges, commit_nodes, ollama_client
+                    nodes, edges, commit_nodes, ollama_client, llm_model
                 )
                 workflow_nodes.extend(llm_nodes)
                 workflow_edges.extend(llm_edges)
@@ -341,7 +343,8 @@ def enhance_with_llm_temporal_analysis(
     nodes: List[Node],
     edges: List[Edge],
     commit_nodes: List[Node],
-    ollama_client: OllamaClient
+    ollama_client: OllamaClient,
+    llm_model: Optional[str] = None
 ) -> Tuple[List[Node], List[Edge]]:
     """Use Ollama LLM to enhance temporal analysis with deeper insights.
 
@@ -350,6 +353,7 @@ def enhance_with_llm_temporal_analysis(
         edges: List of all edges.
         commit_nodes: List of commit nodes.
         ollama_client: The Ollama client for LLM processing.
+        llm_model: Optional model name to use with Ollama.
 
     Returns:
         New nodes and edges derived from LLM analysis.
@@ -429,8 +433,9 @@ def enhance_with_llm_temporal_analysis(
 
     try:
         # Query the LLM with thinking mode for better reasoning
+        model_to_use = llm_model or "qwen3:4b"
         response = ollama_client.generate_with_thinking(
-            model="qwen3:4b",
+            model=model_to_use,
             prompt=prompt,
             system=system_prompt,
             options={"temperature": 0.1}
@@ -540,7 +545,8 @@ def enhance_with_llm_temporal_analysis_openai(
     nodes: List[Node],
     edges: List[Edge],
     commit_nodes: List[Node],
-    openai_client: Any
+    openai_client: Any,
+    llm_model: Optional[str] = None
 ) -> Tuple[List[Node], List[Edge]]:
     """Use OpenAI LLM to enhance temporal analysis with deeper insights.
 
@@ -549,6 +555,7 @@ def enhance_with_llm_temporal_analysis_openai(
         edges: List of all edges.
         commit_nodes: List of commit nodes.
         openai_client: The OpenAI client for LLM processing.
+        llm_model: Optional model name to use with OpenAI.
 
     Returns:
         New nodes and edges derived from LLM analysis.
@@ -628,8 +635,9 @@ def enhance_with_llm_temporal_analysis_openai(
 
     try:
         # Query the OpenAI LLM with thinking mode for better reasoning
+        model_to_use = llm_model or "gpt-4.1"
         response = openai_client.generate_with_thinking(
-            model="gpt-4.1",
+            model=model_to_use,
             prompt=prompt,
             system=system_prompt,
             options={"temperature": 0.1}
