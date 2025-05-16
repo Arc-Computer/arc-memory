@@ -286,7 +286,8 @@ def process_query(
     query: str,
     max_results: int = 5,
     max_hops: int = 3,
-    timeout: int = 60
+    timeout: int = 60,
+    repo_ids: Optional[List[str]] = None
 ) -> Dict[str, Any]:
     """Process a natural language query against the knowledge graph.
 
@@ -301,6 +302,7 @@ def process_query(
         max_results: Maximum number of results to return
         max_hops: Maximum number of hops in the graph traversal
         timeout: Maximum time in seconds to wait for Ollama response
+        repo_ids: Optional list of repository IDs to filter by
 
     Returns:
         A dictionary containing the query results with these keys:
@@ -351,7 +353,8 @@ def process_query(
             conn,
             query_intent,
             max_results=max_results,
-            max_hops=max_hops
+            max_hops=max_hops,
+            repo_ids=repo_ids
         )
 
         if not relevant_nodes:
@@ -409,9 +412,10 @@ def _process_query_intent(query: str) -> Optional[Dict[str, Any]]:
         logger.debug("Stage 1: Understanding query intent")
 
         if openai_client:
-            # Use GPT-4.1 for better understanding
+            # Use model from environment variable or default
+            model = os.environ.get("OPENAI_MODEL", "gpt-4.1")
             llm_response = openai_client.generate_with_thinking(
-                model="gpt-4.1",
+                model=model,
                 prompt=f"Parse this natural language query about a code repository: \"{query}\"",
                 system=QUERY_UNDERSTANDING_PROMPT,
                 options={"temperature": 0.1}  # Lower temperature for more precise parsing
@@ -449,9 +453,10 @@ Generate appropriate search parameters for finding relevant nodes in the knowled
 """
 
         if openai_client:
-            # Use GPT-4.1 for better search parameter generation
+            # Use model from environment variable or default
+            model = os.environ.get("OPENAI_MODEL", "gpt-4.1")
             search_params_response = openai_client.generate_with_thinking(
-                model="gpt-4.1",
+                model=model,
                 prompt=search_params_prompt,
                 system=KNOWLEDGE_GRAPH_SEARCH_PROMPT,
                 options={"temperature": 0.1}
@@ -608,7 +613,8 @@ def _search_knowledge_graph(
     conn: sqlite3.Connection,
     query_intent: Dict[str, Any],
     max_results: int = 5,
-    max_hops: int = 3
+    max_hops: int = 3,
+    repo_ids: Optional[List[str]] = None
 ) -> List[Dict[str, Any]]:
     """Search the knowledge graph for nodes relevant to the query intent.
 
@@ -617,6 +623,7 @@ def _search_knowledge_graph(
         query_intent: The parsed query intent
         max_results: Maximum number of results to return
         max_hops: Maximum number of hops in the graph traversal
+        repo_ids: Optional list of repository IDs to filter by
 
     Returns:
         List of relevant nodes with metadata
@@ -664,7 +671,8 @@ def _search_knowledge_graph(
                 node_type,
                 title_keywords,
                 temporal_constraints,
-                limit=max_nodes_per_type
+                limit=max_nodes_per_type,
+                repo_ids=repo_ids
             )
             seed_nodes.extend(type_nodes)
 
@@ -680,7 +688,8 @@ def _search_knowledge_graph(
                     node_type,
                     title_keywords,
                     temporal_constraints,
-                    limit=max_nodes_per_type
+                    limit=max_nodes_per_type,
+                    repo_ids=repo_ids
                 )
                 seed_nodes.extend(type_nodes)
 
@@ -703,15 +712,15 @@ def _search_knowledge_graph(
         if search_strategy == "broad_first":
             # Broad search prioritizes finding a diverse set of related nodes
             max_hops = max(2, max_hops)  # Ensure at least 2 hops
-            expanded_nodes = _expand_search(conn, top_seed_nodes, max_hops, max_results)
+            expanded_nodes = _expand_search(conn, top_seed_nodes, max_hops, max_results, repo_ids)
         elif search_strategy == "recent_first":
             # Recent search prioritizes newer nodes
-            expanded_nodes = _expand_search(conn, top_seed_nodes, max_hops, max_results)
+            expanded_nodes = _expand_search(conn, top_seed_nodes, max_hops, max_results, repo_ids)
             # Sort by timestamp (newest first)
             expanded_nodes = sorted(expanded_nodes, key=lambda n: n.ts if n.ts else datetime.min, reverse=True)
         else:  # Default to relevance_first
             # Relevance search uses the scoring function
-            expanded_nodes = _expand_search(conn, top_seed_nodes, max_hops, max_results * 2)
+            expanded_nodes = _expand_search(conn, top_seed_nodes, max_hops, max_results * 2, repo_ids)
             expanded_nodes = _score_nodes(expanded_nodes, query_intent)
 
         # Format the nodes for response
@@ -768,7 +777,8 @@ def _find_nodes_by_type_and_keywords(
     node_type: NodeType,
     keywords: List[str],
     temporal_constraints: Dict[str, Any],
-    limit: int = 5
+    limit: int = 5,
+    repo_ids: Optional[List[str]] = None
 ) -> List[Node]:
     """Find nodes by type and keywords.
 
@@ -778,6 +788,7 @@ def _find_nodes_by_type_and_keywords(
         keywords: List of keywords to search for
         temporal_constraints: Temporal constraints for filtering
         limit: Maximum number of nodes to return
+        repo_ids: Optional list of repository IDs to filter by
 
     Returns:
         List of matching nodes
@@ -788,6 +799,12 @@ def _find_nodes_by_type_and_keywords(
         # Base query
         query = "SELECT * FROM nodes WHERE type = ?"
         params = [node_type.value]
+
+        # Add repository filter if specified
+        if repo_ids:
+            placeholders = ", ".join(["?"] * len(repo_ids))
+            query += f" AND (repo_id IN ({placeholders}))"
+            params.extend(repo_ids)
 
         # Add keyword filters if any
         if keywords:
@@ -866,7 +883,8 @@ def _expand_search(
     conn: sqlite3.Connection,
     seed_nodes: List[Node],
     max_hops: int,
-    max_results: int
+    max_results: int,
+    repo_ids: Optional[List[str]] = None
 ) -> List[Node]:
     """Expand the search from seed nodes using graph relationships.
 
@@ -875,6 +893,7 @@ def _expand_search(
         seed_nodes: Initial set of nodes to expand from
         max_hops: Maximum number of hops in the graph traversal
         max_results: Maximum number of results to return
+        repo_ids: Optional list of repository IDs to filter by
 
     Returns:
         List of additional nodes found through graph traversal
@@ -907,6 +926,11 @@ def _expand_search(
                     # Get the node from the database
                     node = get_node_by_id(conn, connected_id)
                     if node:
+                        # Filter by repository ID if specified
+                        if repo_ids and hasattr(node, 'repo_id') and node.repo_id is not None:
+                            if node.repo_id not in repo_ids:
+                                continue
+
                         expanded_nodes.append(node)
 
                         # Add to queue for further expansion
@@ -1033,9 +1057,10 @@ Based on this information, please answer the user's question."""
 
         # Generate response with thinking for better reasoning
         if openai_client:
-            # Use GPT-4.1 for higher quality responses
+            # Use model from environment variable or default
+            model = os.environ.get("OPENAI_MODEL", "gpt-4.1")
             llm_response = openai_client.generate_with_thinking(
-                model="gpt-4.1",
+                model=model,
                 prompt=llm_prompt,
                 system=system_prompt,
                 options={"temperature": 0.2}  # Slightly higher temperature for more natural responses

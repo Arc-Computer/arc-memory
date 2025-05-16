@@ -123,6 +123,48 @@ arc build --github --linear --llm-enhancement standard
 
 You'll see progress indicators as Arc analyzes your repository and builds the knowledge graph.
 
+### Multi-Repository Support
+
+Arc Memory supports analyzing multiple repositories within a single knowledge graph:
+
+```python
+from arc_memory.sdk import Arc
+
+# Initialize with your primary repository
+arc = Arc(repo_path="./main-repo")
+
+# Add additional repositories
+repo2_id = arc.add_repository("./service-repo", name="Service Repository")
+repo3_id = arc.add_repository("./frontend-repo", name="Frontend Repository")
+
+# List all repositories in the knowledge graph
+repos = arc.list_repositories()
+for repo in repos:
+    print(f"{repo['name']} ({repo['id']})")
+
+# Set active repositories for queries
+arc.set_active_repositories([repo2_id, repo3_id])
+
+# Query across specific repositories
+result = arc.query("How do the frontend and service components interact?")
+```
+
+You can also manage repositories using the CLI:
+
+```bash
+# Add a repository to the knowledge graph
+arc repo add /path/to/another/repo --name "Another Repository"
+
+# List all repositories in the knowledge graph
+arc repo list
+
+# Build a specific repository
+arc repo build repository:1234abcd
+
+# Set active repositories for queries
+arc repo active repository:1234abcd repository:5678efgh
+```
+
 ## Step 4: Run Basic Queries (5 minutes)
 
 ### Using the CLI

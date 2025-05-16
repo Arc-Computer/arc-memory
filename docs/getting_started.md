@@ -148,6 +148,69 @@ This will:
 4. Extract ADRs (if present in the repository)
 5. Build a knowledge graph in a local SQLite database (stored in `~/.arc/db.sqlite` by default)
 
+### Multi-Repository Support
+
+Arc Memory supports analyzing multiple repositories within a single knowledge graph. This is particularly useful for microservice architectures, monorepos with multiple components, or any scenario where you need to understand cross-repository dependencies.
+
+#### Adding Repositories
+
+You can add multiple repositories to your knowledge graph using the CLI:
+
+```bash
+# Add a repository to the knowledge graph
+arc repo add /path/to/another/repo --name "Another Repository"
+
+# List all repositories in the knowledge graph
+arc repo list
+
+# Build a specific repository
+arc repo build repository:1234abcd
+
+# Set active repositories for queries
+arc repo active repository:1234abcd repository:5678efgh
+```
+
+Or programmatically using the SDK:
+
+```python
+from arc_memory.sdk import Arc
+
+# Initialize with your primary repository
+arc = Arc(repo_path="./main-repo")
+
+# Add additional repositories
+repo2_id = arc.add_repository("./service-repo", name="Service Repository")
+repo3_id = arc.add_repository("./frontend-repo", name="Frontend Repository")
+
+# List all repositories in the knowledge graph
+repos = arc.list_repositories()
+for repo in repos:
+    print(f"{repo['name']} ({repo['id']})")
+```
+
+#### Querying Across Repositories
+
+You can query across multiple repositories to understand cross-repository dependencies and relationships:
+
+```python
+# Set active repositories for queries
+arc.set_active_repositories([repo2_id, repo3_id])
+
+# Query across specific repositories
+result = arc.query("How do the frontend and service components interact?",
+                   repo_ids=[repo2_id, repo3_id])
+
+# Get related entities across repositories
+related = arc.get_related_entities("component:auth-service",
+                                  repo_ids=[repo2_id, repo3_id])
+```
+
+This enables powerful cross-repository analysis, such as:
+- Understanding how changes in one repository affect components in another
+- Tracing decision trails across repository boundaries
+- Analyzing architectural dependencies between microservices
+- Identifying potential integration issues before they occur
+
 ### Building Options
 
 You can customize the build process with various options:

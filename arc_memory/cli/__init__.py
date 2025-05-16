@@ -20,6 +20,7 @@ from arc_memory.cli.doctor import app as doctor_app
 from arc_memory.cli.export import export as export_command
 from arc_memory.cli.migrate import app as migrate_app
 from arc_memory.cli.refresh import app as refresh_app
+from arc_memory.cli.repo import app as repo_app
 from arc_memory.cli.trace import app as trace_app
 from arc_memory.cli.why import app as why_app
 from arc_memory.cli.relate import app as relate_app
@@ -32,6 +33,7 @@ app.command()(build_command)  # Add build command directly
 app.add_typer(doctor_app, name="doctor")
 app.add_typer(migrate_app, name="migrate")
 app.add_typer(refresh_app, name="refresh")
+app.add_typer(repo_app, name="repo")
 app.add_typer(trace_app, name="trace")
 app.add_typer(why_app, name="why")
 app.add_typer(relate_app, name="relate")

@@ -77,6 +77,9 @@ class Arc:
             # Set current repository context
             self.current_repo_id = None
 
+            # Initialize active repositories list (for multi-repo support)
+            self.active_repos = []
+
             # Discover and register framework adapters
             discover_adapters()
 
@@ -86,6 +89,18 @@ class Arc:
         except Exception as e:
             # Convert other exceptions to SDK errors
             raise SDKError(f"Failed to initialize Arc Memory SDK: {e}") from e
+
+    def _get_repo_id_from_path(self, path: Path) -> str:
+        """Generate repository ID from path.
+
+        Args:
+            path: Path to the repository.
+
+        Returns:
+            Repository ID in the format "repository:{md5_hash}".
+        """
+        import hashlib
+        return f"repository:{hashlib.md5(str(path.absolute()).encode()).hexdigest()}"
 
     def ensure_repository(self, name: Optional[str] = None) -> str:
         """Ensure a repository entry exists for the current repo_path.
@@ -107,6 +122,11 @@ class Arc:
             repo = self.get_current_repository()
             if repo:
                 self.current_repo_id = repo["id"]
+
+                # Add to active repositories if not already there
+                if self.current_repo_id not in self.active_repos:
+                    self.active_repos.append(self.current_repo_id)
+
                 return repo["id"]
 
             # Generate repository name from path if not provided
@@ -114,8 +134,7 @@ class Arc:
                 name = self.repo_path.name
 
             # Generate repository ID (use path hash for deterministic IDs)
-            import hashlib
-            repo_id = f"repository:{hashlib.md5(str(self.repo_path.absolute()).encode()).hexdigest()}"
+            repo_id = self._get_repo_id_from_path(self.repo_path)
 
             # Get repository URL from git config if available
             url = None
@@ -156,8 +175,28 @@ class Arc:
             # Add repository to database
             self.add_nodes_and_edges([repo_node], [])
 
+            # Add to repositories table
+            self.adapter.conn.execute(
+                """
+                INSERT OR REPLACE INTO repositories(id, name, url, local_path, default_branch)
+                VALUES(?, ?, ?, ?, ?)
+                """,
+                (
+                    repo_id,
+                    name,
+                    url,
+                    str(self.repo_path.absolute()),
+                    default_branch
+                )
+            )
+            self.adapter.conn.commit()
+
             # Set current repository ID
             self.current_repo_id = repo_id
+
+            # Add to active repositories
+            if repo_id not in self.active_repos:
+                self.active_repos.append(repo_id)
 
             return repo_id
         except Exception as e:
@@ -197,6 +236,195 @@ class Arc:
             return repo
         except Exception as e:
             raise QueryError(f"Failed to get current repository: {e}") from e
+
+    def list_repositories(self) -> List[Dict[str, Any]]:
+        """List all repositories in the knowledge graph.
+
+        Returns:
+            List of repository dictionaries.
+
+        Raises:
+            QueryError: If listing repositories fails.
+        """
+        try:
+            # Execute query to get all repositories
+            cursor = self.adapter.conn.execute("SELECT * FROM repositories")
+            repos = [dict(row) for row in cursor.fetchall()]
+
+            # Parse metadata if it exists
+            for repo in repos:
+                if repo.get("metadata"):
+                    import json
+                    repo["metadata"] = json.loads(repo["metadata"])
+
+            return repos
+        except Exception as e:
+            raise QueryError(f"Failed to list repositories: {e}") from e
+
+    def add_repository(self, repo_path: Union[str, Path], name: Optional[str] = None) -> str:
+        """Add a repository to the knowledge graph.
+
+        Args:
+            repo_path: Path to the repository.
+            name: Optional name for the repository. If None, uses the directory name.
+
+        Returns:
+            Repository ID.
+
+        Raises:
+            QueryError: If adding the repository fails.
+        """
+        try:
+            # Convert to Path
+            path = Path(repo_path)
+
+            # Check if repository exists
+            query = """
+            SELECT id FROM repositories WHERE local_path = ?
+            """
+            params = (str(path.absolute()),)
+
+            cursor = self.adapter.conn.execute(query, params)
+            row = cursor.fetchone()
+
+            if row:
+                repo_id = row["id"]
+
+                # Add to active repositories if not already there
+                if repo_id not in self.active_repos:
+                    self.active_repos.append(repo_id)
+
+                return repo_id
+
+            # Generate repository name from path if not provided
+            if not name:
+                name = path.name
+
+            # Generate repository ID
+            repo_id = self._get_repo_id_from_path(path)
+
+            # Get repository URL from git config if available
+            url = None
+            try:
+                import subprocess
+                result = subprocess.run(
+                    ["git", "-C", str(path), "config", "--get", "remote.origin.url"],
+                    capture_output=True, text=True, check=False
+                )
+                if result.returncode == 0:
+                    url = result.stdout.strip()
+            except Exception:
+                pass
+
+            # Get default branch
+            default_branch = "main"
+            try:
+                result = subprocess.run(
+                    ["git", "-C", str(path), "symbolic-ref", "--short", "HEAD"],
+                    capture_output=True, text=True, check=False
+                )
+                if result.returncode == 0:
+                    default_branch = result.stdout.strip()
+            except Exception:
+                pass
+
+            # Create repository node
+            from arc_memory.schema.models import RepositoryNode
+            repo_node = RepositoryNode(
+                id=repo_id,
+                title=name,
+                name=name,
+                url=url,
+                local_path=str(path.absolute()),
+                default_branch=default_branch
+            )
+
+            # Add repository to database
+            self.add_nodes_and_edges([repo_node], [])
+
+            # Add to repositories table
+            self.adapter.conn.execute(
+                """
+                INSERT OR REPLACE INTO repositories(id, name, url, local_path, default_branch)
+                VALUES(?, ?, ?, ?, ?)
+                """,
+                (
+                    repo_id,
+                    name,
+                    url,
+                    str(path.absolute()),
+                    default_branch
+                )
+            )
+            self.adapter.conn.commit()
+
+            # Add to active repositories
+            if repo_id not in self.active_repos:
+                self.active_repos.append(repo_id)
+
+            return repo_id
+        except Exception as e:
+            raise QueryError(f"Failed to add repository: {e}") from e
+
+    def set_active_repositories(self, repo_ids: List[str]) -> None:
+        """Set the active repositories for queries.
+
+        Args:
+            repo_ids: List of repository IDs to use for queries.
+
+        Raises:
+            QueryError: If setting active repositories fails.
+        """
+        try:
+            # Verify that all repository IDs exist
+            for repo_id in repo_ids:
+                cursor = self.adapter.conn.execute(
+                    "SELECT id FROM repositories WHERE id = ?",
+                    (repo_id,)
+                )
+                if not cursor.fetchone():
+                    raise QueryError(f"Repository with ID {repo_id} does not exist")
+
+            # Set active repositories
+            self.active_repos = repo_ids.copy()
+        except Exception as e:
+            raise QueryError(f"Failed to set active repositories: {e}") from e
+
+    def get_active_repositories(self) -> List[Dict[str, Any]]:
+        """Get the active repositories.
+
+        Returns:
+            List of active repository dictionaries.
+
+        Raises:
+            QueryError: If getting active repositories fails.
+        """
+        try:
+            if not self.active_repos:
+                # If no active repositories, ensure current repository
+                self.ensure_repository()
+
+            # Get repository details for active repositories
+            repos = []
+            for repo_id in self.active_repos:
+                cursor = self.adapter.conn.execute(
+                    "SELECT * FROM repositories WHERE id = ?",
+                    (repo_id,)
+                )
+                row = cursor.fetchone()
+                if row:
+                    repo = dict(row)
+
+                    # Parse metadata if it exists
+                    if repo.get("metadata"):
+                        import json
+                        repo["metadata"] = json.loads(repo["metadata"])
+
+                    repos.append(repo)
+
+            return repos
+        except Exception as e:
+            raise QueryError(f"Failed to get active repositories: {e}") from e
 
     def get_node_by_id(self, node_id: str) -> Optional[Dict[str, Any]]:
         """Get a node by its ID.
@@ -326,7 +554,7 @@ class Arc:
         llm_enhancement_level="standard",
         verbose=False,
     ):
-        """Build or refresh the knowledge graph.
+        """Build or refresh the knowledge graph for the current repository.
 
         This method builds or refreshes the knowledge graph from various sources,
         including Git, GitHub, Linear, and ADRs. It can also enhance the graph with
@@ -358,7 +586,10 @@ class Arc:
         from arc_memory.auto_refresh.core import refresh_knowledge_graph
 
         try:
-            return refresh_knowledge_graph(
+            # Ensure repository exists and get its ID
+            repo_id = self.ensure_repository()
+
+            result = refresh_knowledge_graph(
                 repo_path=repo_path,
                 include_github=include_github,
                 include_linear=include_linear,
@@ -367,14 +598,101 @@ class Arc:
                 llm_provider=llm_provider,
                 llm_model=llm_model,
                 llm_enhancement_level=llm_enhancement_level,
-                verbose=verbose
+                verbose=verbose,
+                repo_id=repo_id  # Pass repository ID to ensure nodes are properly tagged
             )
+
+            # Make sure this repository is in the active repositories list
+            if repo_id not in self.active_repos:
+                self.active_repos.append(repo_id)
+
+            return result
         except Exception as e:
             raise BuildError(
                 what_happened="Failed to build knowledge graph",
                 why_it_happened=f"Error during knowledge graph build: {str(e)}",
                 how_to_fix_it="Check the error message for details. Ensure you have the necessary permissions and dependencies.",
                 details={"error": str(e)}
+            ) from e
+
+    def build_repository(
+        self,
+        repo_id: str,
+        include_github=True,
+        include_linear=False,
+        include_architecture=True,
+        use_llm=True,
+        llm_provider="openai",
+        llm_model="gpt-4.1",
+        llm_enhancement_level="standard",
+        verbose=False,
+    ):
+        """Build or refresh the knowledge graph for a specific repository.
+
+        Args:
+            repo_id: Repository ID to build.
+            include_github: Whether to include GitHub data in the graph.
+            include_linear: Whether to include Linear data in the graph.
+            include_architecture: Whether to extract architecture components.
+            use_llm: Whether to use an LLM to enhance the graph.
+            llm_provider: The LLM provider to use.
+            llm_model: The LLM model to use.
+            llm_enhancement_level: The level of LLM enhancement to apply.
+            verbose: Whether to print verbose output during the build process.
+
+        Returns:
+            A dictionary containing information about the build process.
+
+        Raises:
+            BuildError: If building the knowledge graph fails.
+        """
+        try:
+            # Get repository information
+            cursor = self.adapter.conn.execute(
+                "SELECT * FROM repositories WHERE id = ?",
+                (repo_id,)
+            )
+            repo = cursor.fetchone()
+
+            if not repo:
+                raise BuildError(
+                    what_happened=f"Repository with ID {repo_id} not found",
+                    why_it_happened="The specified repository ID does not exist in the database",
+                    how_to_fix_it="Check the repository ID or use list_repositories() to see available repositories",
+                    details={"repo_id": repo_id}
+                )
+
+            # Get repository path
+            repo_path = Path(repo["local_path"])
+
+            # Import here to avoid circular imports
+            from arc_memory.auto_refresh.core import refresh_knowledge_graph
+
+            # Build the knowledge graph for this repository
+            result = refresh_knowledge_graph(
+                repo_path=repo_path,
+                include_github=include_github,
+                include_linear=include_linear,
+                include_architecture=include_architecture,
+                use_llm=use_llm,
+                llm_provider=llm_provider,
+                llm_model=llm_model,
+                llm_enhancement_level=llm_enhancement_level,
+                verbose=verbose,
+                repo_id=repo_id  # Pass repository ID to ensure nodes are properly tagged
+            )
+
+            # Make sure this repository is in the active repositories list
+            if repo_id not in self.active_repos:
+                self.active_repos.append(repo_id)
+
+            return result
+        except Exception as e:
+            raise BuildError(
+                what_happened=f"Failed to build knowledge graph for repository {repo_id}",
+                why_it_happened=f"Error during knowledge graph build: {str(e)}",
+                how_to_fix_it="Check the error message for details. Ensure you have the necessary permissions and dependencies.",
+                details={"error": str(e), "repo_id": repo_id}
             ) from e
 
     # Query API methods
@@ -387,7 +705,8 @@ class Arc:
         include_causal: bool = True,
         cache: bool = True,
         callback: Optional[ProgressCallback] = None,
-        timeout: int = 60
+        timeout: int = 60,
+        repo_ids: Optional[List[str]] = None
     ) -> QueryResult:
         """Query the knowledge graph using natural language.
 
@@ -405,6 +724,7 @@ class Arc:
                 Set to False to force a fresh query execution.
             callback: Optional callback for progress reporting.
             timeout: Maximum time in seconds to wait for Ollama response.
+            repo_ids: Optional list of repository IDs to filter by. If None, uses active repositories.
 
         Returns:
             A QueryResult containing the answer and supporting evidence.
@@ -418,6 +738,14 @@ class Arc:
             Install Ollama from https://ollama.ai/download and start it with 'ollama serve'.
         """
         from arc_memory.sdk.query import query_knowledge_graph
+
+        # If no repo_ids provided, use active repositories
+        if repo_ids is None:
+            # If no active repositories, ensure current repository
+            if not self.active_repos:
+                self.ensure_repository()
+            repo_ids = self.active_repos
+
         return query_knowledge_graph(
             adapter=self.adapter,
             question=question,
@@ -426,7 +754,8 @@ class Arc:
             include_causal=include_causal,
             cache=cache,
             callback=callback,
-            timeout=timeout
+            timeout=timeout,
+            repo_ids=repo_ids
         )
 
     # Decision Trail API methods

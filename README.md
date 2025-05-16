@@ -121,8 +121,35 @@ Arc Memory is built around a bi-temporal knowledge graph that captures:
 - **Version History**: Commits, PRs, issues, and their temporal connections
 - **Decision Context**: ADRs, discussions, and rationales behind changes
 - **Causal Relationships**: How changes in one component affect others
+- **Multi-Repository Support**: Analyze and query across multiple repositories
 
 This architecture enables powerful temporal reasoning and impact prediction capabilities that traditional code analysis tools cannot provide.
+
+### Multi-Repository Support
+
+Arc Memory supports analyzing multiple repositories within a single knowledge graph:
+
+```python
+from arc_memory.sdk import Arc
+
+# Initialize with your primary repository
+arc = Arc(repo_path="./main-repo")
+
+# Add additional repositories
+repo2_id = arc.add_repository("./service-repo", name="Service Repository")
+repo3_id = arc.add_repository("./frontend-repo", name="Frontend Repository")
+
+# List all repositories in the knowledge graph
+repos = arc.list_repositories()
+for repo in repos:
+    print(f"{repo['name']} ({repo['id']})")
+
+# Set active repositories for queries
+arc.set_active_repositories([repo2_id, repo3_id])
+
+# Query across specific repositories
+result = arc.query("How do the frontend and service components interact?")
+```
 
 The SDK follows a framework-agnostic design with adapters for popular frameworks like LangChain and OpenAI, making it easy to integrate Arc Memory into your development workflows or AI applications.
 
