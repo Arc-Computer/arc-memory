@@ -77,7 +77,7 @@ def run_code_review(file_path: str) -> Dict[str, Any]:
 
         # Call the API
         response = client.chat.completions.create(
-            model="gpt-4-turbo",
+            model="gpt-4.1",
             temperature=0,
             messages=[
                 {"role": "system", "content": """You are a code review expert. Analyze code thoroughly and provide
@@ -131,7 +131,7 @@ def run_impact_analysis(file_path: str) -> Dict[str, Any]:
 
         # Call the API
         response = client.chat.completions.create(
-            model="gpt-4-turbo",
+            model="gpt-4.1",
             temperature=0,
             messages=[
                 {"role": "system", "content": """You are an impact analysis expert. Analyze the potential impacts
@@ -201,7 +201,7 @@ def generate_improved_code(file_path: str, review: str, impact_analysis: str) ->
 
         # Call the API
         response = client.chat.completions.create(
-            model="gpt-4-turbo",
+            model="gpt-4.1",
             temperature=0,
             response_format={"type": "json_object"},
             messages=[
