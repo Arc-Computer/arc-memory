@@ -449,6 +449,22 @@ class TestMultiRepositorySupport(unittest.TestCase):
         self.assertIsNotNone(node)
         self.assertEqual(node["repo_id"], new_repo_id)
 
+        # Verify repository node ID was updated
+        cursor = self.arc.adapter.conn.execute(
+            "SELECT * FROM nodes WHERE id = ? AND type = ?",
+            (new_repo_id, NodeType.REPOSITORY.value)
+        )
+        repo_node = cursor.fetchone()
+        self.assertIsNotNone(repo_node, "Repository node should exist with new ID")
+
+        # Verify old repository node ID doesn't exist
+        cursor = self.arc.adapter.conn.execute(
+            "SELECT * FROM nodes WHERE id = ? AND type = ?",
+            (repo_id, NodeType.REPOSITORY.value)
+        )
+        old_repo_node = cursor.fetchone()
+        self.assertIsNone(old_repo_node, "Old repository node should not exist")
+
         # Verify active repositories were updated
         active_repos = self.arc.get_active_repositories()
         self.assertEqual(len(active_repos), 1)

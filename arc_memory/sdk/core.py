@@ -512,6 +512,13 @@ class Arc:
                         (new_repo_id, row[0], row[1], row[2], row[3], row[4], row[5])
                     )
 
+                    # Also update the repository node ID if it exists
+                    from arc_memory.schema.models import NodeType
+                    self.adapter.conn.execute(
+                        "UPDATE nodes SET id = ? WHERE id = ? AND type = ?",
+                        (new_repo_id, repo_id, NodeType.REPOSITORY.value)
+                    )
+
                     # Delete old repository record
                     self.adapter.conn.execute(
                         "DELETE FROM repositories WHERE id = ?",
