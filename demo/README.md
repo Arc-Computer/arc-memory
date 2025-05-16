@@ -9,44 +9,76 @@ Before running the demos, make sure you have:
 1. **Arc Memory installed**: `pip install arc-memory[all]`
 2. **OpenAI API key set**: `export OPENAI_API_KEY=your-api-key` (required for GPT-4.1 model)
 3. **GitHub authentication**: `arc auth github`
-4. **Required Python packages**: `pip install colorama matplotlib networkx`
+4. **Required Python packages**: `pip install colorama rich matplotlib networkx`
+5. **Knowledge graph built**: `arc build --github`
 
 ## Demo Checklist
 
 - [ ] Ensure OPENAI_API_KEY is set in the environment
-- [ ] Verify knowledge graph exists and is up to date
+- [ ] Verify knowledge graph exists and is up to date (`arc doctor`)
 - [ ] Test all demo scripts one final time
 - [ ] Have all terminal windows pre-arranged
 
-## 1. LLM-Powered Code Review Assistant Demo
+## 1. Blast Radius Demo
 
-- **Purpose**: Showcase how Arc Memory provides intelligent context for code review and understanding.
+- **Purpose**: Demonstrate Arc Memory's ability to predict the potential impact of changes to a core component.
 - **Run the demo**:
   ```bash
-  ./demo_code_review.sh
+  ./blast_radius_demo.py --file arc_memory/sdk/core.py
   ```
 - **Key points to highlight**:
-  - LLM-powered analysis of code context and history
-  - Detailed insights into code purpose and dependencies
-  - Specific recommendations based on codebase patterns
-  - Easy SDK integration for custom tools
+  - Identifies components that might be affected by changes with different severity levels
+  - Analyzes direct, indirect, and potential impacts
+  - Visualizes the impact network to show relationships between components
+  - Helps developers understand the "blast radius" of their changes
 
-**Duration**: ~5 minutes
+**Duration**: ~2-3 minutes
 
-## 2. Enhanced Blast Radius Visualization Demo
+## 2. Code Relationships Demo
 
-- **Purpose**: Visually demonstrate the potential impact of changes to a file with comprehensive SDK integration.
+- **Purpose**: Showcase Arc Memory's understanding of dependencies and relationships between code components.
 - **Run the demo**:
   ```bash
-  ./demo_enhanced_blast_radius.sh
+  ./code_relationships_demo.py --file arc_memory/sdk/relationships.py
   ```
 - **Key points to highlight**:
-  - Full utilization of Arc Memory SDK methods (get_entity_details, get_decision_trail, get_related_entities)
-  - Rich visualization showing different relationship types
-  - Comprehensive LLM analysis with historical context
-  - Actionable insights for safer code changes based on real graph data
+  - Identifies imports, dependencies, and other relationships
+  - Shows both incoming and outgoing relationships
+  - Visualizes the relationship network to show connections between components
+  - Helps developers understand how code components are interconnected
+
+**Duration**: ~2-3 minutes
+
+## 3. Knowledge Graph Query Demo
+
+- **Purpose**: Demonstrate Arc Memory's ability to answer natural language questions about the codebase.
+- **Run the demo**:
+  ```bash
+  ./knowledge_query_demo.py --interactive
+  ```
+- **Key points to highlight**:
+  - Answers questions about code changes, architecture, and dependencies
+  - Provides evidence to support answers
+  - Shows reasoning process for complex queries
+  - Helps developers quickly find information about the codebase
 
 **Duration**: ~3-4 minutes
+
+## 4. Code Time Machine Demo
+
+- **Purpose**: Explore how code evolved over time, understand key decisions, and visualize impact.
+- **Run the demo**:
+  ```bash
+  cd code_time_machine
+  ./run_demo.sh
+  ```
+- **Key points to highlight**:
+  - Timeline visualization of code changes
+  - Decision archaeology to understand why code exists
+  - Impact prediction for safer changes
+  - Improvement suggestions based on historical patterns
+
+**Duration**: ~5 minutes
 
 ## Talking Points
 
