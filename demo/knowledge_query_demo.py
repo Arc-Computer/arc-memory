@@ -21,6 +21,14 @@ import time
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 
+# Load environment variables from .env file if present
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    print("python-dotenv not installed. Environment variables must be set manually.")
+    print("Install with: pip install python-dotenv")
+
 # Add colorama for terminal colors
 try:
     from colorama import init, Fore, Style
@@ -124,18 +132,18 @@ class KnowledgeQueryDemo:
                 console=console
             ) as progress:
                 task = progress.add_task("[blue]Processing query...", total=None)
-                
+
                 # Run the query
                 result = self.arc.query(query)
-                
+
                 progress.update(task, completed=True)
 
             # Add to query history
             self.query_history.append((query, result))
-            
+
             # Display the result
             self.display_query_result(result)
-            
+
             return result
         except Exception as e:
             console.print(f"[red]Error running query: {e}[/red]")
@@ -166,27 +174,27 @@ class KnowledgeQueryDemo:
         # Display evidence if available
         if hasattr(result, 'evidence') and result.evidence:
             console.print("\n[bold yellow]Supporting Evidence:[/bold yellow]")
-            
+
             # Create a table for the evidence
             table = Table()
             table.add_column("Source", style="cyan")
             table.add_column("Content", style="green")
             table.add_column("Relevance", style="yellow")
-            
+
             for evidence in result.evidence:
                 # Extract source
                 source = evidence.get('source', 'Unknown')
-                
+
                 # Extract content (truncate if too long)
                 content = evidence.get('content', '')
                 if len(content) > 100:
                     content = content[:97] + "..."
-                
+
                 # Extract relevance score
                 relevance = evidence.get('relevance', 0.0)
-                
+
                 table.add_row(source, content, f"{relevance:.2f}")
-            
+
             console.print(table)
 
         # Display query understanding if available
@@ -209,19 +217,19 @@ class KnowledgeQueryDemo:
         """Run the demo in interactive mode."""
         console.print(Panel(f"[bold green]Interactive Query Mode[/bold green]"))
         console.print("[blue]Type your questions about the codebase. Type 'exit' to quit.[/blue]")
-        
+
         # Display sample queries
         console.print("\n[bold yellow]Sample Queries:[/bold yellow]")
         for i, query in enumerate(SAMPLE_QUERIES, 1):
             console.print(f"{i}. {query}")
-        
+
         while True:
             console.print("\n[bold green]Enter your query:[/bold green]")
             user_input = input("> ")
-            
+
             if user_input.lower() in ['exit', 'quit', 'q']:
                 break
-                
+
             # Check if the user entered a number to select a sample query
             try:
                 query_index = int(user_input) - 1
@@ -230,7 +238,7 @@ class KnowledgeQueryDemo:
                     console.print(f"[blue]Selected query: {user_input}[/blue]")
             except ValueError:
                 pass
-                
+
             # Run the query
             self.run_query(user_input)
 
@@ -279,12 +287,27 @@ class KnowledgeQueryDemo:
 
 def main():
     """Main entry point for the Knowledge Graph Query Demo."""
+    # Check if OpenAI API key is set
+    if "OPENAI_API_KEY" not in os.environ:
+        console.print("[red]Warning: OPENAI_API_KEY environment variable not set.[/red]")
+        console.print("[yellow]This demo requires OpenAI for natural language queries.[/yellow]")
+        console.print("[yellow]Set your OpenAI API key with: export OPENAI_API_KEY=your-api-key[/yellow]")
+        console.print("[yellow]Or create a .env file with: OPENAI_API_KEY=your-api-key[/yellow]")
+        console.print("")
+        # This demo specifically needs OpenAI to work well
+        if input("Continue anyway? (y/n): ").lower() != 'y':
+            console.print("[red]Exiting demo.[/red]")
+            sys.exit(1)
+    else:
+        console.print("[green]OpenAI API key detected. Using OpenAI for optimal results.[/green]")
+        console.print("")
+
     parser = argparse.ArgumentParser(description="Knowledge Graph Query Demo")
-    parser.add_argument("--query", 
+    parser.add_argument("--query",
                         help="Natural language query to run")
-    parser.add_argument("--interactive", action="store_true", 
+    parser.add_argument("--interactive", action="store_true",
                         help="Run in interactive mode")
-    parser.add_argument("--repo", default="./", 
+    parser.add_argument("--repo", default="./",
                         help="Path to the repository (default: current directory)")
 
     args = parser.parse_args()

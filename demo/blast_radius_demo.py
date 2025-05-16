@@ -19,6 +19,14 @@ import sys
 from typing import Dict, List, Any, Optional
 from pathlib import Path
 
+# Load environment variables from .env file if present
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    print("python-dotenv not installed. Environment variables must be set manually.")
+    print("Install with: pip install python-dotenv")
+
 # Add colorama for terminal colors
 try:
     from colorama import init, Fore, Style
@@ -122,23 +130,23 @@ class BlastRadiusDemo:
 
                 # Get component ID
                 component_id = f"file:{self.file_path}"
-                
+
                 # Analyze component impact
                 self.impact_results = self.arc.analyze_component_impact(
                     component_id=component_id,
                     impact_types=["direct", "indirect", "potential"],
                     max_depth=max_depth
                 )
-                
+
                 progress.update(task, completed=True)
 
             # Display results
             self.display_impact_results()
-            
+
             # Visualize results if matplotlib is available
             if HAS_VISUALIZATION and self.impact_results:
                 self.visualize_impact_network()
-            
+
             return True
         except Exception as e:
             console.print(f"[red]Error analyzing impact: {e}[/red]")
@@ -165,7 +173,7 @@ class BlastRadiusDemo:
         for result in self.impact_results:
             # Determine severity based on impact score
             severity = self._get_severity_label(result.impact_score)
-            
+
             # Add to appropriate group
             if result.impact_type == "direct":
                 direct_impacts.append((result, severity))
@@ -187,7 +195,7 @@ class BlastRadiusDemo:
                 f"{result.impact_score:.2f}",
                 severity
             )
-        
+
         for result, severity in indirect_impacts:
             table.add_row(
                 result.title,
@@ -195,7 +203,7 @@ class BlastRadiusDemo:
                 f"{result.impact_score:.2f}",
                 severity
             )
-        
+
         for result, severity in potential_impacts:
             table.add_row(
                 result.title,
@@ -213,7 +221,7 @@ class BlastRadiusDemo:
         console.print(f"Direct impacts: {len(direct_impacts)}")
         console.print(f"Indirect impacts: {len(indirect_impacts)}")
         console.print(f"Potential impacts: {len(potential_impacts)}")
-        
+
         # Display high severity impacts
         high_severity = [r for r, s in direct_impacts + indirect_impacts + potential_impacts if s == "🔴 High"]
         if high_severity:
@@ -227,40 +235,40 @@ class BlastRadiusDemo:
             return
 
         console.print(f"\n[bold green]Generating Impact Network Visualization...[/bold green]")
-        
+
         # Create a directed graph
         G = nx.DiGraph()
-        
+
         # Add the target component as the central node
         target_id = f"file:{self.file_path}"
         G.add_node(target_id, label=os.path.basename(self.file_path), type="target")
-        
+
         # Add edges for each impact result
         for result in self.impact_results:
             # Skip if no impact path
             if not hasattr(result, 'impact_path') or not result.impact_path:
                 continue
-                
+
             # Get the path
             path = result.impact_path
-            
+
             # Add nodes and edges along the path
             for i in range(len(path) - 1):
                 src = path[i]
                 dst = path[i + 1]
-                
+
                 # Add nodes if they don't exist
                 if src not in G:
                     G.add_node(src, label=self._get_node_label(src), type="intermediate")
                 if dst not in G:
                     G.add_node(dst, label=self._get_node_label(dst), type="impact")
-                
+
                 # Add edge
                 G.add_edge(src, dst, weight=result.impact_score)
-        
+
         # Create the plot
         plt.figure(figsize=(12, 10))
-        
+
         # Define node colors based on type
         node_colors = []
         for node in G.nodes():
@@ -270,7 +278,7 @@ class BlastRadiusDemo:
                 node_colors.append('orange')
             else:
                 node_colors.append('blue')
-        
+
         # Define edge colors based on weight
         edge_colors = []
         for u, v, data in G.edges(data=True):
@@ -280,15 +288,15 @@ class BlastRadiusDemo:
                 edge_colors.append('orange')
             else:
                 edge_colors.append('blue')
-        
+
         # Create the layout
         pos = nx.spring_layout(G, k=0.3, iterations=50)
-        
+
         # Draw the graph
         nx.draw_networkx_nodes(G, pos, node_color=node_colors, node_size=500, alpha=0.8)
         nx.draw_networkx_edges(G, pos, edge_color=edge_colors, width=2, alpha=0.5, arrows=True)
         nx.draw_networkx_labels(G, pos, labels=nx.get_node_attributes(G, 'label'), font_size=10)
-        
+
         # Add a legend
         target_patch = mpatches.Patch(color='red', label='Target Component')
         intermediate_patch = mpatches.Patch(color='orange', label='Intermediate Component')
@@ -296,20 +304,20 @@ class BlastRadiusDemo:
         high_edge_patch = mpatches.Patch(color='red', label='High Impact')
         medium_edge_patch = mpatches.Patch(color='orange', label='Medium Impact')
         low_edge_patch = mpatches.Patch(color='blue', label='Low Impact')
-        
-        plt.legend(handles=[target_patch, intermediate_patch, impact_patch, 
+
+        plt.legend(handles=[target_patch, intermediate_patch, impact_patch,
                            high_edge_patch, medium_edge_patch, low_edge_patch],
                   loc='upper right')
-        
+
         # Set title and save
         plt.title(f"Blast Radius: {os.path.basename(self.file_path)}")
         plt.axis('off')
-        
+
         # Save the figure
         output_file = "blast_radius.png"
         plt.savefig(output_file, bbox_inches='tight')
         plt.close()
-        
+
         console.print(f"[green]Visualization saved to {output_file}[/green]")
 
     def _get_severity_label(self, impact_score: float) -> str:
@@ -345,12 +353,23 @@ class BlastRadiusDemo:
 
 def main():
     """Main entry point for the Blast Radius Demo."""
+    # Check if OpenAI API key is set
+    if "OPENAI_API_KEY" not in os.environ:
+        console.print("[red]Warning: OPENAI_API_KEY environment variable not set.[/red]")
+        console.print("[yellow]This demo will use Ollama as a fallback, but OpenAI is recommended for best results.[/yellow]")
+        console.print("[yellow]Set your OpenAI API key with: export OPENAI_API_KEY=your-api-key[/yellow]")
+        console.print("[yellow]Or create a .env file with: OPENAI_API_KEY=your-api-key[/yellow]")
+        console.print("")
+    else:
+        console.print("[green]OpenAI API key detected. Using OpenAI for optimal results.[/green]")
+        console.print("")
+
     parser = argparse.ArgumentParser(description="Blast Radius Demo")
-    parser.add_argument("--file", default="arc_memory/sdk/core.py", 
+    parser.add_argument("--file", default="arc_memory/sdk/core.py",
                         help="Path to the file to analyze (default: arc_memory/sdk/core.py)")
-    parser.add_argument("--depth", type=int, default=3, 
+    parser.add_argument("--depth", type=int, default=3,
                         help="Maximum depth for impact analysis (default: 3)")
-    parser.add_argument("--repo", default="./", 
+    parser.add_argument("--repo", default="./",
                         help="Path to the repository (default: current directory)")
 
     args = parser.parse_args()
@@ -359,7 +378,7 @@ def main():
     demo = BlastRadiusDemo(repo_path=args.repo)
     if demo.initialize():
         demo.analyze_impact(file_path=args.file, max_depth=args.depth)
-    
+
     console.print(Panel(f"[bold green]Blast Radius Demo Complete[/bold green]"))
 
 
