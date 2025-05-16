@@ -98,9 +98,16 @@ class Arc:
 
         Returns:
             Repository ID in the format "repository:{md5_hash}".
+
+        Note:
+            The path is normalized (converted to lowercase) before hashing to ensure
+            consistency across different operating systems, especially those with
+            case-insensitive file systems.
         """
         import hashlib
-        return f"repository:{hashlib.md5(str(path.absolute()).encode()).hexdigest()}"
+        # Normalize the path (convert to lowercase for case-insensitive consistency)
+        normalized_path = str(path.absolute()).lower()
+        return f"repository:{hashlib.md5(normalized_path.encode()).hexdigest()}"
 
     def ensure_repository(self, name: Optional[str] = None) -> str:
         """Ensure a repository entry exists for the current repo_path.

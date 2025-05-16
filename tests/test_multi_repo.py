@@ -34,9 +34,9 @@ class TestMultiRepositorySupport(unittest.TestCase):
             connection_params={"db_path": str(self.db_path), "check_exists": False}
         )
 
-        # Generate repository IDs
-        self.repo1_id = f"repository:{hashlib.md5(str(self.repo1_path.absolute()).encode()).hexdigest()}"
-        self.repo2_id = f"repository:{hashlib.md5(str(self.repo2_path.absolute()).encode()).hexdigest()}"
+        # Generate repository IDs (using lowercase for case-insensitive consistency)
+        self.repo1_id = f"repository:{hashlib.md5(str(self.repo1_path.absolute()).lower().encode()).hexdigest()}"
+        self.repo2_id = f"repository:{hashlib.md5(str(self.repo2_path.absolute()).lower().encode()).hexdigest()}"
 
     def tearDown(self):
         """Clean up test environment."""
