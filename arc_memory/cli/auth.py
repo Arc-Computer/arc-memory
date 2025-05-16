@@ -9,8 +9,12 @@ from rich.console import Console
 
 from arc_memory.auth.default_credentials import (
     DEFAULT_GITHUB_CLIENT_ID,
+    DEFAULT_JIRA_CLIENT_ID,
+    DEFAULT_JIRA_CLIENT_SECRET,
     DEFAULT_LINEAR_CLIENT_ID,
     DEFAULT_LINEAR_CLIENT_SECRET,
+    DEFAULT_NOTION_CLIENT_ID,
+    DEFAULT_NOTION_CLIENT_SECRET,
 )
 from arc_memory.auth.github import (
     GitHubAppConfig,
@@ -23,17 +27,37 @@ from arc_memory.auth.github import (
     store_github_app_config_in_keyring,
     store_token_in_keyring as store_github_token_in_keyring,
 )
+from arc_memory.auth.jira import (
+    JiraAppConfig,
+    get_cloud_id_from_env,
+    get_jira_app_config_from_env,
+    get_token_from_env as get_jira_token_from_env,
+    get_token_from_keyring as get_jira_token_from_keyring,
+    start_oauth_flow as start_jira_oauth_flow,
+    store_oauth_token_in_keyring as store_jira_oauth_token_in_keyring,
+    store_token_in_keyring as store_jira_token_in_keyring,
+    validate_client_id as validate_jira_client_id,
+)
 from arc_memory.auth.linear import (
     LinearAppConfig,
     get_token_from_env as get_linear_token_from_env,
     get_token_from_keyring as get_linear_token_from_keyring,
     poll_device_flow as poll_linear_device_flow,
     start_device_flow as start_linear_device_flow,
-    start_oauth_flow,
+    start_oauth_flow as start_linear_oauth_flow,
     store_token_in_keyring as store_linear_token_in_keyring,
     validate_client_id as validate_linear_client_id,
 )
-from arc_memory.errors import GitHubAuthError, LinearAuthError
+from arc_memory.auth.notion import (
+    NotionAppConfig,
+    NotionError,
+    get_token_from_env as get_notion_token_from_env,
+    get_token_from_keyring as get_notion_token_from_keyring,
+    start_oauth_flow as start_notion_oauth_flow,
+    store_token_in_keyring as store_notion_token_in_keyring,
+    validate_client_id as validate_notion_client_id,
+)
+from arc_memory.errors import GitHubAuthError, JiraAuthError, LinearAuthError
 from arc_memory.logging_conf import configure_logging, get_logger, is_debug_mode
 from arc_memory.telemetry import track_cli_command
 
@@ -290,9 +314,6 @@ def github_app_auth(
         sys.exit(1)
 
 
-# The github_auth implementation is now directly in the function body
-
-
 @app.command("linear")
 def linear_auth(
     client_id: str = typer.Option(
@@ -448,7 +469,7 @@ def linear_auth(
 
             # This will open a browser and wait for the callback
             try:
-                oauth_token = start_oauth_flow(config, timeout=timeout)
+                oauth_token = start_linear_oauth_flow(config, timeout=timeout)
 
                 # Use the access token
                 token = oauth_token.access_token
@@ -512,4 +533,196 @@ def linear_auth(
         console.print(f"[red]Unexpected error: {e}[/red]")
         # Track unexpected error
         track_cli_command("auth", subcommand="linear", success=False, error=e)
+        sys.exit(1)
+
+
+@app.command("notion")
+def notion_auth(
+    client_id: str = typer.Option(
+        None, help="Notion OAuth client ID. Only needed for custom OAuth apps."
+    ),
+    client_secret: str = typer.Option(
+        None, help="Notion OAuth client secret. Only needed for custom OAuth apps."
+    ),
+    timeout: int = typer.Option(
+        300, help="Timeout in seconds for the authentication flow."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="Enable debug logging."
+    ),
+) -> None:
+    """Authenticate with Notion.
+
+    This command uses Notion's OAuth 2.0 flow, which will open a browser
+    for you to authenticate with Notion.
+    """
+    configure_logging(debug=debug)
+
+    # Track command usage (don't include client_id in telemetry)
+    track_cli_command("auth", subcommand="notion", args={"timeout": timeout, "debug": debug})
+
+    # Check if we already have a token
+    env_token = get_notion_token_from_env()
+    if env_token:
+        console.print(
+            "[green]Notion token found in environment variables.[/green]"
+        )
+        if typer.confirm("Do you want to store this token in the system keyring?"):
+            if store_notion_token_in_keyring(env_token):
+                console.print(
+                    "[green]Token stored in system keyring.[/green]"
+                )
+            else:
+                console.print(
+                    "[yellow]Failed to store token in system keyring. "
+                    "You can still use the token from environment variables.[/yellow]"
+                )
+        return
+
+    keyring_token = get_notion_token_from_keyring()
+    if keyring_token:
+        console.print(
+            "[green]Notion token found in system keyring.[/green]"
+        )
+        if typer.confirm("Do you want to use this token?"):
+            console.print(
+                "[green]Using existing token from system keyring.[/green]"
+            )
+            return
+
+    # Use default Arc Memory app if client ID not provided
+    if not client_id:
+        # First try environment variables (for development or custom overrides)
+        env_client_id = os.environ.get("ARC_NOTION_CLIENT_ID")
+
+        if env_client_id:
+            logger.debug("Using Notion OAuth Client ID from environment variables")
+            client_id = env_client_id
+        else:
+            # Use the default embedded Client ID
+            logger.debug("Using default embedded Notion OAuth Client ID")
+            client_id = DEFAULT_NOTION_CLIENT_ID
+
+            # Validate the client ID format
+            if not validate_notion_client_id(client_id):
+                console.print(
+                    "[yellow]Warning: The Notion OAuth Client ID may not be valid.[/yellow]"
+                )
+                console.print(
+                    "If authentication fails, you can provide your own Client ID with --client-id,"
+                )
+                console.print(
+                    "or set the ARC_NOTION_CLIENT_ID environment variable."
+                )
+                if not typer.confirm("Do you want to continue with this Client ID?"):
+                    sys.exit(1)
+
+            console.print(
+                "[green]Using Arc Memory's Notion OAuth app for authentication.[/green]"
+            )
+
+    # Use default client secret if not provided
+    if not client_secret:
+        # First try environment variables (for development or custom overrides)
+        env_client_secret = os.environ.get("ARC_NOTION_CLIENT_SECRET")
+
+        if env_client_secret:
+            logger.debug("Using Notion OAuth Client Secret from environment variables")
+            client_secret = env_client_secret
+        else:
+            # Use the default embedded Client Secret
+            logger.debug("Using default embedded Notion OAuth Client Secret")
+            client_secret = DEFAULT_NOTION_CLIENT_SECRET
+
+    try:
+        # OAuth 2.0 authentication
+        # Create app config
+        config = NotionAppConfig(
+            client_id=client_id,
+            client_secret=client_secret,
+        )
+
+        # Start OAuth flow
+        console.print(
+            "[bold blue]Starting OAuth authentication flow...[/bold blue]"
+        )
+        console.print(
+            "A local server will be started to receive the OAuth callback."
+        )
+        console.print(
+            "A browser window will open for you to authenticate with Notion."
+        )
+        console.print(
+            "[yellow]If the browser doesn't open automatically, check the console for a URL to open manually.[/yellow]"
+        )
+
+        # This will open a browser and wait for the callback
+        try:
+            oauth_token = start_notion_oauth_flow(config, timeout=timeout)
+
+            # Use the access token
+            token = oauth_token.access_token
+
+            console.print(
+                "[green]OAuth authentication successful![/green]"
+            )
+            console.print(
+                f"You are now authenticated with Notion workspace: [bold]{oauth_token.workspace_name}[/bold]"
+            )
+            console.print(
+                "You can now use Arc Memory with your Notion account."
+            )
+        except NotionError as e:
+            # Provide more user-friendly error messages
+            if "timeout" in str(e).lower() or "timed out" in str(e).lower():
+                console.print(
+                    "[red]Authentication timed out.[/red]"
+                )
+                console.print(
+                    "The authentication flow took too long to complete. Please try again."
+                )
+            elif "callback server" in str(e).lower():
+                console.print(
+                    "[red]Failed to start local callback server.[/red]"
+                )
+                console.print(
+                    "This may be because port 3000 is already in use. Try closing other applications that might be using this port."
+                )
+            else:
+                console.print(
+                    f"[red]Authentication failed: {e}[/red]"
+                )
+            # Re-raise the exception to be caught by the outer try-except block
+            raise
+
+        # Store token in keyring
+        if store_notion_token_in_keyring(token):
+            console.print(
+                "[green]Token stored in system keyring.[/green]"
+            )
+            # Track successful authentication
+            track_cli_command("auth", subcommand="notion", success=True)
+        else:
+            console.print(
+                "[yellow]Authentication successful, but failed to store token in system keyring.[/yellow]"
+            )
+            console.print(
+                f"Your token is: {token}"
+            )
+            console.print(
+                "You can set this as an environment variable: export NOTION_API_KEY=<token>"
+            )
+            # Track partial success
+            track_cli_command("auth", subcommand="notion",
+                             args={"keyring_error": True}, success=True)
+    except NotionError as e:
+        console.print(f"[red]Authentication failed: {e}[/red]")
+        # Track authentication failure
+        track_cli_command("auth", subcommand="notion", success=False, error=e)
+        sys.exit(1)
+    except Exception as e:
+        logger.exception("Unexpected error during authentication")
+        console.print(f"[red]Unexpected error: {e}[/red]")
+        # Track unexpected error
+        track_cli_command("auth", subcommand="notion", success=False, error=e)
         sys.exit(1)
