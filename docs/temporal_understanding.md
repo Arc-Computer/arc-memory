@@ -11,7 +11,7 @@ Bi-temporal modeling tracks two distinct time dimensions:
 
 This dual-time approach enables powerful queries that traditional version control systems cannot support:
 
-```
+```bash
 ┌─────────────────────────────────────────────────────────┐
 │                                                         │
 │                   Transaction Time                      │
@@ -19,12 +19,12 @@ This dual-time approach enables powerful queries that traditional version contro
 │                          │                              │
 │                          ▼                              │
 │                                                         │
-│  ┌─────────┐        ┌──────────┐        ┌──────────┐   │
-│  │ Jan 1   │        │ Jan 15   │        │ Feb 1    │   │
-│  │         │        │          │        │          │   │
-│  │ Commit  │───────▶│ PR Merge │───────▶│ Issue    │   │
-│  │ 42abc   │        │ #123     │        │ #456     │   │
-│  └─────────┘        └──────────┘        └──────────┘   │
+│  ┌─────────┐        ┌──────────┐        ┌──────────┐    │
+│  │ Jan 1   │        │ Jan 15   │        │ Feb 1    │    │
+│  │         │        │          │        │          │    │
+│  │ Commit  │───────▶│ PR Merge │───────▶│ Issue    │    │
+│  │ 42abc   │        │ #123     │        │ #456     │    │
+│  └─────────┘        └──────────┘        └──────────┘    │
 │                                                         │
 │                          ▲                              │
 │                          │                              │
@@ -104,7 +104,7 @@ for timepoint, affected_components in impact.items():
 
 Arc Memory's schema explicitly tracks both valid time and transaction time:
 
-```
+```bash
 ┌─────────────────────────────────────────────────────────┐
 │                     Node Schema                         │
 ├─────────────┬─────────────┬─────────────┬─────────────┬─┤
