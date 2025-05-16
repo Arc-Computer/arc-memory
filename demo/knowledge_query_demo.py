@@ -110,8 +110,11 @@ class KnowledgeQueryDemo:
             compressed_db_path = Path.home() / ".arc" / "graph.db.zst"
 
             # Check both the regular and compressed database files
-            if (not db_path.exists() and not compressed_db_path.exists()) or \
-               (db_path.exists() and os.path.getsize(db_path) < 1000):
+            # Safely check if the database exists and has a minimum size
+            db_missing = not db_path.exists() and not compressed_db_path.exists()
+            db_too_small = db_path.exists() and db_path.stat().st_size < 1000
+
+            if db_missing or db_too_small:
                 console.print(f"[yellow]Knowledge graph not found or empty. Building knowledge graph...[/yellow]")
 
                 # Use the CLI command directly

@@ -386,56 +386,21 @@ class SQLiteAdapter:
                 if hasattr(node, 'ts') and node.ts:
                     timestamp_str = node.ts.isoformat()
 
-                # Set created_at and updated_at based on ts if not already set
-                if hasattr(node, 'created_at') and node.created_at is None and hasattr(node, 'ts') and node.ts:
-                    node.created_at = node.ts
-
-                if hasattr(node, 'updated_at') and node.updated_at is None and hasattr(node, 'ts') and node.ts:
-                    node.updated_at = node.ts
-
-                # Extract temporal fields
-                created_at_str = None
-                updated_at_str = None
-                valid_from_str = None
-                valid_until_str = None
-
-                if hasattr(node, 'created_at') and node.created_at:
-                    created_at_str = node.created_at.isoformat()
-
-                if hasattr(node, 'updated_at') and node.updated_at:
-                    updated_at_str = node.updated_at.isoformat()
-
-                if hasattr(node, 'valid_from') and node.valid_from:
-                    valid_from_str = node.valid_from.isoformat()
-
-                if hasattr(node, 'valid_until') and node.valid_until:
-                    valid_until_str = node.valid_until.isoformat()
+                # Set and extract temporal fields using helper functions
+                self._set_default_temporal_fields(node)
+                created_at_str = self._get_datetime_field_as_iso(node, 'created_at')
+                updated_at_str = self._get_datetime_field_as_iso(node, 'updated_at')
+                valid_from_str = self._get_datetime_field_as_iso(node, 'valid_from')
+                valid_until_str = self._get_datetime_field_as_iso(node, 'valid_until')
 
                 # Handle embedding (convert to bytes if present)
-                embedding_bytes = None
-                if hasattr(node, 'embedding') and node.embedding:
-                    try:
-                        import numpy as np
-                        embedding_bytes = np.array(node.embedding, dtype=np.float32).tobytes()
-                    except ImportError:
-                        logger.warning("NumPy not available, storing embedding as JSON string")
-                        # Fall back to JSON string if NumPy is not available
-                        embedding_bytes = json.dumps(node.embedding).encode('utf-8')
-                    except Exception as e:
-                        logger.warning(f"Failed to convert embedding to bytes: {e}")
+                embedding_bytes = self._convert_embedding_to_bytes(node)
 
                 # Get URL if present
-                url = None
-                if hasattr(node, 'url'):
-                    url = node.url
+                url = self._get_node_field(node, 'url')
 
                 # Use metadata if present, otherwise fall back to extra
-                metadata_json = None
-                if hasattr(node, 'metadata') and node.metadata:
-                    metadata_json = json.dumps(node.metadata, cls=DateTimeEncoder)
-                elif hasattr(node, 'extra') and node.extra:
-                    # For backward compatibility
-                    metadata_json = json.dumps(node.extra, cls=DateTimeEncoder)
+                metadata_json = self._get_metadata_json(node)
 
                 self.conn.execute(
                     """
@@ -914,6 +879,89 @@ class SQLiteAdapter:
                     "error": str(e),
                 }
             )
+
+    # Helper methods for node field extraction
+
+    def _set_default_temporal_fields(self, node: Node) -> None:
+        """Set default temporal fields based on timestamp if not already set.
+
+        Args:
+            node: The node to update.
+        """
+        # Set created_at based on ts if not already set
+        if hasattr(node, 'created_at') and node.created_at is None and hasattr(node, 'ts') and node.ts:
+            node.created_at = node.ts
+
+        # Set updated_at based on ts if not already set
+        if hasattr(node, 'updated_at') and node.updated_at is None and hasattr(node, 'ts') and node.ts:
+            node.updated_at = node.ts
+
+    def _get_datetime_field_as_iso(self, node: Node, field_name: str) -> Optional[str]:
+        """Get a datetime field as ISO format string.
+
+        Args:
+            node: The node to extract from.
+            field_name: The name of the datetime field.
+
+        Returns:
+            The field value as ISO format string, or None if not present.
+        """
+        if hasattr(node, field_name) and getattr(node, field_name):
+            return getattr(node, field_name).isoformat()
+        return None
+
+    def _convert_embedding_to_bytes(self, node: Node) -> Optional[bytes]:
+        """Convert embedding to bytes if present.
+
+        Args:
+            node: The node with potential embedding.
+
+        Returns:
+            The embedding as bytes, or None if not present.
+        """
+        if not hasattr(node, 'embedding') or not node.embedding:
+            return None
+
+        try:
+            import numpy as np
+            return np.array(node.embedding, dtype=np.float32).tobytes()
+        except ImportError:
+            logger.warning("NumPy not available, storing embedding as JSON string")
+            # Fall back to JSON string if NumPy is not available
+            return json.dumps(node.embedding).encode('utf-8')
+        except Exception as e:
+            logger.warning(f"Failed to convert embedding to bytes: {e}")
+            return None
+
+    def _get_node_field(self, node: Node, field_name: str) -> Any:
+        """Get a field from a node if it exists.
+
+        Args:
+            node: The node to extract from.
+            field_name: The name of the field.
+
+        Returns:
+            The field value, or None if not present.
+        """
+        if hasattr(node, field_name):
+            return getattr(node, field_name)
+        return None
+
+    def _get_metadata_json(self, node: Node) -> Optional[str]:
+        """Get metadata as JSON string, falling back to extra if needed.
+
+        Args:
+            node: The node to extract from.
+
+        Returns:
+            The metadata as JSON string, or None if not present.
+        """
+        if hasattr(node, 'metadata') and node.metadata:
+            return json.dumps(node.metadata, cls=DateTimeEncoder)
+        elif hasattr(node, 'extra') and node.extra:
+            # For backward compatibility
+            return json.dumps(node.extra, cls=DateTimeEncoder)
+        return None
 
     def save_metadata(self, key: str, value: Any) -> None:
         """Save metadata to the database.
