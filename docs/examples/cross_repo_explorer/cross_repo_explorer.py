@@ -92,7 +92,7 @@ class CrossRepoExplorer:
 
         # Use provided names or generate default names
         names = repo_names if repo_names else [f"Repository {i+1}" for i in range(len(repo_paths))]
-        
+
         # Ensure we have the same number of names as paths
         if len(names) < len(repo_paths):
             names.extend([f"Repository {i+1}" for i in range(len(names), len(repo_paths))])
@@ -101,13 +101,14 @@ class CrossRepoExplorer:
             # Add each repository
             for i, (repo_path, repo_name) in enumerate(zip(repo_paths, names)):
                 print(f"Adding repository: {repo_name} ({repo_path})")
-                
+
                 # Check if repository exists
                 repo_path = os.path.abspath(repo_path)
                 if not os.path.exists(repo_path):
-                    print(f"Error: Repository path does not exist: {repo_path}")
-                    continue
-                
+                    error_message = f"Error: Repository path does not exist: {repo_path}"
+                    print(error_message)
+                    return False
+
                 # Add repository to Arc Memory
                 try:
                     repo_id = self.arc.add_repository(repo_path, name=repo_name)
@@ -117,7 +118,7 @@ class CrossRepoExplorer:
                     print(f"Successfully added repository: {repo_name} (ID: {repo_id})")
                 except Exception as e:
                     print(f"Error adding repository {repo_name}: {e}")
-                    
+
                     # Try to find the repository if it already exists
                     try:
                         repos = self.arc.list_repositories()
@@ -160,7 +161,7 @@ class CrossRepoExplorer:
             for repo_id in self.repo_ids:
                 repo_name = self.repo_names.get(repo_id, repo_id)
                 print(f"Building knowledge graph for {repo_name}...")
-                
+
                 try:
                     # Check if the knowledge graph already exists
                     # This is a simple check to avoid rebuilding existing graphs
@@ -169,12 +170,12 @@ class CrossRepoExplorer:
                         (repo_id,)
                     )
                     count = cursor.fetchone()[0]
-                    
+
                     if count > 0:
                         print(f"Knowledge graph for {repo_name} already exists with {count} nodes.")
                         print("Skipping build. Use --force to rebuild.")
                         continue
-                    
+
                     # Build the knowledge graph
                     result = self.arc.build_repository(
                         repo_id=repo_id,
@@ -182,12 +183,12 @@ class CrossRepoExplorer:
                         include_architecture=True,
                         verbose=True
                     )
-                    
+
                     print(f"Successfully built knowledge graph for {repo_name}.")
                     print(f"Added {result.get('nodes_added', 0)} nodes and {result.get('edges_added', 0)} edges.")
                 except Exception as e:
                     print(f"Error building knowledge graph for {repo_name}: {e}")
-            
+
             return True
         except Exception as e:
             print(f"Error building knowledge graphs: {e}")
@@ -211,15 +212,15 @@ class CrossRepoExplorer:
             if analysis_type in ["dependencies", "all"]:
                 print("\n=== Cross-Repository Dependencies ===\n")
                 analyze_dependencies(self.arc, self.repo_ids, self.repo_names)
-            
+
             if analysis_type in ["decisions", "all"]:
                 print("\n=== Cross-Repository Decisions ===\n")
                 analyze_decisions(self.arc, self.repo_ids, self.repo_names)
-            
+
             if analysis_type in ["components", "all"]:
                 print("\n=== Shared Components ===\n")
                 analyze_components(self.arc, self.repo_ids, self.repo_names)
-            
+
             return True
         except Exception as e:
             print(f"Error running analysis: {e}")
