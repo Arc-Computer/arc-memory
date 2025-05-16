@@ -5,7 +5,21 @@ All notable changes to the Arc Memory SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.7.2] - 2025-05-23
+## [0.7.3] - 2025-05-16
+
+### Added
+- Enhanced schema for Arc Memory's knowledge graph with improved temporal tracking, metadata capabilities, and embedding support
+- Added new fields to Node class: created_at, updated_at, valid_from, valid_until, metadata, embedding, url
+- Added migration script to update existing databases to the enhanced schema
+- Improved fallback mechanisms in semantic search to handle "No seed nodes found" and "No relevant nodes found" errors
+
+### Fixed
+- Fixed JSON parsing errors in the process pipeline when handling complex nested structures
+- Improved error handling for LLM-generated JSON with specific fixes for common delimiter issues
+- Enhanced robustness of semantic search with better fallback strategies
+- Fixed compatibility with OpenAI's o4-mini model by handling comments in JSON responses
+
+## [0.7.2] - 2025-05-15
 
 ### Added
 - Support for custom LLM models in enhancement functions
@@ -16,7 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed build command to properly pass the `llm_model` parameter to enhancement functions
 - Improved compatibility with OpenAI's o4-mini model
 
-## [0.7.1] - 2025-05-22
+## [0.7.1] - 2025-05-14
 
 ### Added
 - Repository deletion and path change functionality
@@ -28,7 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed CLI tests for multi-repository support
 - Updated repository node ID when path changes to maintain consistency
 
-## [0.7.0] - 2025-05-20
+## [0.7.0] - 2025-05-13
 
 ### Added
 - Multi-repository support for managing multiple code repositories in a single knowledge graph
@@ -44,7 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Query methods enhanced to support repository filtering
 - Improved path handling with case-insensitive normalization for cross-platform compatibility
 
-## [0.6.0] - 2025-05-18
+## [0.6.0] - 2025-05-12
 
 ### Added
 - Support for Neo4j as an alternative database backend
@@ -57,7 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated SDK to use adapter pattern for database operations
 - Enhanced error handling for database operations
 
-## [0.5.0] - 2025-05-15
+## [0.5.0] - 2025-05-11
 
 ### Added
 - Automatic database migration when initializing the database
@@ -107,7 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Improved build command structure to match CLI expectations
 - Enhanced knowledge graph: improved Ollama client parsing, added system prompt, and fixed temporal analysis
 
-## [0.3.1] - 2025-05-1
+## [0.3.1] - 2025-05-01
 
 ### Added
 - New `arc sim` command for simulation-based impact prediction

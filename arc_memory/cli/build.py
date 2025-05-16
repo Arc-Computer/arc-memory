@@ -401,8 +401,8 @@ Prioritize precision over coverage in your enhancements. Follow Arc Memory's sch
                         print("⚠️ Falling back to Ollama")
                         llm_provider = "ollama"
                     else:
-                        # Set default model if not provided - use o4-mini for better reasoning
-                        openai_model = llm_model or "o4-mini"
+                        # Set default model if not provided - use gpt-4.1 for better JSON handling
+                        openai_model = llm_model or "gpt-4.1"
 
                         # Create OpenAI client
                         try:

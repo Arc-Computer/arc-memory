@@ -113,9 +113,30 @@ class Node(BaseModel):
     type: NodeType
     title: Optional[str] = None
     body: Optional[str] = None
-    ts: Optional[datetime] = None
+    ts: Optional[datetime] = None  # Creation/modification timestamp
     repo_id: Optional[str] = None  # Reference to repository
-    extra: Dict[str, Any] = Field(default_factory=dict)
+
+    # Enhanced temporal tracking
+    created_at: Optional[datetime] = None  # When the node was first created
+    updated_at: Optional[datetime] = None  # When the node was last updated
+    valid_from: Optional[datetime] = None  # When this version became valid
+    valid_until: Optional[datetime] = None  # When this version became invalid
+
+    # Enhanced metadata
+    metadata: Dict[str, Any] = Field(default_factory=dict)  # Renamed from extra
+    embedding: Optional[List[float]] = None  # Vector embedding for semantic search
+    url: Optional[str] = None  # URL to the resource (if applicable)
+
+    # Backward compatibility
+    @property
+    def extra(self) -> Dict[str, Any]:
+        """Backward compatibility for the extra field."""
+        return self.metadata
+
+    @extra.setter
+    def extra(self, value: Dict[str, Any]) -> None:
+        """Backward compatibility for the extra field."""
+        self.metadata = value
 
 
 class FileNode(Node):

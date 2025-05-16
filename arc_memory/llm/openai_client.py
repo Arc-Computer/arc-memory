@@ -72,9 +72,10 @@ class OpenAIClient:
         Returns:
             The generated text.
         """
-        # Use model from environment variable if set, otherwise use default
+        # Set default model if not provided
         if model is None:
             model = os.environ.get("OPENAI_MODEL", "gpt-4.1")
+
         # Set default options if not provided
         if options is None:
             options = {}
@@ -92,6 +93,32 @@ When analyzing code or development artifacts, focus on:
 Always base your responses on the specific information provided, and avoid making assumptions unless explicitly stated.
 """
 
+        # Check if the prompt is asking for JSON
+        is_json_request = False
+        if "JSON" in prompt and ("format" in prompt.lower() or "structure" in prompt.lower()):
+            is_json_request = True
+            logger.debug("Detected JSON request in prompt")
+
+            # For JSON requests, prefer GPT-4.1 over o4-mini
+            if model == "o4-mini":
+                model = "gpt-4.1"
+                logger.info("Switching from o4-mini to gpt-4.1 for JSON request to ensure proper formatting")
+
+        # Add explicit JSON formatting instructions for all JSON requests
+        if is_json_request:
+            # Enhance the system prompt with explicit JSON formatting instructions
+            system = f"""{system}
+
+When returning JSON:
+1. Always use double quotes for keys and string values
+2. Always include commas between key-value pairs
+3. Never include trailing commas
+4. Format the JSON properly with correct indentation
+5. Ensure all brackets and braces are properly closed
+6. Return ONLY valid JSON without any additional text
+"""
+            logger.debug("Enhanced system prompt with JSON formatting instructions")
+
         # Prepare messages
         messages = []
         if system:
@@ -105,10 +132,6 @@ Always base your responses on the specific information provided, and avoid makin
         frequency_penalty = options.get("frequency_penalty", None)
         presence_penalty = options.get("presence_penalty", None)
         response_format = options.get("response_format", None)
-
-        # Use model from environment variable if set, otherwise use the provided model
-        if model is None:
-            model = os.environ.get("OPENAI_MODEL", "gpt-4.1")
 
         # Set up parameters for the API call
         params = {
@@ -131,8 +154,13 @@ Always base your responses on the specific information provided, and avoid makin
         if presence_penalty is not None:
             params["presence_penalty"] = presence_penalty
 
-        # Add response format if specified (for JSON mode)
-        if response_format is not None:
+        # Add response format for JSON requests
+        if is_json_request and model in ["gpt-4.1", "o4-mini"]:
+            # These models support the JSON response format parameter
+            params["response_format"] = {"type": "json_object"}
+            logger.debug(f"Set response_format=json_object for {model}")
+        # Add response format if explicitly specified
+        elif response_format is not None:
             params["response_format"] = response_format
 
         try:
@@ -203,10 +231,6 @@ Always base your responses on the specific information provided, and avoid makin
         presence_penalty = options.get("presence_penalty", None)
         response_format = options.get("response_format", None)
 
-        # Use model from environment variable if set, otherwise use the provided model
-        if model is None:
-            model = os.environ.get("OPENAI_MODEL", "gpt-4.1")
-
         # Set up parameters for the API call
         params = {
             "model": model,
@@ -218,6 +242,23 @@ Always base your responses on the specific information provided, and avoid makin
         # Only add temperature if not using o4-mini (which only supports default temperature)
         if not model.startswith("o4-mini"):
             params["temperature"] = temperature
+
+        # Check if this is a JSON request
+        is_json_request = False
+        if "JSON" in prompt and ("format" in prompt.lower() or "structure" in prompt.lower()):
+            is_json_request = True
+            logger.debug("Detected JSON request in streaming prompt")
+
+            # For JSON requests, prefer GPT-4.1 over o4-mini
+            if model == "o4-mini":
+                model = "gpt-4.1"
+                params["model"] = "gpt-4.1"
+                logger.info("Switching from o4-mini to gpt-4.1 for JSON streaming request")
+
+            # Add response format for JSON requests with supported models
+            if model in ["gpt-4.1", "gpt-4", "gpt-3.5-turbo"]:
+                params["response_format"] = {"type": "json_object"}
+                logger.debug(f"Set response_format=json_object for streaming with {model}")
 
         # Add optional parameters only if they are provided
         if max_tokens is not None:
@@ -273,6 +314,17 @@ Always base your responses on the specific information provided, and avoid makin
         Returns:
             The generated response with thinking.
         """
+        # Check if this is a JSON request
+        is_json_request = False
+        if "JSON" in prompt and ("format" in prompt.lower() or "structure" in prompt.lower()):
+            is_json_request = True
+            logger.debug("Detected JSON request in thinking prompt")
+
+            # For JSON requests, prefer GPT-4.1 over o4-mini
+            if model == "o4-mini":
+                model = "gpt-4.1"
+                logger.info("Switching from o4-mini to gpt-4.1 for JSON thinking request")
+
         # Modify the system prompt to include instructions for thinking
         if system:
             enhanced_system = f"""{system}
@@ -299,6 +351,24 @@ Thinking:
 Answer:
 <your final answer>
 """
+
+        # For JSON requests, add specific instructions
+        if is_json_request:
+            enhanced_system += """
+
+When returning JSON in your Answer section:
+1. Always use double quotes for keys and string values
+2. Always include commas between key-value pairs
+3. Never include trailing commas
+4. Format the JSON properly with correct indentation
+5. Ensure all brackets and braces are properly closed
+6. Return ONLY valid JSON in the Answer section without any additional text
+"""
+            logger.debug("Added JSON formatting instructions to thinking prompt")
+
+        # Update options for JSON requests
+        if is_json_request and options is None:
+            options = {}
 
         # Generate the response with the enhanced system prompt
         return self.generate(
