@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Demo script for the Self-Healing Code Generation Loop
+# Self-Healing Code Generation Loop Demo
 # This script demonstrates how to use the self-healing code generation loop
 # to automatically improve code quality.
 
@@ -34,17 +34,26 @@ fi
 
 # Run the self-healing loop demo
 echo -e "${BLUE}Running self-healing loop on sample code...${NC}"
-python demo/scripts/run_self_healing_demo.py --repo . --file demo/test_files/sample_code.py --output demo/test_files/improved_code.py --iterations 2
+python demo/self_healing_loop.py --file demo/test_files/sample_code.py --output demo/test_files/improved_code.py
 
 # Check if the demo was successful
 if [ $? -eq 0 ]; then
     echo -e "${GREEN}Demo completed successfully!${NC}"
     echo -e "${BLUE}You can find the improved code at:${NC} demo/test_files/improved_code.py"
-    
+
     # Show a diff of the changes
     echo -e "${YELLOW}Showing diff between original and improved code:${NC}"
     diff -u demo/test_files/sample_code.py demo/test_files/improved_code.py || true
-    
+
+    # Calculate the difference in line count
+    original_lines=$(wc -l < demo/test_files/sample_code.py)
+    improved_lines=$(wc -l < demo/test_files/improved_code.py)
+    line_diff=$((improved_lines - original_lines))
+
+    echo -e "${CYAN}Original code: ${original_lines} lines${NC}"
+    echo -e "${CYAN}Improved code: ${improved_lines} lines${NC}"
+    echo -e "${CYAN}Difference: ${line_diff} lines${NC}"
+
     echo
     echo -e "${GREEN}=== Demo Complete ===${NC}"
 else
