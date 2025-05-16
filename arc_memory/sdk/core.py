@@ -90,6 +90,110 @@ class Arc:
             # Convert other exceptions to SDK errors
             raise SDKError(f"Failed to initialize Arc Memory SDK: {e}") from e
 
+    def is_graph_valid(self) -> bool:
+        """Check if the knowledge graph exists and has the expected structure.
+
+        This method verifies that:
+        1. The database connection is active
+        2. The required tables exist
+        3. The schema version is compatible
+
+        Returns:
+            True if the graph is valid, False otherwise.
+        """
+        try:
+            if not self.adapter.is_connected():
+                return False
+
+            # Check if required tables exist
+            required_tables = ["nodes", "edges", "repositories"]
+            for table in required_tables:
+                cursor = self.adapter.conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name=?",
+                    (table,)
+                )
+                if not cursor.fetchone():
+                    return False
+
+            # Check if nodes table has expected columns
+            cursor = self.adapter.conn.execute("PRAGMA table_info(nodes)")
+            columns = [row[1] for row in cursor.fetchall()]
+            required_columns = ["id", "type", "title", "body", "repo_id"]
+            for column in required_columns:
+                if column not in columns:
+                    return False
+
+            return True
+        except Exception:
+            return False
+
+    def get_graph_statistics(self) -> Dict[str, Any]:
+        """Get statistics about the knowledge graph.
+
+        This method provides insights into the size and composition of the graph,
+        including counts of different node types, edge relationships, and repositories.
+
+        Returns:
+            Dictionary containing graph statistics.
+
+        Raises:
+            QueryError: If retrieving statistics fails.
+        """
+        try:
+            if not self.adapter.is_connected():
+                raise QueryError("Not connected to database")
+
+            stats = {
+                "total_nodes": 0,
+                "total_edges": 0,
+                "node_types": {},
+                "edge_relationships": {},
+                "repositories": [],
+                "last_updated": None
+            }
+
+            # Get total node count
+            cursor = self.adapter.conn.execute("SELECT COUNT(*) FROM nodes")
+            stats["total_nodes"] = cursor.fetchone()[0]
+
+            # Get node type distribution
+            cursor = self.adapter.conn.execute(
+                "SELECT type, COUNT(*) FROM nodes GROUP BY type"
+            )
+            for row in cursor.fetchall():
+                stats["node_types"][row[0]] = row[1]
+
+            # Get total edge count
+            cursor = self.adapter.conn.execute("SELECT COUNT(*) FROM edges")
+            stats["total_edges"] = cursor.fetchone()[0]
+
+            # Get edge relationship distribution
+            cursor = self.adapter.conn.execute(
+                "SELECT rel, COUNT(*) FROM edges GROUP BY rel"
+            )
+            for row in cursor.fetchall():
+                stats["edge_relationships"][row[0]] = row[1]
+
+            # Get repository information
+            repos = self.list_repositories()
+            stats["repositories"] = repos
+
+            # Get last updated timestamp
+            cursor = self.adapter.conn.execute(
+                "SELECT MAX(timestamp) FROM nodes"
+            )
+            last_updated = cursor.fetchone()[0]
+            if last_updated:
+                from datetime import datetime
+                try:
+                    stats["last_updated"] = datetime.fromisoformat(last_updated)
+                except ValueError:
+                    stats["last_updated"] = last_updated
+
+            return stats
+        except Exception as e:
+            raise QueryError(f"Failed to get graph statistics: {e}") from e
+
     def _get_repo_id_from_path(self, path: Path) -> str:
         """Generate repository ID from path.
 
@@ -836,12 +940,50 @@ class Arc:
 
             return result
         except Exception as e:
-            raise BuildError(
-                what_happened="Failed to build knowledge graph",
-                why_it_happened=f"Error during knowledge graph build: {str(e)}",
-                how_to_fix_it="Check the error message for details. Ensure you have the necessary permissions and dependencies.",
-                details={"error": str(e)}
-            ) from e
+            error_str = str(e)
+
+            # Provide more specific error messages based on the type of exception
+            if "Permission denied" in error_str:
+                raise BuildError(
+                    what_happened="Failed to build knowledge graph due to permission issues",
+                    why_it_happened=f"The process doesn't have permission to access required files: {error_str}",
+                    how_to_fix_it="Check file permissions for the repository directory and ensure you have read/write access. "
+                                 "If using Git operations, ensure you have proper Git credentials configured.",
+                    details={"error": error_str, "repo_path": str(repo_path)}
+                ) from e
+            elif "No such file or directory" in error_str:
+                raise BuildError(
+                    what_happened="Failed to build knowledge graph due to missing files",
+                    why_it_happened=f"Required files or directories could not be found: {error_str}",
+                    how_to_fix_it="Verify that the repository path exists and contains a valid Git repository. "
+                                 "If you specified a custom path, check that it's correct.",
+                    details={"error": error_str, "repo_path": str(repo_path)}
+                ) from e
+            elif "API rate limit exceeded" in error_str or "rate limit" in error_str.lower():
+                raise BuildError(
+                    what_happened="Failed to build knowledge graph due to API rate limits",
+                    why_it_happened=f"GitHub API rate limit exceeded: {error_str}",
+                    how_to_fix_it="Wait for the rate limit to reset (usually 1 hour) or use a GitHub token with higher rate limits. "
+                                 "You can set the GITHUB_TOKEN environment variable or use the --github-token option.",
+                    details={"error": error_str, "repo_path": str(repo_path)}
+                ) from e
+            elif "LLM" in error_str or "model" in error_str.lower() or "openai" in error_str.lower() or "ollama" in error_str.lower():
+                raise BuildError(
+                    what_happened="Failed to build knowledge graph due to LLM-related issues",
+                    why_it_happened=f"Error with LLM processing: {error_str}",
+                    how_to_fix_it="Check your LLM configuration. For OpenAI, ensure OPENAI_API_KEY is set correctly. "
+                                 "For Ollama, ensure it's installed and running. You can also try with use_llm=False "
+                                 "to build without LLM enhancement.",
+                    details={"error": error_str, "repo_path": str(repo_path), "llm_provider": llm_provider, "llm_model": llm_model}
+                ) from e
+            else:
+                raise BuildError(
+                    what_happened="Failed to build knowledge graph",
+                    why_it_happened=f"Error during knowledge graph build: {error_str}",
+                    how_to_fix_it="Check the error message for details. Ensure you have the necessary permissions and dependencies. "
+                                 "You can also try running with verbose=True for more detailed logs.",
+                    details={"error": error_str, "repo_path": str(repo_path)}
+                ) from e
 
     def build_repository(
         self,
@@ -916,12 +1058,50 @@ class Arc:
 
             return result
         except Exception as e:
-            raise BuildError(
-                what_happened=f"Failed to build knowledge graph for repository {repo_id}",
-                why_it_happened=f"Error during knowledge graph build: {str(e)}",
-                how_to_fix_it="Check the error message for details. Ensure you have the necessary permissions and dependencies.",
-                details={"error": str(e), "repo_id": repo_id}
-            ) from e
+            error_str = str(e)
+
+            # Provide more specific error messages based on the type of exception
+            if "Permission denied" in error_str:
+                raise BuildError(
+                    what_happened=f"Failed to build knowledge graph for repository {repo_id} due to permission issues",
+                    why_it_happened=f"The process doesn't have permission to access required files: {error_str}",
+                    how_to_fix_it="Check file permissions for the repository directory and ensure you have read/write access. "
+                                 "If using Git operations, ensure you have proper Git credentials configured.",
+                    details={"error": error_str, "repo_id": repo_id, "repo_path": str(repo_path) if 'repo_path' in locals() else None}
+                ) from e
+            elif "No such file or directory" in error_str:
+                raise BuildError(
+                    what_happened=f"Failed to build knowledge graph for repository {repo_id} due to missing files",
+                    why_it_happened=f"Required files or directories could not be found: {error_str}",
+                    how_to_fix_it="Verify that the repository path exists and contains a valid Git repository. "
+                                 "Use list_repositories() to check the registered path for this repository.",
+                    details={"error": error_str, "repo_id": repo_id, "repo_path": str(repo_path) if 'repo_path' in locals() else None}
+                ) from e
+            elif "API rate limit exceeded" in error_str or "rate limit" in error_str.lower():
+                raise BuildError(
+                    what_happened=f"Failed to build knowledge graph for repository {repo_id} due to API rate limits",
+                    why_it_happened=f"GitHub API rate limit exceeded: {error_str}",
+                    how_to_fix_it="Wait for the rate limit to reset (usually 1 hour) or use a GitHub token with higher rate limits. "
+                                 "You can set the GITHUB_TOKEN environment variable or use the --github-token option.",
+                    details={"error": error_str, "repo_id": repo_id}
+                ) from e
+            elif "LLM" in error_str or "model" in error_str.lower() or "openai" in error_str.lower() or "ollama" in error_str.lower():
+                raise BuildError(
+                    what_happened=f"Failed to build knowledge graph for repository {repo_id} due to LLM-related issues",
+                    why_it_happened=f"Error with LLM processing: {error_str}",
+                    how_to_fix_it="Check your LLM configuration. For OpenAI, ensure OPENAI_API_KEY is set correctly. "
+                                 "For Ollama, ensure it's installed and running. You can also try with use_llm=False "
+                                 "to build without LLM enhancement.",
+                    details={"error": error_str, "repo_id": repo_id, "llm_provider": llm_provider, "llm_model": llm_model}
+                ) from e
+            else:
+                raise BuildError(
+                    what_happened=f"Failed to build knowledge graph for repository {repo_id}",
+                    why_it_happened=f"Error during knowledge graph build: {error_str}",
+                    how_to_fix_it="Check the error message for details. Ensure you have the necessary permissions and dependencies. "
+                                 "You can also try running with verbose=True for more detailed logs.",
+                    details={"error": error_str, "repo_id": repo_id}
+                ) from e
 
     # Query API methods
 

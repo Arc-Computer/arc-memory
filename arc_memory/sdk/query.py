@@ -100,10 +100,17 @@ def query_knowledge_graph(
             raise QueryError(result["error"])
 
         # Convert to QueryResult model
+        # Normalize confidence score from 1-10 scale to 0.0-1.0 scale
+        confidence = result.get("confidence", 0.0)
+        if isinstance(confidence, (int, float)) and confidence > 0:
+            normalized_confidence = min(confidence / 10.0, 1.0)
+        else:
+            normalized_confidence = 0.0
+
         return QueryResult(
             query=question,
             answer=result.get("answer", ""),
-            confidence=result.get("confidence", 0.0),  # Retain confidence score on 0-10 scale
+            confidence=normalized_confidence,  # Normalized to 0.0-1.0 scale
             evidence=result.get("results", []),
             query_understanding=result.get("understanding", ""),
             reasoning=result.get("reasoning", ""),
@@ -112,4 +119,27 @@ def query_knowledge_graph(
 
     except Exception as e:
         logger.exception(f"Error in query_knowledge_graph: {e}")
-        raise QueryError(f"Failed to query knowledge graph: {e}")
+
+        # Provide more specific error messages based on the type of exception
+        if "No LLM provider available" in str(e):
+            raise QueryError(
+                "No LLM provider available for query processing. "
+                "To use OpenAI, set the OPENAI_API_KEY environment variable. "
+                "To use Ollama, install it from https://ollama.ai/download and start it with 'ollama serve'. "
+                "Then run 'ollama pull qwen3:4b' to download the default model."
+            )
+        elif "Database path not available" in str(e):
+            raise QueryError(
+                "Database path not available. Make sure the knowledge graph has been built "
+                "using the 'build' method before querying. You can check if the graph is valid "
+                "using the 'is_graph_valid()' method."
+            )
+        elif "No seed nodes found" in str(e) or "No relevant nodes found" in str(e):
+            raise QueryError(
+                "No relevant information found in the knowledge graph for this query. "
+                "This could be because the information doesn't exist in the graph, or "
+                "because the query terms don't match the available content. Try rephrasing "
+                "your query or building a more comprehensive knowledge graph."
+            )
+        else:
+            raise QueryError(f"Failed to query knowledge graph: {e}")

@@ -5,6 +5,18 @@ All notable changes to the Arc Memory SDK will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.7.4] - 2025-05-16
+
+### Added
+- New health check methods: `is_graph_valid()` and `get_graph_statistics()` to help developers understand the state of their knowledge graph
+- Improved error messages with specific guidance for common issues in build, query, and other operations
+- Added GraphStatistics model for representing knowledge graph statistics
+
+### Fixed
+- Standardized confidence scores to consistently use 0.0-1.0 scale across all methods
+- Enhanced error handling for query operations with more specific error messages and recovery suggestions
+- Improved backward compatibility with enhanced schema fields
+
 ## [0.7.3] - 2025-05-16
 
 ### Added
