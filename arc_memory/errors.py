@@ -42,6 +42,12 @@ class LinearAuthError(ArcError):
     pass
 
 
+class JiraAuthError(ArcError):
+    """Error raised when Jira authentication fails."""
+
+    pass
+
+
 class NotionAuthError(ArcError):
     """Error raised when Notion authentication fails."""
 

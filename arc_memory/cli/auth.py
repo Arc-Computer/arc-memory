@@ -536,6 +536,228 @@ def linear_auth(
         sys.exit(1)
 
 
+@app.command("jira")
+def jira_auth(
+    client_id: str = typer.Option(
+        None, help="Jira OAuth client ID. Only needed for custom OAuth apps."
+    ),
+    client_secret: str = typer.Option(
+        None, help="Jira OAuth client secret. Only needed for custom OAuth apps."
+    ),
+    cloud_id: str = typer.Option(
+        None, "--cloud-id", help="Jira Cloud instance ID. If not provided, will be auto-detected."
+    ),
+    timeout: int = typer.Option(
+        300, help="Timeout in seconds for the authentication flow."
+    ),
+    debug: bool = typer.Option(
+        False, "--debug", help="Enable debug logging."
+    ),
+) -> None:
+    """Authenticate with Jira.
+
+    This command uses Jira's OAuth 2.0 flow, which will open a browser
+    for you to authenticate with Jira. The Jira Cloud instance ID will be 
+    automatically detected if not provided.
+    """
+    configure_logging(debug=debug)
+
+    # Track command usage (don't include client_id in telemetry)
+    track_cli_command("auth", subcommand="jira", args={"timeout": timeout, "debug": debug})
+
+    # Check if we already have a token
+    env_token = get_jira_token_from_env()
+    if env_token:
+        console.print(
+            "[green]Jira token found in environment variables.[/green]"
+        )
+        if typer.confirm("Do you want to store this token in the system keyring?"):
+            if store_jira_token_in_keyring(env_token):
+                console.print(
+                    "[green]Token stored in system keyring.[/green]"
+                )
+            else:
+                console.print(
+                    "[yellow]Failed to store token in system keyring. "
+                    "You can still use the token from environment variables.[/yellow]"
+                )
+        return
+
+    keyring_token = get_jira_token_from_keyring()
+    if keyring_token:
+        console.print(
+            "[green]Jira token found in system keyring.[/green]"
+        )
+        if typer.confirm("Do you want to use this token?"):
+            console.print(
+                "[green]Using existing token from system keyring.[/green]"
+            )
+            return
+
+    # Check if we have a cloud ID from environment
+    if not cloud_id:
+        env_cloud_id = get_cloud_id_from_env()
+        if env_cloud_id:
+            cloud_id = env_cloud_id
+            console.print(
+                f"[green]Using Jira Cloud ID from environment: {cloud_id}[/green]"
+            )
+
+    # Use default Arc Memory app if client ID not provided
+    if not client_id:
+        # First try environment variables (for development or custom overrides)
+        env_client_id = os.environ.get("ARC_JIRA_CLIENT_ID")
+
+        if env_client_id:
+            logger.debug("Using Jira OAuth Client ID from environment variables")
+            client_id = env_client_id
+        else:
+            # Use the default embedded Client ID
+            logger.debug("Using default embedded Jira OAuth Client ID")
+            client_id = DEFAULT_JIRA_CLIENT_ID
+
+            # Validate the client ID format
+            if not validate_jira_client_id(client_id):
+                console.print(
+                    "[yellow]Warning: The Jira OAuth Client ID may not be valid.[/yellow]"
+                )
+                console.print(
+                    "If authentication fails, you can provide your own Client ID with --client-id,"
+                )
+                console.print(
+                    "or set the ARC_JIRA_CLIENT_ID environment variable."
+                )
+                if not typer.confirm("Do you want to continue with this Client ID?"):
+                    sys.exit(1)
+
+            console.print(
+                "[green]Using Arc Memory's Jira OAuth app for authentication.[/green]"
+            )
+
+    # Use default client secret if not provided
+    if not client_secret:
+        # First try environment variables (for development or custom overrides)
+        env_client_secret = os.environ.get("ARC_JIRA_CLIENT_SECRET")
+
+        if env_client_secret:
+            logger.debug("Using Jira OAuth Client Secret from environment variables")
+            client_secret = env_client_secret
+        else:
+            # Use the default embedded Client Secret
+            logger.debug("Using default embedded Jira OAuth Client Secret")
+            client_secret = DEFAULT_JIRA_CLIENT_SECRET
+
+    try:
+        # OAuth 2.0 authentication
+        # Create app config
+        config = JiraAppConfig(
+            client_id=client_id,
+            client_secret=client_secret,
+            cloud_id=cloud_id,
+        )
+
+        # Start OAuth flow
+        console.print(
+            "[bold blue]Starting OAuth authentication flow...[/bold blue]"
+        )
+        console.print(
+            "A local server will be started to receive the OAuth callback."
+        )
+        console.print(
+            "A browser window will open for you to authenticate with Jira."
+        )
+        console.print(
+            "[yellow]If the browser doesn't open automatically, check the console for a URL to open manually.[/yellow]"
+        )
+
+        # This will open a browser and wait for the callback
+        try:
+            oauth_token = start_jira_oauth_flow(config, timeout=timeout)
+
+            # Use the access token
+            token = oauth_token.access_token
+
+            console.print(
+                "[green]OAuth authentication successful![/green]"
+            )
+            
+            # Show cloud ID if available
+            if config.cloud_id:
+                console.print(
+                    f"You are now authenticated with Jira Cloud instance: [bold]{config.cloud_id}[/bold]"
+                )
+                
+                # Store the cloud ID in environment variable
+                os.environ["ARC_JIRA_CLOUD_ID"] = config.cloud_id
+                console.print(
+                    "[green]Cloud ID stored in environment variable ARC_JIRA_CLOUD_ID.[/green]"
+                )
+                console.print(
+                    "To make this persistent, add this to your shell profile:"
+                )
+                console.print(
+                    f"    export ARC_JIRA_CLOUD_ID={config.cloud_id}"
+                )
+            
+            console.print(
+                "You can now use Arc Memory with your Jira account."
+            )
+        except JiraAuthError as e:
+            # Provide more user-friendly error messages
+            if "timeout" in str(e).lower() or "timed out" in str(e).lower():
+                console.print(
+                    "[red]Authentication timed out.[/red]"
+                )
+                console.print(
+                    "The authentication flow took too long to complete. Please try again."
+                )
+            elif "callback server" in str(e).lower():
+                console.print(
+                    "[red]Failed to start local callback server.[/red]"
+                )
+                console.print(
+                    "This may be because port 3000 is already in use. Try closing other applications that might be using this port."
+                )
+            else:
+                console.print(
+                    f"[red]Authentication failed: {e}[/red]"
+                )
+            # Re-raise the exception to be caught by the outer try-except block
+            raise
+
+        # Store token in keyring
+        if store_jira_oauth_token_in_keyring(oauth_token):
+            console.print(
+                "[green]Token stored in system keyring.[/green]"
+            )
+            # Track successful authentication
+            track_cli_command("auth", subcommand="jira", success=True)
+        else:
+            console.print(
+                "[yellow]Authentication successful, but failed to store token in system keyring.[/yellow]"
+            )
+            console.print(
+                f"Your token is: {token}"
+            )
+            console.print(
+                "You can set this as an environment variable: export JIRA_API_TOKEN=<token>"
+            )
+            # Track partial success
+            track_cli_command("auth", subcommand="jira",
+                             args={"keyring_error": True}, success=True)
+    except JiraAuthError as e:
+        console.print(f"[red]Authentication failed: {e}[/red]")
+        # Track authentication failure
+        track_cli_command("auth", subcommand="jira", success=False, error=e)
+        sys.exit(1)
+    except Exception as e:
+        logger.exception("Unexpected error during authentication")
+        console.print(f"[red]Unexpected error: {e}[/red]")
+        # Track unexpected error
+        track_cli_command("auth", subcommand="jira", success=False, error=e)
+        sys.exit(1)
+
+
 @app.command("notion")
 def notion_auth(
     client_id: str = typer.Option(
