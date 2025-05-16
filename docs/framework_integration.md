@@ -6,7 +6,7 @@ Arc Memory is designed to work seamlessly with popular agent frameworks through 
 
 Arc Memory follows a framework-agnostic design with adapters for popular frameworks:
 
-```
+```bash
 ┌─────────────────────────────────────────────────────────┐
 │                    Arc Memory SDK                       │
 ├─────────────┬─────────────┬─────────────┬─────────────┬─┤
