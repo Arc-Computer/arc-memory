@@ -1,0 +1,86 @@
+name: Arc Memory Knowledge Graph Update
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    types: [ closed ]
+    branches: [ main, master ]
+
+jobs:
+  update-graph:
+    if: github.event.pull_request.merged == true || github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # Important: Get full history for accurate graph
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.10'
+
+      - name: Install Arc Memory
+        run: pip install arc-memory
+
+      - name: Cache Arc Memory Graph
+        uses: actions/cache@v3
+        with:
+          path: .arc
+          key: ${{ runner.os }}-arc-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-arc-
+
+      - name: Update Knowledge Graph
+        run: |
+          # If graph exists, refresh it; otherwise build it
+          if [ -f .arc/graph.db ]; then
+            echo "Refreshing existing knowledge graph..."
+            arc refresh --ci
+          else
+            echo "Building new knowledge graph..."
+            arc build --ci --llm-provider openai --llm-model o4-mini
+          fi
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+
+      - name: Analyze PR Impact (on PR merge)
+        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+        run: |
+          # Get changed files
+          CHANGED_FILES=$(git diff --name-only ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }})
+          
+          # Create impact report
+          echo "## Arc Memory Impact Analysis" > impact_report.md
+          echo "\nThis PR affects the following components:\n" >> impact_report.md
+          
+          for file in $CHANGED_FILES; do
+            if [[ -f "$file" ]]; then
+              echo "\n### Impact of changes to \`$file\`:\n" >> impact_report.md
+              arc analyze "$file" --format markdown >> impact_report.md || echo "- Unable to analyze impact for this file" >> impact_report.md
+            fi
+          done
+          
+          # Add summary
+          echo "\n## Summary\n" >> impact_report.md
+          arc summarize-pr --format markdown >> impact_report.md || echo "- Unable to generate summary" >> impact_report.md
+          
+          # Save report as artifact
+          mkdir -p reports
+          cp impact_report.md reports/
+
+      - name: Upload Impact Report
+        if: github.event_name == 'pull_request' && github.event.pull_request.merged == true
+        uses: actions/upload-artifact@v3
+        with:
+          name: impact-report
+          path: reports/impact_report.md
+
+      - name: Upload Updated Graph
+        uses: actions/upload-artifact@v3
+        with:
+          name: arc-memory-graph
+          path: .arc/graph.db

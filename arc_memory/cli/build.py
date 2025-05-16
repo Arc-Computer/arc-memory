@@ -401,8 +401,8 @@ Prioritize precision over coverage in your enhancements. Follow Arc Memory's sch
                         print("⚠️ Falling back to Ollama")
                         llm_provider = "ollama"
                     else:
-                        # Set default model if not provided
-                        openai_model = llm_model or "gpt-4.1"
+                        # Set default model if not provided - use o4-mini for better reasoning
+                        openai_model = llm_model or "o4-mini"
 
                         # Create OpenAI client
                         try:
@@ -410,11 +410,16 @@ Prioritize precision over coverage in your enhancements. Follow Arc Memory's sch
                             print(f"✅ LLM setup complete with OpenAI model: {openai_model}")
 
                             # Test the LLM with a simple query
+                            # Note: o4-mini doesn't support temperature parameter
+                            options = {}
+                            if openai_model != "o4-mini":
+                                options["temperature"] = 0.0
+
                             test_response = openai_client.generate(
                                 model=openai_model,
                                 prompt="Respond with a single word: Working",
                                 system=system_prompt,
-                                options={"temperature": 0.0}
+                                options=options
                             )
 
                             if "working" in test_response.lower():
@@ -556,7 +561,8 @@ Prioritize precision over coverage in your enhancements. Follow Arc Memory's sch
                         repo_path=repo_path,
                         enhancement_level=llm_enhancement.value,
                         openai_client=openai_client,
-                        llm_provider="openai"
+                        llm_provider="openai",
+                        llm_model=openai_model
                     )
                 else:
                     all_nodes, all_edges = enhance_with_semantic_analysis(
@@ -584,7 +590,8 @@ Prioritize precision over coverage in your enhancements. Follow Arc Memory's sch
                         repo_path=repo_path,
                         enhancement_level=llm_enhancement.value,
                         openai_client=openai_client,
-                        llm_provider="openai"
+                        llm_provider="openai",
+                        llm_model=openai_model
                     )
                 else:
                     all_nodes, all_edges = enhance_with_temporal_analysis(
@@ -614,7 +621,8 @@ Prioritize precision over coverage in your enhancements. Follow Arc Memory's sch
                             openai_client=openai_client,
                             llm_provider="openai",
                             enhancement_level=llm_enhancement.value,
-                            system_prompt=system_prompt
+                            system_prompt=system_prompt,
+                            llm_model=openai_model
                         )
                     else:
                         all_nodes, all_edges = enhance_with_reasoning_structures(
