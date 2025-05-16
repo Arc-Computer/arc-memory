@@ -6,7 +6,10 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from .utils import format_date, get_entity_property, truncate_text, extract_author, extract_title
+try:
+    from utils import format_date, get_entity_property, truncate_text, extract_author, extract_title
+except ImportError:
+    from .utils import format_date, get_entity_property, truncate_text, extract_author, extract_title
 
 
 def visualize_decisions(decision_trails: List[Tuple[int, List[Any]]], file_path: str) -> None:
@@ -31,7 +34,7 @@ def visualize_decisions(decision_trails: List[Tuple[int, List[Any]]], file_path:
     for line_number, trail in decision_trails:
         if not trail:
             continue
-        
+
         # Process each decision in the trail
         for decision in trail:
             # Get decision properties
@@ -39,28 +42,28 @@ def visualize_decisions(decision_trails: List[Tuple[int, List[Any]]], file_path:
             rationale = get_entity_property(decision, "rationale", "No rationale provided")
             importance = get_entity_property(decision, "importance", 0.5)
             author = extract_author(decision)
-            
+
             # Get timestamp
             timestamp = get_entity_property(decision, "timestamp")
             date = format_date(timestamp) if timestamp else "Unknown date"
-            
+
             # Get related entities
             related = get_entity_property(decision, "related_entities", [])
-            
+
             # Display decision
             print(f"Decision: {title} (Line {line_number})")
             print(f"Author: {author}")
             print(f"Date: {date}")
             print(f"Rationale: \"{rationale}\"")
-            
+
             # Display related entities
             for related_entity in related[:2]:  # Limit to 2 related entities
                 related_type = get_entity_property(related_entity, "type", "")
                 related_title = extract_title(related_entity)
-                
+
                 if related_type and related_title:
                     print(f"Related {related_type}: {related_title}")
-            
+
             print()
 
     print("Decision visualization complete.")

@@ -6,7 +6,10 @@ import os
 from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
-from .utils import format_date, get_entity_property, truncate_text, extract_author, extract_title
+try:
+    from utils import format_date, get_entity_property, truncate_text, extract_author, extract_title
+except ImportError:
+    from .utils import format_date, get_entity_property, truncate_text, extract_author, extract_title
 
 
 def visualize_timeline(history: List[Any], file_path: str) -> None:
@@ -41,26 +44,26 @@ def visualize_timeline(history: List[Any], file_path: str) -> None:
         timestamp = get_entity_property(entry, "timestamp")
         if not timestamp:
             continue
-        
+
         # Format date
         date = format_date(timestamp)
-        
+
         # Get event type
         event_type = get_entity_property(entry, "type", "unknown")
-        
+
         # Get author
         author = extract_author(entry)
-        
+
         # Get title/message
         title = extract_title(entry)
-        
+
         # Get related entities
         related = get_entity_property(entry, "related_entities", [])
-        
+
         # Add to events by date
         if date not in events_by_date:
             events_by_date[date] = []
-        
+
         events_by_date[date].append({
             "type": event_type,
             "author": author,
@@ -74,16 +77,16 @@ def visualize_timeline(history: List[Any], file_path: str) -> None:
             # Display event
             print(f"{date}: {event['type'].capitalize()} by {event['author']}")
             print(f"  - {event['title']}")
-            
+
             # Display related entities
             for related in event['related'][:3]:  # Limit to 3 related entities
                 related_type = get_entity_property(related, "type", "")
                 related_title = extract_title(related)
-                
+
                 if related_type.lower() in ["pr", "pull_request", "issue"]:
                     related_number = get_entity_property(related, "number", "")
                     print(f"  - Related {related_type}: \"{related_title}\" (#{related_number})")
-            
+
             print()
 
     print("Timeline visualization complete.")

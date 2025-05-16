@@ -5,7 +5,10 @@ Impact visualization for the Simple Code Time Machine demo.
 import os
 from typing import Any, Dict, List, Optional, Tuple
 
-from .utils import get_entity_property, truncate_text
+try:
+    from utils import get_entity_property, truncate_text
+except ImportError:
+    from .utils import get_entity_property, truncate_text
 
 
 def visualize_impact(impact_results: List[Any], file_path: str) -> None:
@@ -39,17 +42,17 @@ def visualize_impact(impact_results: List[Any], file_path: str) -> None:
                 impact_score = float(impact_score)
             except ValueError:
                 impact_score = 0.5  # Default to medium if can't parse
-        
+
         # Get entity ID and title
         entity_id = get_entity_property(result, "id", "")
         title = get_entity_property(result, "title", entity_id)
-        
+
         # Get impact type
         impact_type = get_entity_property(result, "impact_type", "unknown")
-        
+
         # Get relationship type if available
         relationship = get_entity_property(result, "relationship", "")
-        
+
         # Create impact entry
         impact_entry = {
             "id": entity_id,
@@ -58,7 +61,7 @@ def visualize_impact(impact_results: List[Any], file_path: str) -> None:
             "type": impact_type,
             "relationship": relationship
         }
-        
+
         # Group by severity
         if impact_score >= 0.7:
             high_impact.append(impact_entry)
@@ -78,7 +81,7 @@ def visualize_impact(impact_results: List[Any], file_path: str) -> None:
         for entry in high_impact:
             component_id = entry["id"].replace("file:", "")
             print(f"- {component_id} ({entry['score']:.1f})", end="")
-            
+
             if entry["relationship"]:
                 print(f" - {entry['relationship']}")
             elif entry["type"]:
@@ -93,7 +96,7 @@ def visualize_impact(impact_results: List[Any], file_path: str) -> None:
         for entry in medium_impact:
             component_id = entry["id"].replace("file:", "")
             print(f"- {component_id} ({entry['score']:.1f})", end="")
-            
+
             if entry["relationship"]:
                 print(f" - {entry['relationship']}")
             elif entry["type"]:
@@ -108,7 +111,7 @@ def visualize_impact(impact_results: List[Any], file_path: str) -> None:
         for entry in low_impact:
             component_id = entry["id"].replace("file:", "")
             print(f"- {component_id} ({entry['score']:.1f})", end="")
-            
+
             if entry["relationship"]:
                 print(f" - {entry['relationship']}")
             elif entry["type"]:
