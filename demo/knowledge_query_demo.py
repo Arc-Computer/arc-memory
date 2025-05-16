@@ -102,6 +102,67 @@ class KnowledgeQueryDemo:
         console.print(Panel(f"[bold green]Initializing Knowledge Graph Query Demo[/bold green]"))
 
         try:
+            # Check if knowledge graph exists
+            console.print(f"[blue]Checking knowledge graph status...[/blue]")
+
+            # The default database path is ~/.arc/graph.db (not arc.db)
+            db_path = Path.home() / ".arc" / "graph.db"
+            compressed_db_path = Path.home() / ".arc" / "graph.db.zst"
+
+            # Check both the regular and compressed database files
+            if (not db_path.exists() and not compressed_db_path.exists()) or \
+               (db_path.exists() and os.path.getsize(db_path) < 1000):
+                console.print(f"[yellow]Knowledge graph not found or empty. Building knowledge graph...[/yellow]")
+
+                # Use the CLI command directly
+                try:
+                    with console.status("[bold green]Building knowledge graph...") as status:
+                        # Run the arc build command
+                        import subprocess
+                        result = subprocess.run(
+                            [
+                                "arc", "build",
+                                "--repo", str(self.repo_path),
+                                "--llm-enhancement", "standard",
+                                "--llm-provider", "openai",
+                                "--llm-model", "gpt-4.1",  # Use gpt-4.1 instead of o4-mini for better results
+                                "--github"
+                            ],
+                            capture_output=True,
+                            text=True,
+                            check=False
+                        )
+
+                        if result.returncode == 0:
+                            console.print(f"[green]Knowledge graph built successfully![/green]")
+                        else:
+                            console.print(f"[red]Error building knowledge graph: {result.stderr}[/red]")
+                            console.print(f"[yellow]Continuing with demo, but results may be limited...[/yellow]")
+                except Exception as e:
+                    console.print(f"[red]Error building knowledge graph: {e}[/red]")
+                    console.print(f"[yellow]Continuing with demo, but results may be limited...[/yellow]")
+            else:
+                console.print(f"[green]Knowledge graph found![/green]")
+
+                # Refresh the knowledge graph to ensure it's up to date
+                console.print(f"[blue]Refreshing knowledge graph...[/blue]")
+                try:
+                    # Use the CLI command directly
+                    import subprocess
+                    result = subprocess.run(
+                        ["arc", "refresh"],
+                        capture_output=True,
+                        text=True,
+                        check=False
+                    )
+
+                    if result.returncode == 0:
+                        console.print(f"[green]Knowledge graph refreshed successfully![/green]")
+                    else:
+                        console.print(f"[yellow]Warning: Could not refresh knowledge graph: {result.stderr}[/yellow]")
+                except Exception as e:
+                    console.print(f"[yellow]Warning: Could not refresh knowledge graph: {e}[/yellow]")
+
             # Initialize Arc Memory
             console.print(f"[blue]Connecting to Arc Memory knowledge graph...[/blue]")
             self.arc = Arc(repo_path=self.repo_path)
@@ -133,8 +194,43 @@ class KnowledgeQueryDemo:
             ) as progress:
                 task = progress.add_task("[blue]Processing query...", total=None)
 
+                # Check if the database has content
+                try:
+                    # Get the database path
+                    db_path = Path.home() / ".arc" / "graph.db"
+                    if db_path.exists():
+                        # Check if the database has nodes
+                        node_count = self.arc.adapter.conn.execute("SELECT COUNT(*) FROM nodes").fetchone()[0]
+                        console.print(f"[blue]Database has {node_count} nodes[/blue]")
+                    else:
+                        console.print(f"[yellow]Warning: Database file not found at {db_path}[/yellow]")
+                except Exception as e:
+                    console.print(f"[yellow]Warning: Could not check database content: {e}[/yellow]")
+
+                # Run the query with improved parameters
+                console.print(f"[blue]Executing query with model: {os.environ.get('OPENAI_MODEL', 'default')}[/blue]")
+
+                # Check if we have any nodes of the types we're likely to query
+                try:
+                    # Check for common node types
+                    for node_type in ['commit', 'file', 'pr', 'issue', 'adr']:
+                        count = self.arc.adapter.conn.execute(
+                            "SELECT COUNT(*) FROM nodes WHERE type = ?",
+                            (node_type,)
+                        ).fetchone()[0]
+                        if count > 0:
+                            console.print(f"[blue]Found {count} nodes of type '{node_type}'[/blue]")
+                except Exception as e:
+                    console.print(f"[yellow]Warning: Could not check node types: {e}[/yellow]")
+
                 # Run the query
-                result = self.arc.query(query)
+                result = self.arc.query(
+                    question=query,
+                    max_results=10,  # Increase max results for better context
+                    max_hops=3,      # Standard hop count
+                    include_causal=True,  # Include causal relationships
+                    timeout=120      # Increase timeout for complex queries
+                )
 
                 progress.update(task, completed=True)
 
@@ -147,24 +243,34 @@ class KnowledgeQueryDemo:
             return result
         except Exception as e:
             console.print(f"[red]Error running query: {e}[/red]")
+            # Print more detailed error information
+            import traceback
+            console.print(f"[dim]{traceback.format_exc()}[/dim]")
             return None
 
-    def display_query_result(self, result: QueryResult) -> None:
+    def display_query_result(self, result: Optional[QueryResult]) -> None:
         """Display the query result.
 
         Args:
             result: The query result
         """
-        if not result:
+        if result is None:
             console.print(f"[yellow]No result available.[/yellow]")
             return
 
         # Display the answer
-        console.print(Panel(
-            Markdown(result.answer),
-            title="Answer",
-            border_style="green"
-        ))
+        if hasattr(result, 'answer') and result.answer:
+            console.print(Panel(
+                Markdown(result.answer),
+                title="Answer",
+                border_style="green"
+            ))
+        else:
+            console.print(Panel(
+                "[italic]No answer available[/italic]",
+                title="Answer",
+                border_style="yellow"
+            ))
 
         # Display confidence if available
         if hasattr(result, 'confidence') and result.confidence is not None:
@@ -350,12 +456,12 @@ def main():
             console.print("[red]Exiting demo.[/red]")
             sys.exit(1)
     else:
-        console.print("[green]OpenAI API key detected. Using OpenAI o4-mini model for optimal results.[/green]")
+        console.print("[green]OpenAI API key detected. Using OpenAI GPT-4.1 model for optimal results.[/green]")
         console.print("")
 
-        # Set the OPENAI_MODEL environment variable to use o4-mini
-        os.environ["OPENAI_MODEL"] = "o4-mini"
-        console.print("[yellow]Using o4-mini model.[/yellow]")
+        # Set the OPENAI_MODEL environment variable to use gpt-4.1 for better JSON handling
+        os.environ["OPENAI_MODEL"] = "gpt-4.1"
+        console.print("[green]Using gpt-4.1 model for better JSON handling.[/green]")
 
     parser = argparse.ArgumentParser(description="Knowledge Graph Query Demo")
     parser.add_argument("--query",

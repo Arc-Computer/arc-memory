@@ -196,7 +196,7 @@ class SQLiteAdapter:
                 """
             )
 
-            # Create tables if they don't exist
+            # Create tables if they don't exist with enhanced schema
             self.conn.execute(
                 """
                 CREATE TABLE IF NOT EXISTS nodes(
@@ -206,7 +206,14 @@ class SQLiteAdapter:
                     body TEXT,
                     timestamp TEXT,
                     repo_id TEXT,
-                    extra TEXT
+                    extra TEXT,
+                    created_at TEXT,
+                    updated_at TEXT,
+                    valid_from TEXT,
+                    valid_until TEXT,
+                    metadata TEXT,
+                    embedding BLOB,
+                    url TEXT
                 )
                 """
             )
@@ -222,6 +229,38 @@ class SQLiteAdapter:
             self.conn.execute(
                 """
                 CREATE INDEX IF NOT EXISTS idx_nodes_repo_id ON nodes(repo_id)
+                """
+            )
+
+            # Create indices for new temporal fields
+            self.conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_nodes_created_at ON nodes(created_at)
+                """
+            )
+
+            self.conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_nodes_updated_at ON nodes(updated_at)
+                """
+            )
+
+            self.conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_nodes_valid_from ON nodes(valid_from)
+                """
+            )
+
+            self.conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_nodes_valid_until ON nodes(valid_until)
+                """
+            )
+
+            # Create index on url for faster lookups
+            self.conn.execute(
+                """
+                CREATE INDEX IF NOT EXISTS idx_nodes_url ON nodes(url)
                 """
             )
 
@@ -283,6 +322,14 @@ class SQLiteAdapter:
                     logger.info(f"Successfully ran architecture schema migration for {self.db_path}")
                 else:
                     logger.warning(f"Failed to run architecture schema migration for {self.db_path}")
+
+                # Run enhanced schema migration
+                from arc_memory.migrations.add_enhanced_schema import migrate_database as migrate_enhanced_schema
+                enhanced_schema_success = migrate_enhanced_schema(self.db_path)
+                if enhanced_schema_success:
+                    logger.info(f"Successfully ran enhanced schema migration for {self.db_path}")
+                else:
+                    logger.warning(f"Failed to run enhanced schema migration for {self.db_path}")
             except Exception as migrate_error:
                 logger.warning(f"Error running database migrations: {migrate_error}")
                 # Don't fail initialization if migrations fail
@@ -339,10 +386,65 @@ class SQLiteAdapter:
                 if hasattr(node, 'ts') and node.ts:
                     timestamp_str = node.ts.isoformat()
 
+                # Set created_at and updated_at based on ts if not already set
+                if hasattr(node, 'created_at') and node.created_at is None and hasattr(node, 'ts') and node.ts:
+                    node.created_at = node.ts
+
+                if hasattr(node, 'updated_at') and node.updated_at is None and hasattr(node, 'ts') and node.ts:
+                    node.updated_at = node.ts
+
+                # Extract temporal fields
+                created_at_str = None
+                updated_at_str = None
+                valid_from_str = None
+                valid_until_str = None
+
+                if hasattr(node, 'created_at') and node.created_at:
+                    created_at_str = node.created_at.isoformat()
+
+                if hasattr(node, 'updated_at') and node.updated_at:
+                    updated_at_str = node.updated_at.isoformat()
+
+                if hasattr(node, 'valid_from') and node.valid_from:
+                    valid_from_str = node.valid_from.isoformat()
+
+                if hasattr(node, 'valid_until') and node.valid_until:
+                    valid_until_str = node.valid_until.isoformat()
+
+                # Handle embedding (convert to bytes if present)
+                embedding_bytes = None
+                if hasattr(node, 'embedding') and node.embedding:
+                    try:
+                        import numpy as np
+                        embedding_bytes = np.array(node.embedding, dtype=np.float32).tobytes()
+                    except ImportError:
+                        logger.warning("NumPy not available, storing embedding as JSON string")
+                        # Fall back to JSON string if NumPy is not available
+                        embedding_bytes = json.dumps(node.embedding).encode('utf-8')
+                    except Exception as e:
+                        logger.warning(f"Failed to convert embedding to bytes: {e}")
+
+                # Get URL if present
+                url = None
+                if hasattr(node, 'url'):
+                    url = node.url
+
+                # Use metadata if present, otherwise fall back to extra
+                metadata_json = None
+                if hasattr(node, 'metadata') and node.metadata:
+                    metadata_json = json.dumps(node.metadata, cls=DateTimeEncoder)
+                elif hasattr(node, 'extra') and node.extra:
+                    # For backward compatibility
+                    metadata_json = json.dumps(node.extra, cls=DateTimeEncoder)
+
                 self.conn.execute(
                     """
-                    INSERT OR REPLACE INTO nodes(id, type, title, body, timestamp, repo_id, extra)
-                    VALUES(?, ?, ?, ?, ?, ?, ?)
+                    INSERT OR REPLACE INTO nodes(
+                        id, type, title, body, timestamp, repo_id, extra,
+                        created_at, updated_at, valid_from, valid_until,
+                        metadata, embedding, url
+                    )
+                    VALUES(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (
                         node.id,
@@ -351,7 +453,14 @@ class SQLiteAdapter:
                         node.body,
                         timestamp_str,
                         node.repo_id,
-                        json.dumps(node.extra, cls=DateTimeEncoder),
+                        json.dumps(node.extra if hasattr(node, 'extra') and node.extra else {}, cls=DateTimeEncoder),
+                        created_at_str,
+                        updated_at_str,
+                        valid_from_str,
+                        valid_until_str,
+                        metadata_json,
+                        embedding_bytes,
+                        url,
                     ),
                 )
 
@@ -413,7 +522,9 @@ class SQLiteAdapter:
         try:
             cursor = self.conn.execute(
                 """
-                SELECT id, type, title, body, timestamp, extra
+                SELECT id, type, title, body, timestamp, repo_id, extra,
+                       created_at, updated_at, valid_from, valid_until,
+                       metadata, embedding, url
                 FROM nodes
                 WHERE id = ?
                 """,
@@ -422,14 +533,57 @@ class SQLiteAdapter:
             row = cursor.fetchone()
             if row is None:
                 return None
-            return {
+
+            # Process embedding if present
+            embedding = None
+            if row[12]:  # embedding column
+                try:
+                    import numpy as np
+                    embedding = np.frombuffer(row[12], dtype=np.float32).tolist()
+                except ImportError:
+                    logger.warning("NumPy not available, trying to parse embedding as JSON")
+                    try:
+                        # Try to parse as JSON string
+                        embedding = json.loads(row[12].decode('utf-8'))
+                    except Exception as e:
+                        logger.warning(f"Failed to parse embedding: {e}")
+                except Exception as e:
+                    logger.warning(f"Failed to convert embedding from bytes: {e}")
+
+            # Build result with all fields
+            result = {
                 "id": row[0],
                 "type": row[1],
                 "title": row[2],
                 "body": row[3],
                 "timestamp": row[4],
-                "extra": json.loads(row[5]) if row[5] else {},
+                "repo_id": row[5],
+                "extra": json.loads(row[6]) if row[6] else {},
             }
+
+            # Add new fields if they have values
+            if row[7]:  # created_at
+                result["created_at"] = row[7]
+            if row[8]:  # updated_at
+                result["updated_at"] = row[8]
+            if row[9]:  # valid_from
+                result["valid_from"] = row[9]
+            if row[10]:  # valid_until
+                result["valid_until"] = row[10]
+            if row[11]:  # metadata
+                result["metadata"] = json.loads(row[11]) if row[11] else {}
+                # For backward compatibility, if metadata exists but extra doesn't have the same content,
+                # update extra to match metadata
+                if result["metadata"] and result["metadata"] != result["extra"]:
+                    result["extra"] = result["metadata"]
+            elif result["extra"]:  # If no metadata but extra exists, use extra for metadata
+                result["metadata"] = result["extra"]
+            if embedding:
+                result["embedding"] = embedding
+            if row[13]:  # url
+                result["url"] = row[13]
+
+            return result
         except Exception as e:
             error_msg = f"Failed to get node by ID: {e}"
             logger.error(error_msg)

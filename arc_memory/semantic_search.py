@@ -7,7 +7,8 @@ extract relevant information from the graph.
 
 import json
 import sqlite3
-from datetime import datetime
+import re
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union, Callable
 import os
@@ -139,6 +140,14 @@ When analyzing a user's question, identify:
 3. Any specific attributes to filter on (e.g., author, status, title keywords)
 4. The type of relationship or information the user wants to know
 
+For temporal constraints:
+- When the user mentions relative time periods like "last month", "last week", etc., convert them to specific date strings in YYYY-MM-DD format.
+- For "last month", use a date 30 days ago from today.
+- For "last week", use a date 7 days ago from today.
+- For "last year", use a date 365 days ago from today.
+- For "last X days", calculate the appropriate date.
+- Always use ISO format dates (YYYY-MM-DD).
+
 Format your response as valid JSON with the following structure:
 {
   "understanding": "Brief explanation of what the user is asking in your own words",
@@ -157,6 +166,7 @@ Format your response as valid JSON with the following structure:
   "relationship_focus": "MENTIONS"
 }
 
+IMPORTANT: Do NOT include any comments in the JSON. The JSON must be valid and parseable by standard JSON parsers.
 Only include fields that are relevant to the query. If information is not specified or implied in the user's question, do not include it in the JSON response.
 """
 
@@ -180,17 +190,19 @@ The nodes in the graph are connected by these relationships:
 
 Format your response as search parameters in valid JSON:
 {
-  "primary_node_types": ["commit", "pr"],  // Primary types to search
-  "secondary_node_types": ["issue", "adr"],  // Fallback types if not enough results
+  "primary_node_types": ["commit", "pr"],
+  "secondary_node_types": ["issue", "adr"],
   "time_range": {
-    "start": "YYYY-MM-DD",
-    "end": "YYYY-MM-DD"
+    "start": "YYYY-MM-DD",  // Use specific ISO format dates
+    "end": "YYYY-MM-DD"     // Convert any relative dates to absolute dates
   },
-  "search_strategy": "recent_first",  // Options: "recent_first", "relevance_first", "broad_first"
+  "search_strategy": "recent_first",
   "max_nodes_per_type": 3,
   "keywords": ["database", "schema"],
   "relationship_priorities": ["MODIFIES", "MENTIONS"]
 }
+
+IMPORTANT: Do NOT include any comments in the JSON. The JSON must be valid and parseable by standard JSON parsers.
 """
 
 RESPONSE_GENERATION_PROMPT = """You are an expert AI assistant for Arc Memory, a knowledge graph for code repositories.
@@ -221,13 +233,13 @@ Format your response as valid JSON with the following structure:
   "summary": "One-line summary of the answer",
   "answer": "Detailed response to the question",
   "reasoning": "Explanation of how you arrived at this answer",
-  "confidence": 7  // Score from 1-10
+  "confidence": 7
 }
 
+IMPORTANT: Do NOT include any comments in the JSON. The JSON must be valid and parseable by standard JSON parsers.
 Base your response ONLY on the provided context and be honest about limitations in the available information.
 """
 
-# For backward compatibility, maintain the original combined prompt
 QUERY_SYSTEM_PROMPT = """You are a specialized AI assistant for the Arc Memory knowledge graph system.
 Your task is to parse and understand natural language queries about a codebase and its development history.
 
@@ -259,24 +271,33 @@ Given a user's question, identify:
 3. Any specific attributes to filter on (e.g., author, status, title keywords)
 4. The type of relationship or information the user wants to know
 
+For temporal constraints:
+- When the user mentions relative time periods like "last month", "last week", etc., convert them to specific date strings in YYYY-MM-DD format.
+- For "last month", use a date 30 days ago from today.
+- For "last week", use a date 7 days ago from today.
+- For "last year", use a date 365 days ago from today.
+- For "last X days", calculate the appropriate date.
+- Always use ISO format dates (YYYY-MM-DD).
+
 Format your response as valid JSON with the following structure:
 {
   "understanding": "Brief explanation of what the user is asking in your own words",
-  "entity_types": ["commit", "pr", "issue", "file", "adr"],  // Always include a diverse mix, not just ADRs
-  "temporal_constraints": {  // Optional temporal constraints
-    "before": "YYYY-MM-DD",  // Optional date constraint (before)
-    "after": "YYYY-MM-DD",   // Optional date constraint (after)
-    "version": "x.y.z"       // Optional version constraint
+  "entity_types": ["commit", "pr", "issue", "file", "adr"],
+  "temporal_constraints": {
+    "before": "YYYY-MM-DD",
+    "after": "YYYY-MM-DD",
+    "version": "x.y.z"
   },
-  "attributes": {  // Attributes to filter on, specific to each entity type
+  "attributes": {
     "commit": {"author": "name"},
     "pr": {"status": "merged"},
     "issue": {"labels": ["bug", "feature"]},
     "title_keywords": ["authentication", "login"]
   },
-  "relationship_focus": "MENTIONS"  // Optional specific relationship to focus on
+  "relationship_focus": "MENTIONS"
 }
 
+IMPORTANT: Do NOT include any comments in the JSON. The JSON must be valid and parseable by standard JSON parsers.
 Only include fields that are relevant to the query. If information is not specified or implied in the user's question, do not include it in the JSON response.
 """
 
@@ -540,6 +561,81 @@ Generate appropriate search parameters for finding relevant nodes in the knowled
         return None
 
 
+def _resolve_relative_temporal_constraints(temporal_constraints: Dict[str, Any]) -> Dict[str, Any]:
+    """Convert relative temporal constraints to absolute dates.
+
+    This function handles relative time expressions like "last month", "last week",
+    "last year", etc. and converts them to absolute dates.
+
+    Args:
+        temporal_constraints: Dictionary with temporal constraints
+
+    Returns:
+        Dictionary with resolved temporal constraints
+    """
+    if not temporal_constraints:
+        return {}
+
+    resolved_constraints = temporal_constraints.copy()
+    now = datetime.now()
+
+    # Process "after" constraint
+    after_value = resolved_constraints.get("after")
+    if after_value and isinstance(after_value, str):
+        # Check for relative time expressions
+        if re.search(r'last\s+(\d+)\s+days?', after_value, re.IGNORECASE):
+            # "last X days"
+            days = int(re.search(r'last\s+(\d+)\s+days?', after_value, re.IGNORECASE).group(1))
+            resolved_date = (now - timedelta(days=days)).strftime("%Y-%m-%d")
+            resolved_constraints["after"] = resolved_date
+            logger.debug(f"Resolved relative 'after' constraint '{after_value}' to '{resolved_date}'")
+        elif re.search(r'last\s+week', after_value, re.IGNORECASE):
+            # "last week"
+            resolved_date = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+            resolved_constraints["after"] = resolved_date
+            logger.debug(f"Resolved relative 'after' constraint '{after_value}' to '{resolved_date}'")
+        elif re.search(r'last\s+month', after_value, re.IGNORECASE):
+            # "last month"
+            # Go back approximately 30 days
+            resolved_date = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+            resolved_constraints["after"] = resolved_date
+            logger.debug(f"Resolved relative 'after' constraint '{after_value}' to '{resolved_date}'")
+        elif re.search(r'last\s+year', after_value, re.IGNORECASE):
+            # "last year"
+            # Go back approximately 365 days
+            resolved_date = (now - timedelta(days=365)).strftime("%Y-%m-%d")
+            resolved_constraints["after"] = resolved_date
+            logger.debug(f"Resolved relative 'after' constraint '{after_value}' to '{resolved_date}'")
+
+    # Process "before" constraint
+    before_value = resolved_constraints.get("before")
+    if before_value and isinstance(before_value, str):
+        # Check for relative time expressions
+        if re.search(r'last\s+(\d+)\s+days?', before_value, re.IGNORECASE):
+            # "last X days"
+            days = int(re.search(r'last\s+(\d+)\s+days?', before_value, re.IGNORECASE).group(1))
+            resolved_date = (now - timedelta(days=days)).strftime("%Y-%m-%d")
+            resolved_constraints["before"] = resolved_date
+            logger.debug(f"Resolved relative 'before' constraint '{before_value}' to '{resolved_date}'")
+        elif re.search(r'last\s+week', before_value, re.IGNORECASE):
+            # "last week"
+            resolved_date = (now - timedelta(days=7)).strftime("%Y-%m-%d")
+            resolved_constraints["before"] = resolved_date
+            logger.debug(f"Resolved relative 'before' constraint '{before_value}' to '{resolved_date}'")
+        elif re.search(r'last\s+month', before_value, re.IGNORECASE):
+            # "last month"
+            resolved_date = (now - timedelta(days=30)).strftime("%Y-%m-%d")
+            resolved_constraints["before"] = resolved_date
+            logger.debug(f"Resolved relative 'before' constraint '{before_value}' to '{resolved_date}'")
+        elif re.search(r'last\s+year', before_value, re.IGNORECASE):
+            # "last year"
+            resolved_date = (now - timedelta(days=365)).strftime("%Y-%m-%d")
+            resolved_constraints["before"] = resolved_date
+            logger.debug(f"Resolved relative 'before' constraint '{before_value}' to '{resolved_date}'")
+
+    return resolved_constraints
+
+
 def _extract_json_from_llm_response(response: str) -> Optional[Dict[str, Any]]:
     """Extract JSON from LLM response text.
 
@@ -585,8 +681,33 @@ def _extract_json_from_llm_response(response: str) -> Optional[Dict[str, Any]]:
                 logger.warning(f"No JSON structure found in: {response}")
                 return None
 
+        # Clean the JSON string by removing comments before parsing
+        import re
+        # Remove single-line comments (// comment)
+        json_str = re.sub(r'//.*?$', '', json_str, flags=re.MULTILINE)
+        # Remove multi-line comments (/* comment */)
+        json_str = re.sub(r'/\*.*?\*/', '', json_str, flags=re.DOTALL)
+        # Clean up any trailing commas (common issue with LLM-generated JSON)
+        json_str = re.sub(r',\s*}', '}', json_str)
+        json_str = re.sub(r',\s*]', ']', json_str)
+
         # Parse the JSON
-        return json.loads(json_str)
+        try:
+            return json.loads(json_str)
+        except json.JSONDecodeError as e:
+            logger.warning(f"Initial JSON parsing failed: {e}. Attempting to fix...")
+
+            # Try a more lenient approach by manually fixing common issues
+            # Remove any trailing commas in objects and arrays
+            json_str = re.sub(r',\s*}', '}', json_str)
+            json_str = re.sub(r',\s*]', ']', json_str)
+
+            # Try again with the cleaned string
+            try:
+                return json.loads(json_str)
+            except json.JSONDecodeError:
+                # If that still fails, continue with regex fallback
+                raise  # Re-raise the original exception to trigger the fallback
 
     except json.JSONDecodeError as e:
         logger.warning(f"JSON parse error: {e}, response: {response}")
@@ -599,9 +720,31 @@ def _extract_json_from_llm_response(response: str) -> Optional[Dict[str, Any]]:
             match = re.search(pattern, response, re.DOTALL)
             if match:
                 json_str = match.group(0)
+                # Clean the JSON string again
+                json_str = re.sub(r'//.*?$', '', json_str, flags=re.MULTILINE)
+                json_str = re.sub(r'/\*.*?\*/', '', json_str, flags=re.DOTALL)
+                json_str = re.sub(r',\s*}', '}', json_str)
+                json_str = re.sub(r',\s*]', ']', json_str)
                 return json.loads(json_str)
         except Exception as regex_err:
             logger.warning(f"Regex fallback also failed to parse JSON: {regex_err}")
+
+        # Last resort: Try to manually fix the specific issue we're seeing with o4-mini
+        try:
+            # The specific error we're seeing is with comments in the JSON
+            # Try to manually remove any line with // in it
+            lines = response.split('\n')
+            cleaned_lines = [line for line in lines if '//' not in line]
+            cleaned_json = '\n'.join(cleaned_lines)
+
+            # Try to extract and parse again
+            start = cleaned_json.find("{")
+            end = cleaned_json.rfind("}") + 1
+            if start >= 0 and end > start:
+                json_str = cleaned_json[start:end].strip()
+                return json.loads(json_str)
+        except Exception as manual_err:
+            logger.warning(f"Manual cleanup failed: {manual_err}")
 
         return None
     except Exception as e:
@@ -697,10 +840,74 @@ def _search_knowledge_graph(
                 if len(seed_nodes) >= max_nodes_per_type * 2:
                     break
 
-        # If no seed nodes found, return empty list
+        # If no seed nodes found, try a fallback approach
         if not seed_nodes:
-            logger.warning("No seed nodes found")
-            return []
+            logger.warning("No seed nodes found with initial search, trying fallback approach")
+
+            # Fallback 1: Try without temporal constraints
+            if temporal_constraints:
+                logger.info("Fallback 1: Trying without temporal constraints")
+                for node_type in node_types[:2]:  # Start with the first two types
+                    # Use empty temporal constraints
+                    type_nodes = _find_nodes_by_type_and_keywords(
+                        conn,
+                        node_type,
+                        title_keywords,
+                        {},  # Empty temporal constraints
+                        limit=max_nodes_per_type,
+                        repo_ids=repo_ids
+                    )
+                    seed_nodes.extend(type_nodes)
+
+                    if len(seed_nodes) >= max_nodes_per_type:
+                        break
+
+            # Fallback 2: Try with just the node types, no keywords or constraints
+            if not seed_nodes:
+                logger.info("Fallback 2: Trying with just node types, no keywords or constraints")
+                for node_type in node_types:
+                    # Direct query by type only
+                    cursor = conn.cursor()
+                    query = "SELECT * FROM nodes WHERE type = ? ORDER BY timestamp DESC LIMIT ?"
+                    cursor.execute(query, [node_type.value, max_nodes_per_type])
+
+                    for row in cursor.fetchall():
+                        # Create Node objects
+                        node_data = {
+                            'id': row["id"],
+                            'type': NodeType(row["type"]) if row["type"] else None,
+                            'title': row["title"],
+                            'body': row["body"]
+                        }
+
+                        # Add optional fields
+                        if "url" in row:
+                            node_data['url'] = row["url"]
+
+                        if "merged" in row:
+                            node_data['merged'] = bool(row["merged"]) if row["merged"] is not None else None
+
+                        # Create the node
+                        node = Node(**node_data)
+
+                        # Add timestamp if available
+                        if "timestamp" in row and row["timestamp"]:
+                            try:
+                                node.ts = datetime.fromisoformat(row["timestamp"])
+                            except (ValueError, TypeError):
+                                pass
+
+                        seed_nodes.append(node)
+
+                    if len(seed_nodes) >= max_nodes_per_type * 2:
+                        break
+
+            # If still no seed nodes, return empty list
+            if not seed_nodes:
+                logger.warning("No seed nodes found after fallback approaches")
+                return []
+
+            logger.info(f"Found {len(seed_nodes)} seed nodes using fallback approach")
 
         # Score and rank the seed nodes
         scored_nodes = _score_nodes(seed_nodes, query_intent)
@@ -817,14 +1024,21 @@ def _find_nodes_by_type_and_keywords(
             if keyword_conditions:
                 query += " AND (" + " OR ".join(keyword_conditions) + ")"
 
-        # Add temporal constraints if any
-        if "before" in temporal_constraints:
-            query += " AND timestamp <= ?"
-            params.append(temporal_constraints["before"])
+        # Resolve any relative temporal constraints to absolute dates
+        resolved_constraints = _resolve_relative_temporal_constraints(temporal_constraints)
 
-        if "after" in temporal_constraints:
+        # Log the resolution of temporal constraints
+        if resolved_constraints != temporal_constraints:
+            logger.debug(f"Resolved temporal constraints: {temporal_constraints} -> {resolved_constraints}")
+
+        # Add temporal constraints if any
+        if "before" in resolved_constraints:
+            query += " AND timestamp <= ?"
+            params.append(resolved_constraints["before"])
+
+        if "after" in resolved_constraints:
             query += " AND timestamp >= ?"
-            params.append(temporal_constraints["after"])
+            params.append(resolved_constraints["after"])
 
         # Order by timestamp descending (newest first) if available
         query += " ORDER BY timestamp DESC NULLS LAST"

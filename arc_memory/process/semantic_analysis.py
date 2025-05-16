@@ -177,6 +177,8 @@ def _extract_json_from_llm_response(response: str) -> Dict[str, Any]:
         parsed_json = json.loads(extracted_text)
         return parsed_json
     except json.JSONDecodeError as e:
+        logger.debug(f"Initial JSON parsing failed: {e}. Attempting to fix...")
+
         # If parsing fails, try to fix common JSON formatting issues
         # Replace single quotes with double quotes
         fixed_text = extracted_text.replace("'", "\"")
@@ -184,20 +186,118 @@ def _extract_json_from_llm_response(response: str) -> Dict[str, Any]:
         # Fix unquoted keys
         fixed_text = re.sub(r'(\s*?)(\w+)(\s*?):', r'\1"\2"\3:', fixed_text)
 
+        # Fix missing commas between objects in arrays
+        fixed_text = re.sub(r'(\})\s*(\{)', r'\1,\2', fixed_text)
+
+        # Fix missing commas between array elements
+        fixed_text = re.sub(r'(\])\s*(\[)', r'\1,\2', fixed_text)
+
+        # Fix trailing commas in arrays and objects
+        fixed_text = re.sub(r',\s*\}', r'}', fixed_text)
+        fixed_text = re.sub(r',\s*\]', r']', fixed_text)
+
+        # Fix missing commas after values in objects
+        # This pattern looks for cases where a value is followed directly by a key without a comma
+        fixed_text = re.sub(r'("[^"]*?")\s*("[^"]*?"\s*:)', r'\1,\2', fixed_text)
+        fixed_text = re.sub(r'(true|false|null|\d+)\s*("[^"]*?"\s*:)', r'\1,\2', fixed_text)
+
         # Try to parse again
         try:
             parsed_json = json.loads(fixed_text)
+            logger.info("Successfully parsed JSON after applying fixes")
             return parsed_json
-        except json.JSONDecodeError:
-            # If still failing, try a more lenient approach with json5
+        except json.JSONDecodeError as e2:
+            logger.debug(f"JSON parsing still failed after fixes: {e2}. Trying more aggressive fixes...")
+
+            # If still failing, try more aggressive fixes
             try:
-                import json5
-                parsed_json = json5.loads(fixed_text)
+                # Try to fix the specific comma delimiter issues mentioned in the error
+                if "Expecting ',' delimiter" in str(e2):
+                    error_parts = str(e2).split(":")
+                    if len(error_parts) >= 3:
+                        # Extract line and column information
+                        line_col_info = error_parts[2].strip()
+                        line_col_match = re.search(r'line (\d+) column (\d+)', line_col_info)
+                        if line_col_match:
+                            line = int(line_col_match.group(1))
+                            column = int(line_col_match.group(2))
+
+                            # Split the text into lines
+                            lines = fixed_text.split('\n')
+                            if 0 < line <= len(lines):
+                                # Insert a comma at the problematic position
+                                problem_line = lines[line-1]
+                                if 0 < column <= len(problem_line):
+                                    # Check if this is a common pattern where a comma is missing between key-value pairs
+                                    # This specifically targets the pattern where column 22 is often the issue
+                                    # (which is right after the "confidence" value in the JSON structure)
+                                    if column == 22:
+                                        # This is likely the pattern we're seeing in the errors
+                                        if '"confidence": 0' in problem_line:
+                                            fixed_line = problem_line.replace('"confidence": 0', '"confidence": 0,')
+                                            lines[line-1] = fixed_line
+                                            logger.debug(f"Fixed missing comma after confidence value at line {line}")
+                                        elif '"confidence": ' in problem_line:
+                                            # More general case for any confidence value
+                                            fixed_line = re.sub(r'("confidence": \d+(?:\.\d+)?)\s+', r'\1, ', problem_line)
+                                            lines[line-1] = fixed_line
+                                            logger.debug(f"Fixed missing comma after confidence value at line {line}")
+                                        else:
+                                            # General case for column 22 - insert a comma
+                                            fixed_line = problem_line[:column-1] + ',' + problem_line[column-1:]
+                                            lines[line-1] = fixed_line
+                                            logger.debug(f"Inserted comma at line {line}, column {column}")
+                                    else:
+                                        # General case - insert a comma at the problematic position
+                                        fixed_line = problem_line[:column-1] + ',' + problem_line[column-1:]
+                                        lines[line-1] = fixed_line
+                                        logger.debug(f"Inserted comma at line {line}, column {column}")
+
+                                    fixed_text = '\n'.join(lines)
+
+                # Additional fix for common pattern in o4-mini responses
+                # Look for missing commas after confidence values (a common issue in the JSON responses)
+                fixed_text = re.sub(r'("confidence": \d+\.\d+)\s+(")', r'\1,\2', fixed_text)
+                fixed_text = re.sub(r'("confidence": \d+)\s+(")', r'\1,\2', fixed_text)
+
+                # More aggressive fix for all numeric values followed by a key
+                fixed_text = re.sub(r'(\d+(?:\.\d+)?)\s+(")', r'\1,\2', fixed_text)
+
+                # Handle the specific case of column 200 error (seen in adr:adr-006-blast-radius-prediction.md)
+                if "column 200" in str(e2) or "line 1 column 200" in str(e2):
+                    # This is likely a long line with missing comma
+                    # Try to find a pattern of a value followed by a key without a comma
+                    fixed_text = re.sub(r'(\d+|true|false|null|"[^"]*?")\s+("[^"]*?":\s*)', r'\1,\2', fixed_text)
+
+                    # For line 1 column 200 specifically, try a more aggressive approach
+                    # Split the text into chunks and insert commas between them
+                    if "line 1 column 200" in str(e2):
+                        logger.debug("Applying special fix for line 1 column 200 error")
+                        # If it's a single line, try to insert a comma at position 199
+                        lines = fixed_text.split('\n')
+                        if len(lines) >= 1 and len(lines[0]) > 199:
+                            # Insert a comma at position 199
+                            lines[0] = lines[0][:199] + ',' + lines[0][199:]
+                            fixed_text = '\n'.join(lines)
+                            logger.debug("Inserted comma at position 199 in line 1")
+
+                # Try to parse with the more aggressively fixed text
+                parsed_json = json.loads(fixed_text)
+                logger.info("Successfully parsed JSON after applying aggressive fixes")
                 return parsed_json
-            except (ImportError, json.JSONDecodeError):
-                # If all parsing attempts fail, return a default structure
-                logger.error(f"Failed to parse JSON from LLM response: {e}")
-                raise ValueError(f"Failed to parse JSON from LLM response: {e}")
+            except json.JSONDecodeError:
+                # If still failing, try a more lenient approach with json5
+                try:
+                    import json5
+                    parsed_json = json5.loads(fixed_text)
+                    logger.info("Successfully parsed JSON using json5")
+                    return parsed_json
+                except (ImportError, Exception) as e3:
+                    # If all parsing attempts fail, log the error and raise ValueError
+                    logger.error(f"Failed to parse JSON from LLM response: {e}")
+                    logger.debug(f"Original text: {extracted_text[:100]}...")
+                    logger.debug(f"Fixed text: {fixed_text[:100]}...")
+                    raise ValueError(f"Failed to parse JSON from LLM response: {e}")
 
 
 def extract_key_concepts(
