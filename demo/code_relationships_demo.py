@@ -103,12 +103,12 @@ class CodeRelationshipsDemo:
             console.print(f"[red]Error initializing: {e}[/red]")
             return False
 
-    def analyze_relationships(self, file_path: str, max_distance: int = 1) -> bool:
+    def analyze_relationships(self, file_path: str, max_results: int = 50) -> bool:
         """Analyze the relationships of a file.
 
         Args:
             file_path: Path to the file to analyze
-            max_distance: Maximum distance for relationship analysis
+            max_results: Maximum number of related entities to retrieve
 
         Returns:
             True if analysis was successful, False otherwise
@@ -134,8 +134,7 @@ class CodeRelationshipsDemo:
                 # Get related entities
                 self.related_entities = self.arc.get_related_entities(
                     entity_id=entity_id,
-                    max_distance=max_distance,
-                    max_results=50
+                    max_results=max_results
                 )
 
                 progress.update(task, completed=True)
@@ -404,8 +403,8 @@ def main():
     parser = argparse.ArgumentParser(description="Code Relationships Demo")
     parser.add_argument("--file", default="arc_memory/sdk/relationships.py",
                         help="Path to the file to analyze (default: arc_memory/sdk/relationships.py)")
-    parser.add_argument("--distance", type=int, default=1,
-                        help="Maximum distance for relationship analysis (default: 1)")
+    parser.add_argument("--results", type=int, default=50,
+                        help="Maximum number of related entities to retrieve (default: 50)")
     parser.add_argument("--repo", default="./",
                         help="Path to the repository (default: current directory)")
 
@@ -414,7 +413,7 @@ def main():
     # Create and run the Code Relationships Demo
     demo = CodeRelationshipsDemo(repo_path=args.repo)
     if demo.initialize():
-        demo.analyze_relationships(file_path=args.file, max_distance=args.distance)
+        demo.analyze_relationships(file_path=args.file, max_results=args.results)
 
     console.print(Panel(f"[bold green]Code Relationships Demo Complete[/bold green]"))
 

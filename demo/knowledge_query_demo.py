@@ -181,21 +181,72 @@ class KnowledgeQueryDemo:
             table.add_column("Content", style="green")
             table.add_column("Relevance", style="yellow")
 
-            for evidence in result.evidence:
-                # Extract source
-                source = evidence.get('source', 'Unknown')
+            # Check if we have any valid evidence
+            has_valid_evidence = False
 
-                # Extract content (truncate if too long)
-                content = evidence.get('content', '')
+            for evidence in result.evidence:
+                # Try to extract source - check multiple possible keys
+                source = (
+                    evidence.get('source') or
+                    evidence.get('title') or
+                    evidence.get('id') or
+                    evidence.get('type', 'Unknown')
+                )
+
+                # Try to extract content - check multiple possible keys
+                content = (
+                    evidence.get('content') or
+                    evidence.get('snippet') or
+                    evidence.get('body') or
+                    evidence.get('text', '')
+                )
+
+                # Truncate if too long
                 if len(content) > 100:
                     content = content[:97] + "..."
 
-                # Extract relevance score
-                relevance = evidence.get('relevance', 0.0)
+                # Try to extract relevance score - check multiple possible keys
+                relevance = (
+                    evidence.get('relevance') or
+                    evidence.get('score') or
+                    evidence.get('confidence', 0.0)
+                )
 
-                table.add_row(source, content, f"{relevance:.2f}")
+                # Only add row if we have some content
+                if content or source != 'Unknown':
+                    table.add_row(str(source), str(content), f"{float(relevance):.2f}")
+                    has_valid_evidence = True
 
-            console.print(table)
+            # Only print the table if we have valid evidence
+            if has_valid_evidence:
+                console.print(table)
+            else:
+                # Create mock evidence for demonstration purposes
+                console.print("[yellow]No detailed evidence available from the knowledge graph.[/yellow]")
+
+                # Create a table with mock evidence based on the answer
+                mock_table = Table()
+                mock_table.add_column("Source", style="cyan")
+                mock_table.add_column("Content", style="green")
+                mock_table.add_column("Note", style="yellow")
+
+                mock_table.add_row(
+                    "SDK Documentation",
+                    "The analyze_component_impact function predicts the potential impact of changes...",
+                    "Mock data for demo"
+                )
+                mock_table.add_row(
+                    "Code Comments",
+                    "This method identifies components that may be affected by changes to the specified component...",
+                    "Mock data for demo"
+                )
+                mock_table.add_row(
+                    "PR #42",
+                    "Added blast radius prediction capability through analyze_component_impact...",
+                    "Mock data for demo"
+                )
+
+                console.print(mock_table)
 
         # Display query understanding if available
         if hasattr(result, 'query_understanding') and result.query_understanding:
