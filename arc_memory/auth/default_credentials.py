@@ -31,3 +31,29 @@ DEFAULT_LINEAR_CLIENT_ID = "abfe4960313bddfa75a59c37687aca0e"
 # For a public CLI application, this is acceptable as it identifies the application,
 # not individual users. Each user will still need to authenticate with Linear.
 DEFAULT_LINEAR_CLIENT_SECRET = "fd9270bca3098c57e12fbf923a2fbeba"
+
+# Default Jira OAuth credentials for the Arc organizational account
+# These are placeholder values that will be replaced with real values
+# when the Jira integration is registered.
+#
+# These credentials are for the Arc Memory Jira OAuth App, which is configured
+# for the standard OAuth 2.0 flow with a redirect URI.
+DEFAULT_JIRA_CLIENT_ID = "00000000-0000-0000-0000-000000000000"  # Placeholder for future real credentials
+
+# This is the client secret for the Arc Memory Jira OAuth App.
+# For a public CLI application, this is acceptable as it identifies the application,
+# not individual users. Each user will still need to authenticate with Jira.
+DEFAULT_JIRA_CLIENT_SECRET = "00000000000000000000000000000000"  # Placeholder for future real credentials
+
+# Default Notion OAuth credentials for the Arc organizational account
+# These are placeholder values that will be replaced with real values
+# when the Notion integration is registered.
+#
+# These credentials are for the Arc Memory Notion OAuth App, which is configured
+# for the standard OAuth 2.0 flow with a redirect URI.
+DEFAULT_NOTION_CLIENT_ID = "00000000-0000-0000-0000-000000000000"  # Placeholder for future real credentials
+
+# This is the client secret for the Arc Memory Notion OAuth App.
+# For a public CLI application, this is acceptable as it identifies the application,
+# not individual users. Each user will still need to authenticate with Notion.
+DEFAULT_NOTION_CLIENT_SECRET = "secret_00000000000000000000000000000000000000000000"  # Placeholder for future real credentials

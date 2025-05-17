@@ -195,6 +195,13 @@ def discover_plugins() -> IngestorRegistry:
         logger.warning(f"Failed to load built-in plugin 'linear': {e}")
 
     try:
+        from arc_memory.ingest.jira import JiraIngestor
+        registry.register(JiraIngestor())
+        logger.debug("Registered built-in plugin: jira")
+    except (ImportError, AttributeError) as e:
+        logger.warning(f"Failed to load built-in plugin 'jira': {e}")
+
+    try:
         from arc_memory.ingest.code_analysis import CodeAnalysisIngestor
         registry.register(CodeAnalysisIngestor())
         logger.debug("Registered built-in plugin: code_analysis")
@@ -207,6 +214,13 @@ def discover_plugins() -> IngestorRegistry:
         logger.debug("Registered built-in plugin: change_patterns")
     except (ImportError, AttributeError) as e:
         logger.warning(f"Failed to load built-in plugin 'change_patterns': {e}")
+
+    try:
+        from arc_memory.ingest.notion import NotionIngestor
+        registry.register(NotionIngestor())
+        logger.debug("Registered built-in plugin: notion")
+    except (ImportError, AttributeError) as e:
+        logger.warning(f"Failed to load built-in plugin 'notion': {e}")
 
     # Discover and register third-party plugins
     try:
@@ -241,19 +255,19 @@ def get_plugin_config(plugin_name: str) -> Dict[str, Any]:
 
 def get_ingestor_plugins(repo_path: Optional[Path] = None) -> List[IngestorPlugin]:
     """Get ingestor plugins with repo_path configured.
-    
+
     Args:
         repo_path: The path to the repository to analyze.
-        
+
     Returns:
         A list of configured ingestor plugin instances.
     """
     # Use the discover_plugins function to get the registry
     registry = discover_plugins()
-    
-    # Filter out already directly instantiated plugins (git, github, adr, linear, etc.)
+
+    # Filter out already directly instantiated plugins (git, github, adr, linear, jira, notion, etc.)
     # as these are added separately in the build command
-    built_in_plugins = ["git", "github", "adr", "linear", "code_analysis", "change_patterns"]
-    
+    built_in_plugins = ["git", "github", "adr", "linear", "jira", "notion", "code_analysis", "change_patterns"]
+
     # Return only third-party plugins
     return [p for p in registry.get_all() if p.get_name() not in built_in_plugins]
