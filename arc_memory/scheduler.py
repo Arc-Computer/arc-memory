@@ -79,14 +79,19 @@ def schedule_refresh(interval_hours: int = 24) -> bool:
 
     try:
         if scheduler_type == "cron":
-            return _schedule_cron(interval_hours, refresh_command)
+            success = _schedule_cron(interval_hours, refresh_command)
         elif scheduler_type == "launchd":
-            return _schedule_launchd(interval_hours, refresh_command)
+            success = _schedule_launchd(interval_hours, refresh_command)
         elif scheduler_type == "task_scheduler":
-            return _schedule_task_scheduler(interval_hours, refresh_command)
+            success = _schedule_task_scheduler(interval_hours, refresh_command)
         else:
             logger.error(f"Unsupported scheduler type: {scheduler_type}")
             return False
+
+        if success:
+            update_config("refresh", "scheduled", True)
+            update_config("refresh", "interval_hours", interval_hours)
+        return success
     except Exception as e:
         logger.error(f"Failed to schedule refresh: {e}")
         return False
@@ -102,14 +107,18 @@ def unschedule_refresh() -> bool:
 
     try:
         if scheduler_type == "cron":
-            return _unschedule_cron()
+            success = _unschedule_cron()
         elif scheduler_type == "launchd":
-            return _unschedule_launchd()
+            success = _unschedule_launchd()
         elif scheduler_type == "task_scheduler":
-            return _unschedule_task_scheduler()
+            success = _unschedule_task_scheduler()
         else:
             logger.error(f"Unsupported scheduler type: {scheduler_type}")
             return False
+
+        if success:
+            update_config("refresh", "scheduled", False)
+        return success
     except Exception as e:
         logger.error(f"Failed to unschedule refresh: {e}")
         return False
