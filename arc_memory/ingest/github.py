@@ -44,7 +44,9 @@ def get_repo_info(repo_path: Path) -> Tuple[str, str]:
         github_remote = None
         for remote in remotes:
             for url in remote.urls:
-                if "github.com" in url:
+                from urllib.parse import urlparse
+                parsed_url = urlparse(url)
+                if parsed_url.hostname and (parsed_url.hostname == "github.com" or parsed_url.hostname.endswith(".github.com")):
                     github_remote = url
                     break
             if github_remote:
