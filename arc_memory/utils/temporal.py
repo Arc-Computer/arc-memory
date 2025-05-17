@@ -4,7 +4,7 @@ This module provides utilities for handling temporal data in the knowledge graph
 including timestamp normalization and parsing functions.
 """
 
-from datetime import datetime, timezone
+from datetime import datetime
 from typing import Any, Optional, Union
 
 from arc_memory.schema.models import Node, NodeType
@@ -33,34 +33,20 @@ def normalize_timestamp(node: Node) -> Optional[datetime]:
         # PRNode - use created_at or merged_at
         if hasattr(node, 'extra') and node.extra:
             if 'created_at' in node.extra:
-                # Parse the timestamp if it's a string
-                if isinstance(node.extra['created_at'], str):
-                    return parse_timestamp(node.extra['created_at'])
-                return node.extra['created_at']
+                return parse_timestamp(node.extra['created_at'])
 
         # If no created_at in extra, try merged_at
         if hasattr(node, 'merged_at') and node.merged_at:
             return node.merged_at
-
-        # For test compatibility, use a fixed timestamp if all else fails
-        if hasattr(node, 'state') and node.state == "merged":
-            return datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
     elif node.type == NodeType.ISSUE:
         # IssueNode - use created_at
         if hasattr(node, 'extra') and node.extra:
             if 'created_at' in node.extra:
                 return parse_timestamp(node.extra['created_at'])
-
-        # For test compatibility, use a fixed timestamp if all else fails
-        return datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
     elif node.type == NodeType.FILE:
         # FileNode - use last_modified
         if hasattr(node, 'last_modified') and node.last_modified:
             return node.last_modified
-    elif node.type == NodeType.CONCEPT:
-        # For test compatibility, use a fixed timestamp for concept nodes
-        # This is a known issue that will be fixed in a future release
-        return datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
 
     # Check common fields in extra
     if hasattr(node, 'extra') and node.extra:
@@ -68,13 +54,7 @@ def normalize_timestamp(node: Node) -> Optional[datetime]:
             if key in node.extra and node.extra[key]:
                 return parse_timestamp(node.extra[key])
 
-        # For test compatibility, if we have extra fields but no timestamp
-        if node.type == NodeType.CONCEPT:
-            return datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-
-    # For test compatibility, use a fixed timestamp if all else fails
-    # This is a known issue that will be fixed in a future release
-    return datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    return None
 
 
 def parse_timestamp(timestamp_value: Any) -> Optional[datetime]:
@@ -95,13 +75,9 @@ def parse_timestamp(timestamp_value: Any) -> Optional[datetime]:
                 return datetime.fromisoformat(timestamp_value.replace('Z', '+00:00'))
             return datetime.fromisoformat(timestamp_value)
         except ValueError:
-            # For test compatibility, use a fixed timestamp if parsing fails
-            # This is a known issue that will be fixed in a future release
-            return datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+            pass
 
-    # For test compatibility, use a fixed timestamp if all else fails
-    # This is a known issue that will be fixed in a future release
-    return datetime(2023, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
+    return None
 
 
 def get_timestamp_str(timestamp: Optional[Union[datetime, str]]) -> Optional[str]:
@@ -127,8 +103,7 @@ def get_timestamp_str(timestamp: Optional[Union[datetime, str]]) -> Optional[str
         except ValueError:
             return timestamp
 
-    # This line is unreachable but kept for clarity
-    # return None
+    return None
 
 
 def compare_timestamps(ts1: Optional[Union[datetime, str]],
