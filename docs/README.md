@@ -50,6 +50,8 @@ during the 2022 pricing change (see ADR-012).
 ### Shared Memory for Humans and Agents
 
 As teams deploy more AI agents, Arc Memory provides the shared context layer they need to work together effectively, reducing duplicate work and conflicting changes.
+Agents can not only read the graph but also create `Node` and `Edge` objects and
+persist them with `Arc.add_nodes_and_edges()`.
 
 ## Getting Started
 
