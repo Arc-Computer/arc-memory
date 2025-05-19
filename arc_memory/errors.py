@@ -42,6 +42,24 @@ class LinearAuthError(ArcError):
     pass
 
 
+class JiraAuthError(ArcError):
+    """Error raised when Jira authentication fails."""
+
+    pass
+
+
+class NotionAuthError(ArcError):
+    """Error raised when Notion authentication fails."""
+
+    pass
+
+
+class AuthError(ArcError):
+    """Base class for authentication errors."""
+
+    pass
+
+
 class GraphBuildError(ArcError):
     """Error raised when building the graph fails."""
 

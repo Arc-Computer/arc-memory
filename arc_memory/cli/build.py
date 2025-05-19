@@ -20,7 +20,9 @@ from arc_memory.ingest.change_patterns import ChangePatternIngestor
 from arc_memory.ingest.code_analysis import CodeAnalysisIngestor
 from arc_memory.ingest.git import GitIngestor
 from arc_memory.ingest.github import GitHubIngestor
+from arc_memory.ingest.jira import JiraIngestor
 from arc_memory.ingest.linear import LinearIngestor
+from arc_memory.ingest.notion import NotionIngestor
 from arc_memory.llm.ollama_client import OllamaClient, ensure_ollama_available
 from arc_memory.logging_conf import get_logger
 
@@ -78,6 +80,12 @@ def build(
     linear: bool = typer.Option(
         False, "--linear", help="Fetch data from Linear."
     ),
+    jira: bool = typer.Option(
+        False, "--jira", help="Fetch data from Jira."
+    ),
+    notion: bool = typer.Option(
+        False, "--notion", help="Fetch data from Notion."
+    ),
     llm_enhancement: LLMEnhancementLevel = typer.Option(
         LLMEnhancementLevel.NONE,
         "--llm-enhancement",
@@ -126,8 +134,14 @@ def build(
         # Build with Linear data
         arc build --linear
 
-        # Build with both GitHub and Linear data
-        arc build --github --linear
+        # Build with Jira data
+        arc build --jira
+
+        # Build with Notion data
+        arc build --notion
+
+        # Build with multiple data sources
+        arc build --github --linear --jira --notion
 
         # Build with LLM enhancement
         arc build --llm-enhancement standard
@@ -176,6 +190,16 @@ def build(
         if linear:
             linear_ingestor = LinearIngestor()
             ingestors.append(linear_ingestor)
+
+        # Create the Jira ingestor if requested
+        if jira:
+            jira_ingestor = JiraIngestor()
+            ingestors.append(jira_ingestor)
+
+        # Create the Notion ingestor if requested
+        if notion:
+            notion_ingestor = NotionIngestor()
+            ingestors.append(notion_ingestor)
 
         # Create the ADR ingestor
         adr_ingestor = ADRIngestor()
