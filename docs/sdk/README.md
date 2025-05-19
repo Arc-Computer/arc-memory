@@ -175,6 +175,34 @@ assistant = openai_adapter.create_assistant(
 )
 ```
 
+## Writing to the Graph
+
+Agents can also **persist new knowledge** into Arc Memory. Create `Node` and
+`Edge` instances from `arc_memory.schema.models` and pass them to
+`arc.add_nodes_and_edges()`:
+
+```python
+from arc_memory import Arc
+from arc_memory.schema.models import Node, Edge, NodeType, EdgeRel
+
+arc = Arc(repo_path="./")
+
+doc = Node(
+    id="document:agent-note",
+    type=NodeType.DOCUMENT,
+    title="Agent Observation",
+    body="This was learned by the agent."
+)
+
+link = Edge(src=doc.id, dst="commit:abc123", rel=EdgeRel.REFERENCES)
+
+arc.add_nodes_and_edges([doc], [link])
+```
+
+This uses the same transactional write path as Arc's build process. SQLite is
+the default backend, so coordinate concurrent writes or use Neo4j if you need
+higher write throughput.
+
 ## Core Concepts
 
 ### Knowledge Graph

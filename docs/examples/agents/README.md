@@ -45,4 +45,8 @@ python agents/code_review_assistant.py --repo /path/to/repo --files file1.py fil
 
 These examples are designed to be starting points for building your own agents. Feel free to modify them to suit your needs or use them as inspiration for building entirely new agents.
 
+Agents can also **write** to the knowledge graph. Create `Node` and `Edge`
+instances using the models in `arc_memory.schema.models` and call
+`Arc.add_nodes_and_edges()` to persist them.
+
 For more information on building agents with Arc Memory, see the [SDK Documentation](../../sdk/README.md).
