@@ -431,6 +431,7 @@ def refresh_knowledge_graph(
     llm_enhancement_level: str = "standard",
     verbose: bool = False,
     repo_id: Optional[str] = None,
+    source_configs: Optional[Dict[str, Dict[str, Any]]] = None,
 ) -> Dict[str, Any]:
     """Refresh the knowledge graph with the latest data.
 
@@ -662,32 +663,58 @@ Generate structured JSON following the requested schema for each enhancement tas
     # Process nodes and edges using ingestors
     all_nodes = []
     all_edges = []
+    ingestion_summary_list = []
 
     if verbose:
         print(f"Running {len(ingestors)} ingestors...")
 
     for idx, ingestor in enumerate(ingestors, 1):
         ingestor_name = ingestor.get_name()
+        nodes, edges, metadata = [], [], {}  # Ensure these are defined
+        status = "success"
+        error_message = None
+        ingestor_start = time.time()
 
         if verbose:
             print(f"[{idx}/{len(ingestors)}] Processing {ingestor_name}...")
-
-        ingestor_start = time.time()
 
         try:
             # Get the last processed metadata for this ingestor
             last_processed = get_ingestor_metadata(ingestor_name, db_path, verbose)
 
             # Call the ingest method with the appropriate parameters for each ingestor type
+            ingestor_config = source_configs.get(ingestor_name) if source_configs else {}
+            ingestor_kwargs = ingestor_config or {}
+
             if ingestor_name == "git":
                 nodes, edges, metadata = ingestor.ingest(
                     repo_path=repo_path,
                     last_processed=last_processed,  # Use last_processed for incremental builds
+                    **ingestor_kwargs
                 )
             elif ingestor_name == "github":
                 nodes, edges, metadata = ingestor.ingest(
                     repo_path=repo_path,
                     last_processed=last_processed,  # Use last_processed for incremental builds
+                    **ingestor_kwargs
+                )
+            elif ingestor_name == "linear":
+                nodes, edges, metadata = ingestor.ingest(
+                    repo_path=repo_path,
+                    last_processed=last_processed,
+                    **ingestor_kwargs
+                )
+            elif ingestor_name == "jira":
+                nodes, edges, metadata = ingestor.ingest(
+                    repo_path=repo_path,
+                    last_processed=last_processed,
+                    **ingestor_kwargs
+                )
+            elif ingestor_name == "notion":
+                nodes, edges, metadata = ingestor.ingest(
+                    repo_path=repo_path,
+                    last_processed=last_processed,
+                    **ingestor_kwargs
                 )
             elif ingestor_name == "adr":
                 nodes, edges, metadata = ingestor.ingest(
@@ -700,6 +727,7 @@ Generate structured JSON following the requested schema for each enhancement tas
                     last_processed=last_processed,
                     llm_enhancement_level=llm_enhancement_level if use_llm else "none",
                     ollama_client=llm_client if llm_provider == "ollama" and use_llm else None,
+                    **ingestor_kwargs
                 )
             elif ingestor_name == "change_patterns":
                 nodes, edges, metadata = ingestor.ingest(
@@ -707,6 +735,7 @@ Generate structured JSON following the requested schema for each enhancement tas
                     last_processed=last_processed,
                     llm_enhancement_level=llm_enhancement_level if use_llm else "none",
                     ollama_client=llm_client if llm_provider == "ollama" and use_llm else None,
+                    **ingestor_kwargs
                 )
             else:
                 # Default handling for other ingestors
@@ -714,25 +743,43 @@ Generate structured JSON following the requested schema for each enhancement tas
                     nodes, edges, metadata = ingestor.ingest(
                         repo_path=repo_path,
                         last_processed=last_processed,
+                        **ingestor_kwargs
                     )
                 else:
                     nodes, edges, metadata = ingestor.ingest(
                         last_processed=last_processed,
+                        **ingestor_kwargs
                     )
         except Exception as e:
             if verbose:
                 print(f"❌ Error processing {ingestor_name}: {e}")
-            nodes, edges, metadata = [], [], {}
+            status = "failure"
+            error_message = str(e)
+            nodes, edges, metadata = [], [], {} # Ensure empty on failure for summary
 
         ingestor_time = time.time() - ingestor_start
-        all_nodes.extend(nodes)
-        all_edges.extend(edges)
+        
+        summary_entry = {
+            "name": ingestor_name,
+            "status": status,
+            "nodes_processed": len(nodes),
+            "edges_processed": len(edges),
+            "error_message": error_message,
+            "processing_time_seconds": round(ingestor_time, 2)
+        }
+        ingestion_summary_list.append(summary_entry)
 
-        # Save the metadata for this ingestor for future incremental updates
-        save_ingestor_metadata(ingestor_name, metadata, db_path, verbose)
+        if status == "success":
+            all_nodes.extend(nodes)
+            all_edges.extend(edges)
+            # Save the metadata for this ingestor for future incremental updates
+            save_ingestor_metadata(ingestor_name, metadata, db_path, verbose)
 
         if verbose:
-            print(f"✅ [{idx}/{len(ingestors)}] {ingestor_name}: {len(nodes)} nodes, {len(edges)} edges ({ingestor_time:.1f}s)")
+            if status == "success":
+                print(f"✅ [{idx}/{len(ingestors)}] {ingestor_name}: {len(nodes)} nodes, {len(edges)} edges ({ingestor_time:.1f}s)")
+            else:
+                print(f"❌ [{idx}/{len(ingestors)}] {ingestor_name}: Failed. Error: {error_message} ({ingestor_time:.1f}s)")
 
     # Extract architecture components if enabled
     if include_architecture:
@@ -864,9 +911,12 @@ Generate structured JSON following the requested schema for each enhancement tas
         print(f"Database saved to {db_path} and compressed to {compressed_path}")
         print(f"({original_size/1024/1024:.1f} MB → {compressed_size/1024/1024:.1f} MB, {compression_ratio:.1f}% reduction)")
 
+    total_nodes_added = sum(item['nodes_processed'] for item in ingestion_summary_list if item['status'] == 'success')
+    total_edges_added = sum(item['edges_processed'] for item in ingestion_summary_list if item['status'] == 'success')
+
     return {
-        "nodes_added": len(all_nodes),
-        "edges_added": len(all_edges),
+        "total_nodes_added": total_nodes_added,
+        "total_edges_added": total_edges_added,
         "nodes_updated": 0,  # Not tracked in this implementation
         "edges_updated": 0,  # Not tracked in this implementation
         "build_time": total_time,
@@ -875,4 +925,5 @@ Generate structured JSON following the requested schema for each enhancement tas
         "original_size": original_size,
         "compressed_size": compressed_size,
         "compression_ratio": compression_ratio,
+        "ingestor_summary": ingestion_summary_list,
     }

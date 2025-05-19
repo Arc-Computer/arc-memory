@@ -192,6 +192,120 @@ This guide provides solutions for common issues you might encounter when using A
    compress_db()
    ```
 
+## Ingestion Issues
+
+This section covers problems related to fetching data from specific sources like Jira, Notion, GitHub, etc., during the `arc build` process. Always start by checking the `ingestor_summary` returned by `arc.build()` or printed by the CLI for detailed error messages from specific ingestors.
+
+### Interpreting `ingestor_summary`
+
+When you build your knowledge graph using `arc.build()` (SDK) or `arc build` (CLI), the process attempts to fetch data from multiple sources. The summary of this process is crucial for troubleshooting.
+
+**SDK Example:**
+```python
+from arc_memory import Arc
+
+arc = Arc(repo_path=".")
+# Example: build_results = arc.build(include_github=True, include_jira=True, include_notion=True)
+# Ensure you have configured authentication for each service you include.
+build_results = arc.build(
+    include_github=True, # Assumes GITHUB_TOKEN is set
+    source_configs={
+        "jira": {"project_keys": ["YOUR_PROJECT_KEY"]}, # Assumes Jira auth is set up
+        "notion": {"page_ids": ["your_page_id"]} # Assumes Notion auth is set up
+    }
+)
+
+print("Ingestor Summary:")
+for summary in build_results.get("ingestor_summary", []):
+    print(f"  Ingestor: {summary['name']}")
+    print(f"    Status: {summary['status']}")
+    print(f"    Nodes Processed: {summary['nodes_processed']}")
+    print(f"    Edges Processed: {summary['edges_processed']}")
+    if summary['error_message']:
+        print(f"    Error: {summary['error_message']}")
+    # Some ingestors might provide additional metadata in their summary's metadata field
+    if summary.get('metadata'): 
+        print(f"    Metadata: {summary['metadata']}")
+```
+
+**Structure of an entry in `ingestor_summary`:**
+```json
+{
+    "name": "jira", // Name of the ingestor
+    "status": "failure", // "success" or "failure"
+    "nodes_processed": 0,
+    "edges_processed": 0,
+    "error_message": "API token is invalid or expired. Cloud ID: your-cloud-id. Project Keys: ['YOUR_PROJECT_KEY']",
+    "processing_time_seconds": 1.23,
+    "metadata": {"project_count": 0, "issue_count": 0, "timestamp": "..."} // Optional, ingestor-specific
+}
+```
+Check the `status` and `error_message` for each ingestor to pinpoint issues. The `error_message` may contain context like relevant IDs.
+
+### Partial Success During Ingestion
+
+It's possible for some ingestors to succeed while others fail during a single `arc build` run. For example, GitHub data might be ingested successfully, but Jira ingestion could fail due to an authentication error.
+- The `ingestor_summary` (as shown above) will detail the status for each ingestor.
+- The overall `total_nodes_added` and `total_edges_added` in the main build results will only reflect data from successfully completed ingestors.
+- Address the errors for the failed ingestors (using the `error_message` in their summary entry) and re-run the build. Arc Memory will attempt to incrementally update data from already successful ingestors and re-attempt the failed ones.
+
+### Authentication Failures (Jira/Notion)
+
+**Symptom**: Errors in `ingestor_summary` for Jira or Notion, such as "Unauthorized", "Invalid Client ID", "Redirect URI mismatch", "API token is invalid", or "401 Client Error".
+
+**Troubleshooting Steps**:
+
+1.  **Verify Environment Variables**:
+    *   **Jira**: Ensure `ARC_JIRA_CLIENT_ID`, `ARC_JIRA_CLIENT_SECRET`, `ARC_JIRA_REDIRECT_URI`, and `ARC_JIRA_CLOUD_ID` are correctly set. **You must create your own Jira OAuth App**. Refer to the [Jira Integration Guide](./jira_integration.md#1-mandatory-credential-setup-create-your-own-jira-oauth-application).
+    *   **Notion (Internal Token - Recommended)**: Ensure `NOTION_API_KEY` is set with your Internal Integration Token.
+    *   **Notion (Public OAuth App - Advanced)**: If you've set up your own Notion OAuth app, ensure `ARC_NOTION_CLIENT_ID`, `ARC_NOTION_CLIENT_SECRET`, and `ARC_NOTION_REDIRECT_URI` are correct.
+    *   Double-check for typos or extra spaces in these variable values.
+
+2.  **Match OAuth App Credentials**:
+    *   The Client ID and Secret in your environment variables **must exactly match** those from the Jira or Notion OAuth application you created in their respective developer consoles.
+
+3.  **Check Redirect URI (for CLI-based OAuth flows like Jira and custom Notion OAuth)**:
+    *   The `ARC_JIRA_REDIRECT_URI` or `ARC_NOTION_REDIRECT_URI` must be one of the Redirect URIs registered in your Jira/Notion OAuth application settings. For the CLI, this is typically `http://localhost:3000/auth/jira/callback` or `http://localhost:3000/auth/notion/callback`.
+
+4.  **Re-authenticate via CLI**:
+    *   For Jira: `arc auth jira`
+    *   For Notion (if using your own Public OAuth app): `arc auth notion`
+    *   This can help refresh tokens and ensure the correct ones are stored by Arc Memory.
+
+5.  **Notion Specific**:
+    *   **Internal Integration Token**: Confirm the token is valid and not revoked.
+    *   **Content Sharing**: Ensure the Notion pages and databases you want to access have been explicitly "Shared" with your Notion Integration (the one linked to your `NOTION_API_KEY` or OAuth app). This is a common reason for missing content. See the [Notion Integration Guide](./notion_integration.md#5-sharing-pagesdatabases-with-your-notion-integration).
+
+### Content Not Found / Empty Results (Notion)
+
+**Symptom**: The Notion ingestor in `ingestor_summary` shows `status: "success"` but `nodes_processed: 0` (or very few, e.g., only database nodes but no pages from within them), or specific IDs provided in `source_configs` for `page_ids` or `database_ids` are not found.
+
+**Troubleshooting Steps**:
+
+1.  **Crucial: Share Content with Your Notion Integration**:
+    *   Go to your Notion workspace.
+    *   For **every page and database** you want Arc Memory to ingest, you must click "Share" (top-right) and invite the Notion Integration you created (the one associated with your `NOTION_API_KEY` or OAuth app).
+    *   Grant at least "Can view" permissions. For databases, sharing the database itself allows the ingestor to see pages within it.
+    *   Refer to the sharing instructions in the [Notion Integration Guide](./notion_integration.md#5-sharing-pagesdatabases-with-your-notion-integration).
+2.  **Verify IDs in `source_configs`**:
+    *   If you're using `database_ids` or `page_ids` in the SDK `source_configs`, double-check that these IDs are correct (usually UUIDs, Notion URLs might show them without dashes but the API might expect dashes; Arc Memory's client typically handles this normalization). Ensure they belong to the workspace associated with your token.
+
+### Incorrect `cloud_id` for Jira
+
+**Symptom**: Jira ingestor fails. The `error_message` in `ingestor_summary` might indicate that the cloud instance wasn't found, an invalid URL was constructed (e.g., containing `None` for the cloud_id part), or there are authentication issues that stem from targeting the wrong Jira site.
+
+**Troubleshooting Steps**:
+
+1.  **Verify Jira Cloud ID**:
+    *   If using the `ARC_JIRA_CLOUD_ID` environment variable, ensure it's the correct ID for your Jira Cloud instance.
+    *   If using the SDK and providing `cloud_id` in `source_configs["jira"]`, verify that value. This SDK value will override the environment variable for that specific build.
+2.  **Finding Your `cloud_id`**:
+    *   Your Jira Cloud ID is a unique UUID that identifies your specific Jira site. It's **not** your company name in `yourcompany.atlassian.net`.
+    *   After successfully authenticating with `arc auth jira` at least once, Arc Memory attempts to discover and store this ID. If `arc auth jira` fails, this ID might not be set.
+    *   You can also find it by logging into your Jira instance and inspecting network requests in your browser's developer tools while using Jira, or by checking specific admin pages if available.
+    *   Refer to the "Set Required Environment Variables" section in the [Jira Integration Guide](./jira_integration.md) for more tips.
+3.  **Ensure Correct Account**: Make sure the Jira account used for authentication (when `arc auth jira` was run) has access to the projects on the Jira instance identified by the `cloud_id`.
+
 ## GitHub Integration Issues
 
 ### Authentication Failures
@@ -201,23 +315,20 @@ This guide provides solutions for common issues you might encounter when using A
 **Solution**:
 1. Authenticate with GitHub:
    ```bash
-   arc auth gh
+   arc auth github
    ```
+   (Note: The CLI command was `arc auth gh` in older versions, `arc auth github` is current).
 
 2. Check your authentication status:
    ```bash
    arc auth status
    ```
 
-3. If you're hitting rate limits, use a personal access token:
-   ```bash
-   arc auth gh --token YOUR_TOKEN
-   ```
+3. If you're hitting rate limits, ensure `GITHUB_TOKEN` environment variable is set with a Personal Access Token (PAT) that has appropriate scopes (`repo`, `read:user`, `read:org`).
 
-4. For CI/CD environments, use a GitHub App:
-   ```bash
-   arc auth gh-app --app-id APP_ID --private-key path/to/private-key.pem
-   ```
+4. For CI/CD environments, using a GitHub App is recommended for more robust authentication and rate limits.
+   Refer to the [GitHub Integration Guide](./github_integration.md).
+
 
 ### Network Issues
 
@@ -299,28 +410,32 @@ This guide provides solutions for common issues you might encounter when using A
    }
    ```
 
-3. Enable debug logging to see plugin discovery details:
+3. Enable verbose logging to see plugin discovery details:
    ```bash
-   arc build --debug
+   arc build --verbose 
    ```
+   (Note: `--debug` might be available for more detailed logs than `--verbose` in some commands or future versions).
 
 ### Plugin Errors
 
-**Symptom**: Errors during plugin execution.
+**Symptom**: Errors during custom plugin execution, often visible in the `ingestor_summary` for your plugin.
 
 **Solution**:
-1. Check the error message for details.
+1. Check the `error_message` for your plugin in the `ingestor_summary`.
 
-2. Enable debug logging:
+2. Enable verbose or debug logging:
    ```bash
-   arc build --debug
+   arc build --verbose
    ```
 
-3. Test your plugin in isolation:
+3. Test your plugin in isolation, as shown in the [Custom Ingestors Guide](./custom_ingestors.md#3-example-implementation).
    ```python
-   from your_package.module import YourPluginClass
-   plugin = YourPluginClass()
-   nodes, edges, metadata = plugin.ingest()
+   # Example for testing your plugin
+   # from your_package.module import YourPluginClass
+   # plugin = YourPluginClass()
+   # config = {"your_plugin_config_key": "value"} # Simulate source_configs
+   # nodes, edges, metadata = plugin.ingest(**config)
+   # print(f"Nodes: {len(nodes)}, Edges: {len(edges)}, Metadata: {metadata}")
    ```
 
 ## CLI Issues

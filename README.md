@@ -187,6 +187,6 @@ The SDK follows a framework-agnostic design with adapters for popular frameworks
 
 ## Privacy and License
 
-Telemetry is disabled by default. Arc Memory respects your privacy and will only collect anonymous usage data if you explicitly opt in.
+Telemetry is disabled by default. Arc Memory respects your privacy and will only collect anonymous usage data if you explicitly opt in. For more details on what data is collected and how to manage your telemetry settings, please see our [Telemetry Documentation](docs/telemetry.md).
 
 Licensed under MIT.

@@ -275,6 +275,7 @@ class JiraIngestor:
         repo_path: Path = None,
         token: Optional[str] = None,
         cloud_id: Optional[str] = None,
+        project_keys: Optional[List[str]] = None,
         last_processed: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Node], List[Edge], Dict[str, Any]]:
         """Ingest Jira projects and issues.
@@ -333,7 +334,37 @@ class JiraIngestor:
             edges = []
             
             # Get projects first
-            all_projects = self._fetch_all_projects(client)
+            all_projects_fetched = self._fetch_all_projects(client)
+
+            # Filter projects if project_keys is provided
+            if project_keys:
+                logger.info(f"Filtering projects by keys: {project_keys}")
+                projects_to_process = []
+                found_keys = set()
+                for project in all_projects_fetched:
+                    if project.get("key") in project_keys:
+                        projects_to_process.append(project)
+                        found_keys.add(project.get("key"))
+                
+                missing_keys = set(project_keys) - found_keys
+                if missing_keys:
+                    logger.warning(f"The following project keys were not found or accessible: {list(missing_keys)}")
+                
+                all_projects = projects_to_process
+            else:
+                all_projects = all_projects_fetched
+
+            if not all_projects:
+                if project_keys:
+                    logger.warning("No projects found matching the provided project keys. Skipping Jira ingestion for issues.")
+                else:
+                    logger.warning("No projects found for this Jira instance. Skipping Jira ingestion for issues.")
+                return [], [], {
+                    "issue_count": 0, 
+                    "project_count": 0, 
+                    "last_updated": datetime.now().isoformat(),
+                    "timestamp": datetime.now().isoformat()
+                }
             
             # Process projects
             project_nodes = self._process_projects(all_projects)
@@ -370,7 +401,7 @@ class JiraIngestor:
             # Create metadata with timestamp for incremental builds
             metadata = {
                 "issue_count": len([n for n in nodes if n.type == NodeType.ISSUE]),
-                "project_count": len([n for n in nodes if n.type == "jira_project"]),  # Custom type
+                "project_count": len(project_nodes), # Count based on processed project nodes
                 "last_updated": datetime.now().isoformat(),
                 "timestamp": datetime.now().isoformat(),
             }

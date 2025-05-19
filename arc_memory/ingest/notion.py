@@ -201,6 +201,8 @@ class NotionIngestor:
         self,
         repo_path: Optional[Path] = None,
         token: Optional[str] = None,
+        database_ids: Optional[List[str]] = None,
+        page_ids: Optional[List[str]] = None,
         last_processed: Optional[Dict[str, Any]] = None,
     ) -> Tuple[List[Node], List[Edge], Dict[str, Any]]:
         """Ingest Notion pages and databases.
@@ -244,30 +246,55 @@ class NotionIngestor:
                     logger.warning("Invalid timestamp in last_processed, performing full build")
 
             # Fetch pages and databases
-            page_count, database_count = 0, 0
+            processed_pages = []
+            processed_databases = []
 
-            # Search for pages
-            pages = self._fetch_all_pages(client, last_updated)
-            page_nodes, page_edges = self._process_pages(client, pages)
+            if page_ids:
+                logger.info(f"Fetching specific pages by IDs: {page_ids}")
+                for page_id in page_ids:
+                    try:
+                        page_data = client.get_page(page_id)
+                        processed_pages.append(page_data)
+                    except IngestError as e:
+                        logger.warning(f"Failed to fetch page with ID '{page_id}': {e}")
+                    except Exception as e:
+                        logger.error(f"Unexpected error fetching page ID '{page_id}': {e}")
+            else:
+                # Search for all pages if no specific page_ids are given
+                logger.info("No specific page IDs provided, fetching all accessible pages.")
+                processed_pages.extend(self._fetch_all_pages(client, last_updated))
+            
+            page_nodes, page_edges = self._process_pages(client, processed_pages)
             nodes.extend(page_nodes)
             edges.extend(page_edges)
-            page_count = len(page_nodes)
 
-            # Search for databases
-            databases = self._fetch_all_databases(client, last_updated)
-            db_nodes, db_edges = self._process_databases(client, databases)
+            if database_ids:
+                logger.info(f"Fetching specific databases by IDs: {database_ids}")
+                for db_id in database_ids:
+                    try:
+                        db_data = client.get_database(db_id)
+                        processed_databases.append(db_data)
+                    except IngestError as e:
+                        logger.warning(f"Failed to fetch database with ID '{db_id}': {e}")
+                    except Exception as e:
+                        logger.error(f"Unexpected error fetching database ID '{db_id}': {e}")
+            else:
+                # Search for all databases if no specific database_ids are given
+                logger.info("No specific database IDs provided, fetching all accessible databases.")
+                processed_databases.extend(self._fetch_all_databases(client, last_updated))
+
+            db_nodes, db_edges = self._process_databases(client, processed_databases)
             nodes.extend(db_nodes)
             edges.extend(db_edges)
-            database_count = len(db_nodes)
-
+            
             # Create metadata
             metadata = {
-                "page_count": page_count,
-                "database_count": database_count,
+                "page_count": len(page_nodes),
+                "database_count": len(db_nodes),
                 "timestamp": datetime.now().isoformat(),
             }
 
-            logger.info(f"Processed {page_count} Notion pages and {database_count} databases")
+            logger.info(f"Processed {metadata['page_count']} Notion pages and {metadata['database_count']} databases")
             return nodes, edges, metadata
         except Exception as e:
             logger.exception("Unexpected error during Notion ingestion")

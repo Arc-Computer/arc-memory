@@ -290,26 +290,55 @@ arc build --db-path /path/to/custom/db.sqlite
 
 ### Programmatically Building the Graph
 
-You can also build the knowledge graph programmatically using the SDK:
+You can also build the knowledge graph programmatically using the SDK. This gives you more control over the build process, including how data sources are configured.
 
 ```python
 from arc_memory import Arc
-from arc_memory.auto_refresh import refresh_knowledge_graph
 
 # Initialize Arc with the repository path
 arc = Arc(repo_path="./")
 
 # Build or refresh the knowledge graph
-refresh_result = refresh_knowledge_graph(
-    repo_path="./",
+# The `build` method is a convenient wrapper around refresh_knowledge_graph
+build_summary = arc.build(
+    repo_path="./", # Or use the repo_path from Arc initialization
     include_github=True,
-    include_linear=False,
-    verbose=True
+    # include_linear=False, # Set to True if you have Linear configured
+    # include_jira=False, # Set to True if you have Jira configured
+    # include_notion=False, # Set to True if you have Notion configured
+    verbose=True,
+    source_configs={
+        "jira": {
+            # Example: Provide cloud_id if not set via ARC_JIRA_CLOUD_ID
+            # "cloud_id": "your-jira-cloud-id-from-atlassian", 
+            "project_keys": ["PROJ1", "ANOTHERPROJ"] # Only ingest these specific projects
+        },
+        "notion": {
+            # Example: Specify particular database IDs and page IDs to ingest
+            "database_ids": ["your_notion_database_id_1"],
+            "page_ids": ["your_notion_page_id_1", "your_notion_page_id_2"]
+        }
+        # Add configurations for other custom or built-in ingestors by their name
+    }
 )
 
-print(f"Added {refresh_result.nodes_added} nodes and {refresh_result.edges_added} edges")
-print(f"Updated {refresh_result.nodes_updated} nodes and {refresh_result.edges_updated} edges")
+print(f"Total nodes added: {build_summary.get('total_nodes_added', 0)}")
+print(f"Total edges added: {build_summary.get('total_edges_added', 0)}")
+# The build_summary also contains nodes_updated, edges_updated, build_time, etc.
+
+print("\nIngestor Summary:")
+for summary in build_summary.get("ingestor_summary", []):
+    status_info = f"  - {summary['name']}: Status - {summary['status']}"
+    status_info += f", Nodes Processed - {summary['nodes_processed']}"
+    status_info += f", Edges Processed - {summary['edges_processed']}"
+    if summary['status'] == 'failure' and summary['error_message']:
+        status_info += f", Error: {summary['error_message']}"
+    print(status_info)
 ```
+
+The `source_configs` parameter in `arc.build()` (and `refresh_knowledge_graph`) allows you to pass specific configurations to data ingestors. Each key in `source_configs` corresponds to an ingestor's unique name (e.g., "jira", "notion", or a custom ingestor's name), and its value is a dictionary of settings for that ingestor.
+
+The dictionary returned by `arc.build()` (referred to as `build_summary` above) now includes an `ingestor_summary` list. This list provides detailed results for each data source processed during the build, including its name, status (success/failure), number of nodes and edges processed, any error messages, and processing time. This is very useful for checking the success of each part of the ingestion or diagnosing specific errors.
 
 ### Verifying the Build
 
@@ -355,6 +384,29 @@ You can verify your GitHub authentication status with:
 ```bash
 arc doctor
 ```
+For more details, see the [GitHub Integration Guide](./guides/github_integration.md).
+
+
+#### Jira Integration
+To integrate Jira, you **must** create your own Jira OAuth 2.0 Application and configure Arc Memory with its credentials via environment variables. This is because the default bundled credentials are placeholders.
+Refer to the detailed [Jira Integration Guide](./guides/jira_integration.md) for step-by-step instructions.
+
+Once configured and authenticated via `arc auth jira`, you can include Jira data:
+```bash
+arc build --jira
+```
+
+#### Notion Integration
+Notion integration requires you to set up a Notion Integration (either Internal or Public).
+- For **Internal Integrations**, you'll obtain an "Internal Integration Token" and set it as the `NOTION_API_KEY` environment variable.
+- For **Public Integrations** (if you've created your own OAuth app), you'll set `ARC_NOTION_CLIENT_ID`, `ARC_NOTION_CLIENT_SECRET`, and `ARC_NOTION_REDIRECT_URI` environment variables and authenticate using `arc auth notion`.
+Crucially, you must also **share** the specific Notion pages and databases you want to ingest with your created Notion Integration.
+See the [Notion Integration Guide](./guides/notion_integration.md) for complete setup details.
+
+To include Notion data after setup:
+```bash
+arc build --notion
+```
 
 #### Linear Integration
 
@@ -373,6 +425,7 @@ The Linear authentication uses OAuth 2.0:
 2. Log in to Linear and authorize Arc Memory
 3. The browser will redirect back to a local server
 4. The token is stored securely in your system keyring
+For more details, see the [Linear Integration Guide](./guides/linear_integration.md).
 
 #### Using Multiple Data Sources
 
@@ -837,6 +890,10 @@ jobs:
           key: ${{ runner.os }}-arc-${{ github.repository }}-${{ hashFiles('.git/HEAD') }}
 ```
 
+## Privacy and Telemetry
+
+Arc Memory includes an optional and anonymous telemetry feature to help us improve the product. It is **disabled by default**. For more information on what is collected and how to opt-in if you choose, please see our [Telemetry Guide](telemetry.md).
+
 ## Next Steps
 
 - [Multi-Repository Support](./multi_repository.md) - Comprehensive guide to working with multiple repositories
@@ -844,4 +901,5 @@ jobs:
 - [Framework Adapters](./sdk/adapters.md) - Integrating with agent frameworks
 - [CLI Reference](./cli/README.md) - Using the Arc Memory CLI
 - [API Reference](./sdk/api_reference.md) - Detailed API documentation
+- [How to Create a Custom Data Ingestor](./guides/custom_ingestors.md) - For extending Arc Memory with new data sources.
 - [GitHub Actions Examples](./examples/github_actions/README.md) - More GitHub Actions examples

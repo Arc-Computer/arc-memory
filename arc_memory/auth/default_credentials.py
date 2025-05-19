@@ -36,6 +36,10 @@ DEFAULT_LINEAR_CLIENT_SECRET = "fd9270bca3098c57e12fbf923a2fbeba"
 # These are placeholder values that will be replaced with real values
 # when the Jira integration is registered.
 #
+# IMPORTANT: These are placeholder credentials. Users should provide their own
+# Jira OAuth credentials (e.g., via environment variables).
+# Refer to the documentation for instructions on how to set up your own credentials.
+#
 # These credentials are for the Arc Memory Jira OAuth App, which is configured
 # for the standard OAuth 2.0 flow with a redirect URI.
 DEFAULT_JIRA_CLIENT_ID = "00000000-0000-0000-0000-000000000000"  # Placeholder for future real credentials
@@ -43,11 +47,19 @@ DEFAULT_JIRA_CLIENT_ID = "00000000-0000-0000-0000-000000000000"  # Placeholder f
 # This is the client secret for the Arc Memory Jira OAuth App.
 # For a public CLI application, this is acceptable as it identifies the application,
 # not individual users. Each user will still need to authenticate with Jira.
+#
+# IMPORTANT: These are placeholder credentials. Users should provide their own
+# Jira OAuth credentials (e.g., via environment variables).
+# Refer to the documentation for instructions on how to set up your own credentials.
 DEFAULT_JIRA_CLIENT_SECRET = "00000000000000000000000000000000"  # Placeholder for future real credentials
 
 # Default Notion OAuth credentials for the Arc organizational account
 # These are placeholder values that will be replaced with real values
 # when the Notion integration is registered.
+#
+# IMPORTANT: These are placeholder credentials. Users should provide their own
+# Notion OAuth credentials (e.g., via environment variables).
+# Refer to the documentation for instructions on how to set up your own credentials.
 #
 # These credentials are for the Arc Memory Notion OAuth App, which is configured
 # for the standard OAuth 2.0 flow with a redirect URI.
@@ -56,4 +68,8 @@ DEFAULT_NOTION_CLIENT_ID = "00000000-0000-0000-0000-000000000000"  # Placeholder
 # This is the client secret for the Arc Memory Notion OAuth App.
 # For a public CLI application, this is acceptable as it identifies the application,
 # not individual users. Each user will still need to authenticate with Notion.
+#
+# IMPORTANT: These are placeholder credentials. Users should provide their own
+# Notion OAuth credentials (e.g., via environment variables).
+# Refer to the documentation for instructions on how to set up your own credentials.
 DEFAULT_NOTION_CLIENT_SECRET = "secret_00000000000000000000000000000000000000000000"  # Placeholder for future real credentials
