@@ -83,14 +83,16 @@ class GitHubDataProvider:
             except Exception as e:
                 logger.warning(f"Error reading cache file {cache_file_path}: {e}. Refetching.")
 
-
         logger.debug(f"Cache miss for {endpoint} with params {params}. Fetching from API.")
         url = f"{self.base_url}/{endpoint}"
         
+        max_attempts = 3  # Max attempts for transient errors
+        max_rate_limit_retries = 5  # Max retries for rate limiting to prevent infinite loops
+        
         attempt = 0
-        max_attempts = 3 # Max attempts for transient errors before rate limit handling
-
-        while attempt < max_attempts:
+        rate_limit_retries = 0
+        
+        while True:  # Main loop that handles both transient errors and rate limiting
             try:
                 response = requests.get(url, headers=self.headers, params=params, timeout=30)
                 
@@ -98,26 +100,27 @@ class GitHubDataProvider:
                 if response.status_code == 403 and "X-RateLimit-Remaining" in response.headers:
                     remaining = int(response.headers["X-RateLimit-Remaining"])
                     if remaining == 0:
-                        reset_time_str = response.headers.get("X-RateLimit-Reset", str(int(time.time() + 3600))) # Default to 1hr if header missing
+                        # Check if we've exceeded max rate limit retries
+                        if rate_limit_retries >= max_rate_limit_retries:
+                            logger.error(f"Exceeded maximum rate limit retries ({max_rate_limit_retries}). Aborting.")
+                            raise Exception("GitHub API rate limit exceeded maximum retry attempts")
+                            
+                        reset_time_str = response.headers.get("X-RateLimit-Reset", str(int(time.time() + 3600)))  # Default to 1hr
                         reset_time = int(reset_time_str)
                         current_time = int(time.time())
-                        sleep_time = max(0, reset_time - current_time) + 1 # Add 1 sec buffer
+                        sleep_time = max(0, reset_time - current_time) + 1  # Add 1 sec buffer
                         
-                        logger.info(f"Rate limit exceeded. Remaining: {remaining}. Reset in {reset_time - current_time}s. Sleeping for {sleep_time} seconds.")
-                        if sleep_time > 3600 * 2: # Safety: don't sleep for more than 2 hours
+                        logger.info(f"Rate limit exceeded. Remaining: {remaining}. Reset in {reset_time - current_time}s. Sleeping for {sleep_time} seconds. Retry {rate_limit_retries + 1}/{max_rate_limit_retries}")
+                        if sleep_time > 3600 * 2:  # Safety: don't sleep for more than 2 hours
                             logger.warning(f"Calculated sleep time {sleep_time}s is too long. Capping at 1 hour.")
                             sleep_time = 3600 
+                        
                         time.sleep(sleep_time)
-                        # After sleeping, we should retry the request by continuing the loop or making a recursive call.
-                        # For simplicity here, we'll just make a new attempt in the loop for the _make_request call itself.
-                        # This means _make_request could be called again for the same endpoint/params after sleep.
-                        # A more sophisticated retry might happen outside or by re-calling _make_request internally.
-                        # Let's try continuing the loop for retrying this specific request.
-                        # This will re-evaluate the cache (which will still be a miss) and then re-attempt the request.
-                        # This attempt continues the while loop, for _this_ call to _make_request
-                        return self._make_request(endpoint, params) # Recursive call to retry after sleep
+                        rate_limit_retries += 1
+                        # Continue the loop to retry the request after sleeping
+                        continue
                 
-                response.raise_for_status() # Raise HTTPError for bad responses (4xx or 5xx)
+                response.raise_for_status()  # Raise HTTPError for bad responses (4xx or 5xx)
                 data = response.json()
 
                 # Save to cache
@@ -136,17 +139,19 @@ class GitHubDataProvider:
                 if attempt >= max_attempts:
                     logger.error(f"Request failed after {max_attempts} timeouts for {url}.")
                     raise
-                time.sleep(5 * attempt) # Exponential backoff for timeouts
+                time.sleep(5 * attempt)  # Exponential backoff for timeouts
+                
             except requests.exceptions.RequestException as e:
                 logger.error(f"Request failed for {url} with params {params}: {e}. Attempt {attempt + 1}/{max_attempts}.")
                 attempt += 1
                 if attempt >= max_attempts:
                     logger.error(f"Request failed after {max_attempts} attempts for {url}.")
-                    raise # Reraise the last exception if all attempts fail
-                time.sleep(5 * attempt) # Exponential backoff for other request errors
+                    raise  # Reraise the last exception if all attempts fail
+                time.sleep(5 * attempt)  # Exponential backoff for other request errors
         
-        # Should not be reached if max_attempts leads to a raise
-        raise Exception(f"Failed to fetch data for {url} after multiple attempts.")
+        # This line should not be reached due to the infinite loop with explicit exit conditions
+        # If we get here somehow, raise an exception
+        raise Exception(f"Failed to fetch data for {url} - unexpected loop exit")
     
     def get_commits(self, start_date: str, end_date: str) -> List[Dict[str, Any]]:
         """
