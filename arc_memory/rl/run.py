@@ -8,6 +8,7 @@ training and inference.
 import argparse
 import logging
 import os
+import sys
 import time
 from typing import Dict, List, Any, Optional, Tuple
 
@@ -507,8 +508,9 @@ def main():
     
     elif args.mode == "evaluate":
         if not args.agent_path:
-            logger.error("Agent path required for evaluate mode")
-            return
+            error_msg = "Agent path is required for evaluate mode. Please specify with --agent_path."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
         
         metrics = evaluate_pipeline(
             sdk=sdk,
@@ -529,8 +531,9 @@ def main():
     
     elif args.mode == "demo":
         if not args.agent_path:
-            logger.error("Agent path required for demo mode")
-            return
+            error_msg = "Agent path is required for demo mode. Please specify with --agent_path."
+            logger.error(error_msg)
+            raise ValueError(error_msg)
         
         demo_pipeline(
             sdk=sdk,
@@ -549,4 +552,8 @@ def main():
 
 
 if __name__ == "__main__":
-    main() 
+    try:
+        main()
+    except Exception as e:
+        logger.error(f"An error occurred: {e}")
+        sys.exit(1) 
