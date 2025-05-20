@@ -36,6 +36,59 @@ class RewardFunction:
         raise NotImplementedError("Subclasses must implement calculate_reward()")
 
 
+class BinaryBlastRadiusReward(RewardFunction):
+    """
+    Binary reward function focused exclusively on blast radius prediction.
+    
+    This reward function provides a binary (0/1) reward based on whether
+    the predicted blast radius matches the actual blast radius within a 
+    specified threshold.
+    """
+    
+    def __init__(self, threshold: float = 0.7):
+        """
+        Initialize the binary blast radius reward function.
+        
+        Args:
+            threshold: Similarity threshold for considering a prediction correct (0.0 to 1.0)
+        """
+        super().__init__()
+        self.threshold = threshold
+    
+    def calculate_reward(self, state: Dict[str, Any], action: Dict[str, Any],
+                         next_state: Dict[str, Any], info: Dict[str, Any]) -> float:
+        """
+        Calculate a binary reward for blast radius prediction.
+        
+        Args:
+            state: The current state
+            action: The action taken
+            next_state: The next state
+            info: Additional information
+            
+        Returns:
+            1.0 if prediction meets threshold, 0.0 otherwise
+        """
+        action_type = action.get("type")
+        
+        # Only process blast radius predictions
+        if action_type != "predict_blast_radius":
+            return 0.0
+            
+        # Extract prediction details
+        precision = info.get("blast_radius_precision", 0.0)
+        recall = info.get("blast_radius_recall", 0.0)
+        
+        # Calculate F1 score
+        if precision + recall > 0:
+            f1_score = 2 * precision * recall / (precision + recall)
+        else:
+            f1_score = 0.0
+            
+        # Apply binary reward based on threshold
+        return 1.0 if f1_score >= self.threshold else 0.0
+
+
 class MultiComponentReward(RewardFunction):
     """
     Multi-component reward function.
