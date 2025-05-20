@@ -64,3 +64,8 @@ Thumbs.db
 models/
 plots/
 rl_pipeline.log
+
+#cache
+cache/
+*.github_cache
+
